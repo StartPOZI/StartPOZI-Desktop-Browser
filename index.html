@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>ZhukBrowser</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="custom-titlebar macos" id="customTitlebar">
+      <div class="window-controls">
+        <button id="min-btn" title="Свернуть"></button>
+        <button id="max-btn" title="На весь экран"></button>
+        <button id="close-btn" title="Закрыть"></button>
+      </div>
+    </div>
+    <div class="tabs" id="tabsContainerTabs">
+      <button id="addTab">+</button>
+    </div>
+    <div class="toolbar">
+      <div class="nav-buttons">
+        <button id="back"><</button>
+        <button id="forward">></button>
+        <button id="refresh">ⓒ</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Введите запрос для StartPOZI...">
+        <button id="searchBtn">🔍</button>
+      </div>
+      <div class="menu">
+        <button id="menuBtn">☰</button>
+        <div class="dropdown" id="dropdown">
+          <div class="menu-item">Закладки</div>
+          <div class="menu-item">Загрузки</div>
+          <div class="menu-item">История</div>
+          <div class="menu-item">О нас</div>
+          <div class="menu-item">Настройки</div>
+          <div class="menu-item" id="exit">Выйти</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabs-container" id="tabsContainer">
+      <div class="tab-content active" id="tab-1760814193350-3q92tow0r" data-tab-id="tab-1760814193350-3q92tow0r">
+        <webview useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" allowpopups="" webpreferences="contextIsolation=no,sandbox=no"></webview>
+      </div>
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

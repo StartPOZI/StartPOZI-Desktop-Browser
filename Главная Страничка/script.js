@@ -1,14 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Элементы (без зелёной кнопки)
+    // DOM Elements
     const redBtn = document.getElementById('changePositions');
     const importBtn = document.getElementById('importFromHistory');
     const deleteBtn = document.getElementById('deleteSites');
+    const greenBtn = document.getElementById('changeBackground');
     const sitesGrid = document.getElementById('sitesGrid');
+    const backgroundMenu = document.getElementById('backgroundMenu');
+    const gradientMenu = document.getElementById('gradientMenu');
+    const photoMenu = document.getElementById('photoMenu');
 
-    // Удаляем все упоминания о меню фона
-    // (так как зелёная кнопка удалена, меню фона больше не нужно)
-
-    // Создаем overlay только для меню истории
+    // Create overlay
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
     overlay.style.cssText = `
@@ -24,12 +25,13 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     document.body.appendChild(overlay);
 
+    // State variables
     let isEditMode = false;
     let isDeleteMode = false;
     let draggedItem = null;
     let isHistoryMenuOpen = false;
 
-    // Стандартные сайты
+    // Default sites
     const defaultSites = [
         { name: 'Google', url: 'https://www.google.com', icon: '🔍', category: 'поиск' },
         { name: 'YouTube', url: 'https://www.youtube.com', icon: '▶️', category: 'медиа' },
@@ -38,8 +40,7 @@ document.addEventListener('DOMContentLoaded', function() {
         { name: 'Gmail', url: 'https://mail.google.com', icon: '📧', category: 'почта' }
     ];
 
-    // ========== УСТАНОВКА ГРАДИЕНТА ==========
-
+    // Background functions
     function setBackgroundGradient(gradientType) {
         const gradients = {
             gradient1: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -52,113 +53,229 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const gradient = gradients[gradientType] || gradients.gradient1;
         document.body.style.background = gradient;
+        resetBackgroundStyles();
         saveBackground();
     }
 
-    // ========== ОБРАБОТЧИКИ КНОПОК ==========
+    function setBackgroundImage(url) {
+        document.body.style.background = `url('${url}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundRepeat = 'no-repeat';
+        document.body.style.backgroundAttachment = 'fixed';
+        saveBackground();
+    }
 
-    // КРАСНАЯ КНОПКА - изменение позиций
-    redBtn.addEventListener('click', function() {
+    function resetBackgroundStyles() {
+        document.body.style.backgroundSize = '';
+        document.body.style.backgroundPosition = '';
+        document.body.style.backgroundRepeat = '';
+        document.body.style.backgroundAttachment = '';
+    }
+
+    function uploadCustomImage() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = event => {
+                    setBackgroundImage(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        input.click();
+    }
+
+    function saveBackground() {
+        localStorage.setItem('startpozi_background', document.body.style.background || 'linear-gradient(135deg, #0c3a6d, #1a6fc4, #4cc9f0)');
+        localStorage.setItem('startpozi_backgroundSize', document.body.style.backgroundSize || '');
+        localStorage.setItem('startpozi_backgroundPosition', document.body.style.backgroundPosition || '');
+        localStorage.setItem('startpozi_backgroundRepeat', document.body.style.backgroundRepeat || '');
+        localStorage.setItem('startpozi_backgroundAttachment', document.body.style.backgroundAttachment || '');
+    }
+
+    function loadBackground() {
+        const savedBackground = localStorage.getItem('startpozi_background');
+        if (savedBackground) {
+            document.body.style.background = savedBackground;
+            document.body.style.backgroundSize = localStorage.getItem('startpozi_backgroundSize') || '';
+            document.body.style.backgroundPosition = localStorage.getItem('startpozi_backgroundPosition') || '';
+            document.body.style.backgroundRepeat = localStorage.getItem('startpozi_backgroundRepeat') || '';
+            document.body.style.backgroundAttachment = localStorage.getItem('startpozi_backgroundAttachment') || '';
+        }
+    }
+
+    // Menu display helper
+    function showMenu(menu) {
+        menu.style.setProperty('display', 'block', 'important');
+        menu.style.position = 'fixed';
+        menu.style.top = '50%';
+        menu.style.left = '50%';
+        menu.style.transform = 'translate(-50%, -50%)';
+        menu.style.zIndex = '1001';
+        overlay.style.display = 'block';
+    }
+
+    function closeBackgroundMenus() {
+        [backgroundMenu, gradientMenu, photoMenu].forEach(menu => menu.style.display = 'none');
+        overlay.style.display = 'none';
+    }
+
+    // Background menu handlers
+    backgroundMenu.querySelectorAll('.bg-option').forEach(option => {
+        option.addEventListener('click', () => {
+            const type = option.dataset.type;
+            if (type === 'gradient') {
+                backgroundMenu.style.display = 'none';
+                showMenu(gradientMenu);
+            } else if (type === 'photo') {
+                backgroundMenu.style.display = 'none';
+                showMenu(photoMenu);
+            } else if (type === 'image') {
+                uploadCustomImage();
+                closeBackgroundMenus();
+            }
+        });
+    });
+
+    gradientMenu.querySelector('.back-btn').addEventListener('click', () => {
+        gradientMenu.style.display = 'none';
+        showMenu(backgroundMenu);
+    });
+
+    photoMenu.querySelector('.back-btn').addEventListener('click', () => {
+        photoMenu.style.display = 'none';
+        showMenu(backgroundMenu);
+    });
+
+    gradientMenu.querySelectorAll('.gradient-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const gradientType = opt.dataset.gradient;
+            setBackgroundGradient(gradientType);
+            closeBackgroundMenus();
+        });
+    });
+
+    photoMenu.querySelectorAll('.photo-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const photo = opt.dataset.photo;
+            const url = photo === '1' ? 'https://www.shutterstock.com/image-photo/mountains-during-flowers-blossom-sunrise-260nw-1306759183.jpg' : 'https://media.istockphoto.com/id/1300970146/photo/impressive-summer-sunrise-on-eibsee-lake-with-zugspitze-mountain-range-sunny-outdoor-scene-in.jpg?s=612x612&w=0&k=20&c=qH7-_lkSaUJKWUI29rqR-eaXvZd_9-5_QEtjruqkFdk=';
+            setBackgroundImage(url);
+            closeBackgroundMenus();
+        });
+    });
+
+    overlay.addEventListener('click', closeBackgroundMenus);
+    document.querySelectorAll('.close-btn, .close-menu').forEach(btn => {
+        btn.addEventListener('click', closeBackgroundMenus);
+    });
+
+    greenBtn.addEventListener('click', () => showMenu(backgroundMenu));
+
+    // Button handlers
+    redBtn.addEventListener('click', toggleEditMode);
+    deleteBtn.addEventListener('click', toggleDeleteMode);
+    importBtn.addEventListener('click', showHistoryMenuIfNotOpen);
+
+    function toggleEditMode() {
         isEditMode = !isEditMode;
         isDeleteMode = false;
 
         if (isEditMode) {
-            // Добавляем стили с блюром
-            this.style.boxShadow = '0 0 25px rgba(255, 107, 107, 0.8)';
-            this.style.backdropFilter = 'blur(10px)';
+            redBtn.style.boxShadow = '0 0 25px rgba(255, 107, 107, 0.8)';
+            redBtn.style.backdropFilter = 'blur(10px)';
             deleteBtn.style.boxShadow = '';
             deleteBtn.style.backdropFilter = '';
             enableDragAndDrop();
         } else {
-            this.style.boxShadow = '';
-            this.style.backdropFilter = '';
+            redBtn.style.boxShadow = '';
+            redBtn.style.backdropFilter = '';
             disableDragAndDrop();
             saveSites();
         }
-    });
+    }
 
-    // СИНЯЯ КНОПКА - удаление сайтов
-    deleteBtn.addEventListener('click', function() {
+    function toggleDeleteMode() {
         isDeleteMode = !isDeleteMode;
         isEditMode = false;
 
         if (isDeleteMode) {
-            // Добавляем стили с блюром
-            this.style.boxShadow = '0 0 25px rgba(67, 97, 238, 0.8)';
-            this.style.backdropFilter = 'blur(10px)';
+            deleteBtn.style.boxShadow = '0 0 25px rgba(67, 97, 238, 0.8)';
+            deleteBtn.style.backdropFilter = 'blur(10px)';
             redBtn.style.boxShadow = '';
             redBtn.style.backdropFilter = '';
 
-            // Показываем крестики на сайтах
-            document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
-                card.style.cursor = 'pointer';
-                card.style.borderColor = '#ff6b6b';
-                card.style.position = 'relative';
-
-                if (!card.querySelector('.delete-icon')) {
-                    const deleteIcon = document.createElement('div');
-                    deleteIcon.className = 'delete-icon';
-                    deleteIcon.innerHTML = '×';
-                    deleteIcon.style.cssText = `
-                    position: absolute;
-                    top: 5px;
-                    right: 5px;
-                    width: 25px;
-                    height: 25px;
-                    background: #ff6b6b;
-                    color: white;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    font-size: 20px;
-                    font-weight: bold;
-                    z-index: 10;
-                    `;
-
-                    deleteIcon.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        const siteName = card.querySelector('.site-name').textContent;
-                        const url = card.getAttribute('data-url');
-
-                        if (confirm(`Удалить сайт "${siteName}"?`)) {
-                            card.remove();
-                            removeFromBrowserHistory(url);
-                            saveSites();
-                        }
-                    });
-
-                    card.appendChild(deleteIcon);
-                }
-            });
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(addDeleteIconToCard);
         } else {
-            this.style.boxShadow = '';
-            this.style.backdropFilter = '';
+            deleteBtn.style.boxShadow = '';
+            deleteBtn.style.backdropFilter = '';
 
-            // Убираем крестики
-            document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
-                card.style.cursor = '';
-                card.style.borderColor = '';
-                const deleteIcon = card.querySelector('.delete-icon');
-                if (deleteIcon) {
-                    deleteIcon.remove();
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(removeDeleteIconFromCard);
+        }
+    }
+
+    function addDeleteIconToCard(card) {
+        card.style.cursor = 'pointer';
+        card.style.borderColor = '#ff6b6b';
+        card.style.position = 'relative';
+
+        if (!card.querySelector('.delete-icon')) {
+            const deleteIcon = document.createElement('div');
+            deleteIcon.className = 'delete-icon';
+            deleteIcon.innerHTML = '×';
+            deleteIcon.style.cssText = `
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 25px;
+            height: 25px;
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 10;
+            `;
+
+            deleteIcon.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const siteName = card.querySelector('.site-name').textContent;
+                const url = card.getAttribute('data-url');
+
+                if (confirm(`Удалить сайт "${siteName}"?`)) {
+                    card.remove();
+                    removeFromBrowserHistory(url);
+                    saveSites();
                 }
             });
-        }
-    });
 
-    // ФИОЛЕТОВАЯ КНОПКА - импорт из истории
-    importBtn.addEventListener('click', async function() {
+            card.appendChild(deleteIcon);
+        }
+    }
+
+    function removeDeleteIconFromCard(card) {
+        card.style.cursor = '';
+        card.style.borderColor = '';
+        const deleteIcon = card.querySelector('.delete-icon');
+        if (deleteIcon) deleteIcon.remove();
+    }
+
+    async function showHistoryMenuIfNotOpen() {
         if (isHistoryMenuOpen) return;
 
         isHistoryMenuOpen = true;
         await showEnhancedHistoryMenu();
-    });
+    }
 
-    // ========== ФУНКЦИИ ДЛЯ ИСТОРИИ ==========
-
-    // Инициализация истории браузера
+    // History functions
     function initBrowserHistory() {
         try {
             let savedHistory = localStorage.getItem('browser_history_real');
@@ -183,18 +300,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Получение истории браузера с фильтрацией
     function getBrowserHistory(filter = 'all', search = '') {
         try {
             const savedHistory = localStorage.getItem('browser_history_real');
             let history = savedHistory ? JSON.parse(savedHistory) : [];
 
-            // Фильтрация по категории
             if (filter !== 'all') {
                 history = history.filter(h => h.category === filter);
             }
 
-            // Поиск по названию или URL
             if (search && search.trim() !== '') {
                 const searchLower = search.toLowerCase().trim();
                 history = history.filter(h =>
@@ -210,7 +324,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Добавление сайта в историю
     function addToBrowserHistory(site) {
         try {
             let history = getBrowserHistory();
@@ -242,7 +355,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Удаление сайта из истории
     function removeFromBrowserHistory(url) {
         try {
             let history = getBrowserHistory();
@@ -255,301 +367,120 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Определение категории по домену
     function detectCategory(domain) {
         const domainLower = domain.toLowerCase();
         if (domainLower.includes('google.com') || domainLower.includes('bing.com') || domainLower.includes('yandex')) return 'поиск';
         if (domainLower.includes('youtube.com') || domainLower.includes('twitch.tv') || domainLower.includes('netflix')) return 'медиа';
-        if (domainLower.includes('github.com') || domainLower.includes('stackoverflow') || domainLower.includes('gitlab')) return 'разработка';
-        if (domainLower.includes('gmail.com') || domainLower.includes('outlook.com') || domainLower.includes('mail.')) return 'почта';
-        if (domainLower.includes('chat.openai.com') || domainLower.includes('claude.ai') || domainLower.includes('gemini.google')) return 'ии';
-        if (domainLower.includes('reddit.com') || domainLower.includes('twitter.com') || domainLower.includes('facebook.com')) return 'соцсети';
+        if (domainLower.includes('github.com') || domainLower.includes('stackoverflow')) return 'разработка';
+        if (domainLower.includes('chatgpt') || domainLower.includes('openai') || domainLower.includes('bard')) return 'ии';
+        if (domainLower.includes('gmail') || domainLower.includes('mail.') || domainLower.includes('yandex.ru/mail')) return 'почта';
         return 'другое';
     }
 
-    // Меню истории
     async function showEnhancedHistoryMenu() {
-        const browserHistory = getBrowserHistory('all', '');
-
-        // Создаем меню истории
         const historyMenu = document.createElement('div');
-        historyMenu.className = 'history-menu';
-        historyMenu.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(12, 58, 109, 0.98);
-        backdrop-filter: blur(20px);
-        border-radius: 25px;
-        padding: 25px;
-        width: 90%;
-        max-width: 700px;
-        max-height: 85vh;
-        z-index: 1001;
-        border: 2px solid rgba(157, 78, 221, 0.4);
-        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        historyMenu.id = 'historyMenu';
+        historyMenu.className = 'background-menu';
+        historyMenu.style.zIndex = '1002';
+        historyMenu.style.position = 'fixed';
+        historyMenu.style.top = '50%';
+        historyMenu.style.left = '50%';
+        historyMenu.style.transform = 'translate(-50%, -50%)';
+        historyMenu.innerHTML = `
+        <div class="menu-header">
+        <h3>История браузера</h3>
+        <button class="close-menu" id="closeHistory">×</button>
+        </div>
+        <div class="menu-content">
+        <input type="text" id="historySearch" placeholder="Поиск по имени или URL..." style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
+        <select id="categoryFilter" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
+        <option value="all">Все категории</option>
+        <option value="поиск">Поиск</option>
+        <option value="медиа">Медиа</option>
+        <option value="разработка">Разработка</option>
+        <option value="ии">ИИ</option>
+        <option value="почта">Почта</option>
+        <option value="другое">Другое</option>
+        </select>
+        <div id="historyList" style="max-height: 400px; overflow-y: auto;"></div>
+        </div>
         `;
-
-        // Внутренний HTML меню
-        updateHistoryMenuContent(historyMenu, browserHistory);
-
         document.body.appendChild(historyMenu);
+        historyMenu.style.display = 'block';
         overlay.style.display = 'block';
 
-        // Закрытие меню истории
-        function closeHistoryMenu() {
-            if (historyMenu && historyMenu.parentNode) {
-                historyMenu.remove();
-            }
+        const closeHistory = document.getElementById('closeHistory');
+        closeHistory.addEventListener('click', () => {
+            historyMenu.remove();
             overlay.style.display = 'none';
             isHistoryMenuOpen = false;
-        }
-
-        // Закрытие по кнопке
-        document.getElementById('closeHistoryBtn').addEventListener('click', closeHistoryMenu);
-
-        // Закрытие по overlay
-        overlay.addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeHistoryMenu();
-            }
         });
 
-        // Поиск в реальном времени
-        let searchTimeout;
-        document.getElementById('searchHistoryInput').addEventListener('input', function() {
-            clearTimeout(searchTimeout);
+        overlay.addEventListener('click', () => {
+            historyMenu.remove();
+            overlay.style.display = 'none';
+            isHistoryMenuOpen = false;
+        }, { once: true });
 
-            searchTimeout = setTimeout(() => {
-                const searchTerm = this.value;
-                const filter = document.getElementById('filterHistorySelect').value;
-                const filteredHistory = getBrowserHistory(filter, searchTerm);
+        const historyList = document.getElementById('historyList');
+        const searchInput = document.getElementById('historySearch');
+        const categoryFilter = document.getElementById('categoryFilter');
 
-                updateHistoryMenuContent(historyMenu, filteredHistory);
-            }, 300);
-        });
+        function renderHistory() {
+            historyList.innerHTML = '';
+            const filter = categoryFilter.value;
+            const search = searchInput.value;
+            const history = getBrowserHistory(filter, search);
 
-        // Фильтрация
-        document.getElementById('filterHistorySelect').addEventListener('change', function() {
-            const filter = this.value;
-            const searchTerm = document.getElementById('searchHistoryInput').value;
-            const filteredHistory = getBrowserHistory(filter, searchTerm);
-
-            updateHistoryMenuContent(historyMenu, filteredHistory);
-        });
-
-        // Обновление истории
-        document.getElementById('refreshHistoryBtn').addEventListener('click', async function() {
-            const searchTerm = document.getElementById('searchHistoryInput').value;
-            const filter = document.getElementById('filterHistorySelect').value;
-            const refreshedHistory = getBrowserHistory(filter, searchTerm);
-
-            updateHistoryMenuContent(historyMenu, refreshedHistory);
-        });
-    }
-
-    // Функция обновления содержимого меню истории
-    function updateHistoryMenuContent(menuElement, history) {
-        menuElement.innerHTML = `
-        <div style="flex-shrink: 0; margin-bottom: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <div>
-        <h3 style="color: #c77dff; font-size: 26px; margin: 0; display: flex; align-items: center; gap: 10px;">
-        <span>🌐 История браузера</span>
-        <span style="background: rgba(157, 78, 221, 0.2); color: #c77dff; padding: 2px 10px; border-radius: 15px; font-size: 14px;">${history.length}</span>
-        </h3>
-        <p style="color: rgba(255, 255, 255, 0.7); font-size: 13px; margin: 5px 0 0 0;">
-        Выберите сайты для добавления на стартовую страницу
-        </p>
-        </div>
-        <button id="closeHistoryBtn" style="background: rgba(255, 255, 255, 0.1); border: none; color: white; font-size: 32px; cursor: pointer; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(157, 78, 221, 0.3); transition: all 0.3s; flex-shrink: 0;">×</button>
-        </div>
-
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-        <div style="flex: 1; position: relative;">
-        <input type="text" id="searchHistoryInput" placeholder="🔍 Поиск по истории..." style="width: 100%; padding: 12px 15px 12px 40px; background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(157, 78, 221, 0.3); border-radius: 15px; color: white; font-size: 14px; outline: none; transition: all 0.3s;">
-        </div>
-        <select id="filterHistorySelect" style="padding: 12px 15px; background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(157, 78, 221, 0.3); border-radius: 15px; color: white; font-size: 14px; outline: none; min-width: 150px;">
-        <option value="all">Все категории</option>
-        <option value="поиск">🔍 Поиск</option>
-        <option value="медиа">🎬 Медиа</option>
-        <option value="разработка">💻 Разработка</option>
-        <option value="почта">📧 Почта</option>
-        <option value="ии">🤖 ИИ</option>
-        <option value="соцсети">👥 Соцсети</option>
-        <option value="другое">🌐 Другое</option>
-        </select>
-        </div>
-        </div>
-
-        <div style="flex: 1; overflow-y: auto; padding-right: 5px;" id="historyItemsContainer">
-        ${history.length > 0 ? history.map((site, index) => {
-            try {
-                const domain = new URL(site.url).hostname;
-                const lastVisit = new Date(site.lastVisit).toLocaleDateString('ru-RU');
-                const timeAgo = getTimeAgo(new Date(site.lastVisit));
-                const visitsText = site.visits === 1 ? '1 раз' : `${site.visits} раз`;
-
-                return `
-                <div class="history-item" data-url="${site.url}" data-name="${site.name}" data-icon="${site.icon}" style="display: flex; align-items: center; padding: 18px; background: rgba(255, 255, 255, 0.08); border-radius: 20px; margin-bottom: 12px; border: 2px solid rgba(157, 78, 221, 0.2); transition: all 0.3s; cursor: pointer; position: relative;">
-                <div style="font-size: 32px; margin-right: 20px; width: 60px; text-align: center; color: ${getIconColor(site.category)}; flex-shrink: 0; background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 15px;">${site.icon}</div>
-                <div style="flex: 1; min-width: 0;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                <h4 style="font-size: 17px; margin: 0; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">${site.name}</h4>
-                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                <span style="font-size: 12px; color: ${getCategoryColor(site.category)}; background: ${getCategoryBackground(site.category)}; padding: 4px 10px; border-radius: 12px; font-weight: 500;">${site.category}</span>
-                <span style="font-size: 14px; color: #c77dff; font-weight: bold;">#${index + 1}</span>
-                </div>
-                </div>
-                <div style="font-size: 13px; color: rgba(255, 255, 255, 0.8); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 8px; font-family: 'Courier New', monospace;">
-                ${domain}
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, 0.6);">
-                <span style="display: flex; align-items: center; gap: 5px;">👁️ ${visitsText}</span>
-                <span style="display: flex; align-items: center; gap: 5px;">🕒 ${timeAgo}</span>
-                <span style="display: flex; align-items: center; gap: 5px;">📅 ${lastVisit}</span>
-                </div>
-                </div>
-                <button class="import-btn" style="background: linear-gradient(135deg, #9d4edd, #c77dff); color: white; border: none; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-size: 15px; margin-left: 15px; transition: all 0.3s; flex-shrink: 0; font-weight: bold; box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3);">Добавить</button>
+            history.forEach(site => {
+                const item = document.createElement('div');
+                item.className = 'bg-option history-item';
+                item.style.marginBottom = '10px';
+                item.style.background = getCategoryColor(site.category);
+                item.innerHTML = `
+                <span class="option-icon">${site.icon}</span>
+                <div class="option-text">
+                <h4>${site.name}</h4>
+                <p>${new URL(site.url).hostname} • Посещений: ${site.visits} • Последнее: ${getTimeAgo(new Date(site.lastVisit))}</p>
                 </div>
                 `;
-            } catch (e) {
-                return '';
-            }
-        }).join('') : `
-        <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.5);">
-        <div style="font-size: 48px; margin-bottom: 20px;">🔍</div>
-        <h4 style="margin: 0; color: rgba(255, 255, 255, 0.7);">${history.length === 0 ? 'История пуста' : 'Ничего не найдено'}</h4>
-        <p style="margin: 10px 0 0 0; font-size: 14px;">${history.length === 0 ? 'Посетите несколько сайтов для заполнения истории' : 'Попробуйте изменить поисковый запрос'}</p>
-        </div>
-        `}
-        </div>
-
-        <div style="flex-shrink: 0; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-size: 13px; color: rgba(255, 255, 255, 0.6);">
-        <span>📊 Всего: ${history.length} сайтов</span>
-        </div>
-        <div style="display: flex; gap: 10px;">
-        <button id="refreshHistoryBtn" style="background: rgba(157, 78, 221, 0.2); color: #c77dff; border: 1px solid #9d4edd; padding: 8px 15px; border-radius: 10px; cursor: pointer; font-size: 13px; transition: all 0.3s; display: flex; align-items: center; gap: 5px;">
-        <span>🔄</span> Обновить
-        </button>
-        </div>
-        </div>
-        </div>
-        `;
-
-        // Вешаем обработчики на элементы истории
-        menuElement.querySelectorAll('.history-item').forEach(item => {
-            const importBtn = item.querySelector('.import-btn');
-
-            importBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                importSiteFromHistory(item, true);
+                item.addEventListener('click', () => {
+                    addSiteFromHistory(site);
+                    historyMenu.remove();
+                    overlay.style.display = 'none';
+                    isHistoryMenuOpen = false;
+                });
+                historyList.appendChild(item);
             });
+        }
 
-            item.addEventListener('click', function(e) {
-                if (!e.target.classList.contains('import-btn')) {
-                    importSiteFromHistory(item, true);
-                }
-            });
-        });
+        searchInput.addEventListener('input', renderHistory);
+        categoryFilter.addEventListener('change', renderHistory);
+        renderHistory();
     }
 
-    function importSiteFromHistory(item, showAlert = true) {
-        const url = item.getAttribute('data-url');
-        const name = item.getAttribute('data-name');
-        const icon = item.getAttribute('data-icon');
-
-        if (isSiteAlreadyAdded(url)) {
-            if (showAlert) {
-                alert(`Сайт "${name}" уже добавлен на стартовую страницу!`);
-            }
+    function addSiteFromHistory(site) {
+        const existingCard = Array.from(document.querySelectorAll('.site-card:not(.add-site)')).find(card => card.getAttribute('data-url') === site.url);
+        if (existingCard) {
+            alert('Этот сайт уже добавлен!');
             return;
         }
 
-        const domain = new URL(url).hostname;
-        const category = detectCategory(domain);
-
-        const newCard = document.createElement('div');
-        newCard.className = 'site-card';
-        newCard.setAttribute('data-url', url);
-        newCard.setAttribute('data-category', category);
-
-        newCard.innerHTML = `
-        <div class="site-icon">${icon}</div>
-        <div class="site-name">${name}</div>
-        <div class="site-url">${domain}</div>
-        <div class="site-category">${category}</div>
-        `;
-
-        newCard.addEventListener('click', function() {
-            if (!isEditMode && !isDeleteMode) {
-                addToBrowserHistory({ name, url, icon, category });
-                window.open(url, '_blank');
-            } else if (isDeleteMode) {
-                if (confirm(`Удалить сайт "${name}"?`)) {
-                    this.remove();
-                    removeFromBrowserHistory(url);
-                    saveSites();
-                }
-            }
-        });
-
+        const newCard = createSiteCard(site);
         const addBtn = document.getElementById('addSiteBtn');
         addBtn.parentNode.insertBefore(newCard, addBtn);
         saveSites();
-
-        if (showAlert) {
-            alert(`✅ Сайт "${name}" добавлен со страницы истории!`);
-        }
-    }
-
-    function isSiteAlreadyAdded(url) {
-        const existingSites = Array.from(document.querySelectorAll('.site-card:not(.add-site)'));
-        return existingSites.some(card => card.getAttribute('data-url') === url);
-    }
-
-    function getIconColor(category) {
-        const colors = {
-            'поиск': '#4cc9f0',
-            'медиа': '#ff6b6b',
-            'разработка': '#43e97b',
-            'почта': '#f093fb',
-            'ии': '#9d4edd',
-            'соцсети': '#fee140',
-            'другое': '#667eea'
-        };
-        return colors[category] || '#c77dff';
+        if (isEditMode) enableDragAndDrop();
     }
 
     function getCategoryColor(category) {
-        const colors = {
-            'поиск': '#4cc9f0',
-            'медиа': '#ff6b6b',
-            'разработка': '#43e97b',
-            'почта': '#f093fb',
-            'ии': '#9d4edd',
-            'соцсети': '#fee140',
-            'другое': '#667eea'
-        };
-        return colors[category] || '#c77dff';
-    }
-
-    function getCategoryBackground(category) {
         const backgrounds = {
-            'поиск': 'rgba(76, 201, 240, 0.1)',
-                          'медиа': 'rgba(255, 107, 107, 0.1)',
-                          'разработка': 'rgba(67, 233, 123, 0.1)',
-                          'почта': 'rgba(240, 147, 251, 0.1)',
-                          'ии': 'rgba(157, 78, 221, 0.1)',
-                          'соцсети': 'rgba(254, 225, 64, 0.1)',
-                          'другое': 'rgba(102, 126, 234, 0.1)'
+            'поиск': 'rgba(255, 107, 107, 0.1)',
+                          'медиа': 'rgba(67, 97, 238, 0.1)',
+                          'разработка': 'rgba(157, 78, 221, 0.1)',
+                          'ии': 'rgba(76, 201, 240, 0.1)',
+                          'почта': 'rgba(67, 233, 123, 0.1)',
+                          'другое': 'rgba(255, 193, 7, 0.1)'
         };
         return backgrounds[category] || 'rgba(157, 78, 221, 0.1)';
     }
@@ -570,9 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return `${Math.floor(diffDays / 30)} мес назад`;
     }
 
-    // ========== ФУНКЦИИ ДЛЯ САЙТОВ ==========
-
-    // Загрузка сохраненных данных
+    // Site management
     function loadSavedData() {
         try {
             const savedSites = localStorage.getItem('startpozi_sites');
@@ -591,7 +520,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Сохранение сайтов
     function saveSites() {
         try {
             const sites = [];
@@ -610,30 +538,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Сохранение фона (упрощённая версия)
-    function saveBackground() {
-        try {
-            const background = document.body.style.background ||
-            'linear-gradient(135deg, #0c3a6d, #1a6fc4, #4cc9f0)';
-            localStorage.setItem('startpozi_background', background);
-        } catch (e) {
-            console.error('Ошибка сохранения фона:', e);
-        }
-    }
-
-    // Загрузка фона
-    function loadBackground() {
-        try {
-            const savedBackground = localStorage.getItem('startpozi_background');
-            if (savedBackground) {
-                document.body.style.background = savedBackground;
-            }
-        } catch (e) {
-            console.error('Ошибка загрузки фона:', e);
-        }
-    }
-
-    // Инициализация сайтов
     function initSites() {
         sitesGrid.innerHTML = '';
         initBrowserHistory();
@@ -646,7 +550,6 @@ document.addEventListener('DOMContentLoaded', function() {
             addToBrowserHistory(site);
         });
 
-        // Кнопка добавления
         const addBtn = document.createElement('div');
         addBtn.className = 'site-card add-site';
         addBtn.id = 'addSiteBtn';
@@ -660,12 +563,11 @@ document.addEventListener('DOMContentLoaded', function() {
         loadBackground();
     }
 
-    // Создание карточки сайта
     function createSiteCard(site) {
         const card = document.createElement('div');
         card.className = 'site-card';
-        card.setAttribute('data-url', site.url);
-        card.setAttribute('data-category', site.category || 'другое');
+        card.dataset.url = site.url;
+        card.dataset.category = site.category || 'другое';
 
         card.innerHTML = `
         <div class="site-icon">${site.icon}</div>
@@ -690,15 +592,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return card;
     }
 
-    // Добавление нового сайта
     function addNewSite() {
         const url = prompt('Введите URL сайта (например: https://example.com):');
         if (!url) return;
 
-        let validUrl = url;
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            validUrl = 'https://' + url;
-        }
+        let validUrl = url.startsWith('http') ? url : 'https://' + url;
 
         try {
             new URL(validUrl);
@@ -711,100 +609,77 @@ document.addEventListener('DOMContentLoaded', function() {
         const domain = new URL(validUrl).hostname;
         const category = detectCategory(domain);
 
-        let icon = '🌐';
-        const domainLower = domain.toLowerCase();
-        if (domainLower.includes('youtube')) icon = '▶️';
-        else if (domainLower.includes('google')) icon = '🔍';
-        else if (domainLower.includes('github')) icon = '💻';
-        else if (domainLower.includes('chatgpt') || domainLower.includes('openai')) icon = '🤖';
-        else if (domainLower.includes('gmail') || domainLower.includes('mail.')) icon = '📧';
-        else if (domainLower.includes('netflix')) icon = '🎬';
-        else if (domainLower.includes('twitter')) icon = '🐦';
-        else if (domainLower.includes('instagram')) icon = '📷';
-        else if (domainLower.includes('discord')) icon = '💬';
-        else if (domainLower.includes('spotify')) icon = '🎵';
-        else if (domainLower.includes('reddit')) icon = '👥';
-        else if (domainLower.includes('stackoverflow')) icon = '💡';
+        let icon = getIconForDomain(domain);
 
-        const newCard = document.createElement('div');
-        newCard.className = 'site-card';
-        newCard.setAttribute('data-url', validUrl);
-        newCard.setAttribute('data-category', category);
-
-        newCard.innerHTML = `
-        <div class="site-icon">${icon}</div>
-        <div class="site-name">${name}</div>
-        <div class="site-url">${domain}</div>
-        <div class="site-category" style="display: none;">${category}</div>
-        `;
-
-        newCard.addEventListener('click', function(e) {
-            if (!isEditMode && !isDeleteMode) {
-                addToBrowserHistory({ name, url: validUrl, icon, category });
-                window.open(validUrl, '_blank');
-            } else if (isDeleteMode) {
-                if (confirm(`Удалить сайт "${name}"?`)) {
-                    this.remove();
-                    removeFromBrowserHistory(validUrl);
-                    saveSites();
-                }
-            }
-        });
+        const newCard = createSiteCard({ name, url: validUrl, icon, category });
 
         const addBtn = document.getElementById('addSiteBtn');
         addBtn.parentNode.insertBefore(newCard, addBtn);
         addToBrowserHistory({ name, url: validUrl, icon, category });
         saveSites();
 
-        if (isEditMode) {
-            enableDragAndDrop();
-        }
+        if (isEditMode) enableDragAndDrop();
     }
 
-    // ========== DRAG AND DROP ==========
+    function getIconForDomain(domain) {
+        const domainLower = domain.toLowerCase();
+        if (domainLower.includes('youtube')) return '▶️';
+        if (domainLower.includes('google')) return '🔍';
+        if (domainLower.includes('github')) return '💻';
+        if (domainLower.includes('chatgpt') || domainLower.includes('openai')) return '🤖';
+        if (domainLower.includes('gmail') || domainLower.includes('mail.')) return '📧';
+        if (domainLower.includes('netflix')) return '🎬';
+        if (domainLower.includes('twitter')) return '🐦';
+        if (domainLower.includes('instagram')) return '📷';
+        if (domainLower.includes('discord')) return '💬';
+        if (domainLower.includes('spotify')) return '🎵';
+        if (domainLower.includes('reddit')) return '👥';
+        if (domainLower.includes('stackoverflow')) return '💡';
+        return '🌐';
+    }
 
-    // Включение перетаскивания
+    // Drag and drop
     function enableDragAndDrop() {
         const cards = document.querySelectorAll('.site-card:not(.add-site)');
 
         cards.forEach(card => {
             card.draggable = true;
 
-            card.addEventListener('dragstart', function(e) {
-                this.classList.add('dragging');
-                draggedItem = this;
+            card.addEventListener('dragstart', e => {
+                card.classList.add('dragging');
+                draggedItem = card;
                 e.dataTransfer.effectAllowed = 'move';
             });
 
-            card.addEventListener('dragend', function() {
-                this.classList.remove('dragging');
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
                 cards.forEach(c => c.classList.remove('drag-over'));
                 draggedItem = null;
                 saveSites();
             });
 
-            card.addEventListener('dragover', function(e) {
+            card.addEventListener('dragover', e => {
                 e.preventDefault();
-                this.classList.add('drag-over');
+                card.classList.add('drag-over');
             });
 
-            card.addEventListener('dragleave', function() {
-                this.classList.remove('drag-over');
+            card.addEventListener('dragleave', () => {
+                card.classList.remove('drag-over');
             });
 
-            card.addEventListener('drop', function(e) {
+            card.addEventListener('drop', e => {
                 e.preventDefault();
-                this.classList.remove('drag-over');
+                card.classList.remove('drag-over');
 
-                if (draggedItem && draggedItem !== this) {
+                if (draggedItem && draggedItem !== card) {
                     const allCards = Array.from(sitesGrid.children);
                     const draggedIndex = allCards.indexOf(draggedItem);
-                    const targetIndex = allCards.indexOf(this);
+                    const targetIndex = allCards.indexOf(card);
 
                     if (draggedIndex < targetIndex) {
-                        this.after(draggedItem);
+                        card.after(draggedItem);
                     } else {
-                        this.before(draggedItem);
+                        card.before(draggedItem);
                     }
 
                     saveSites();
@@ -813,26 +688,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Выключение перетаскивания
     function disableDragAndDrop() {
-        const cards = document.querySelectorAll('.site-card');
-        cards.forEach(card => {
+        document.querySelectorAll('.site-card').forEach(card => {
             card.draggable = false;
             card.classList.remove('dragging', 'drag-over');
         });
     }
 
-    // ========== АВТОСОХРАНЕНИЕ ==========
-
-    // Автосохранение при закрытии страницы
-    window.addEventListener('beforeunload', function() {
+    // Auto-save on unload
+    window.addEventListener('beforeunload', () => {
         saveSites();
         saveBackground();
     });
 
-    // ========== ИНИЦИАЛИЗАЦИЯ ==========
-
-    // Инициализация
+    // Initialization
     initSites();
 
     console.log('StartPOZI инициализирован');

@@ -7,60 +7,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Меню выбора фона -->
-    <div class="background-menu" id="backgroundMenu">
-        <div class="menu-header">
-            <h3>Выбор фона</h3>
-            <button class="close-menu" id="closeMenu">×</button>
-        </div>
-        <div class="menu-content">
-            <div class="bg-option" data-type="gradient">
-                <div class="option-icon">🌈</div>
-                <div class="option-text">
-                    <h4>Градиент</h4>
-                    <p>Выберите готовые градиенты</p>
-                </div>
-            </div>
-            <div class="bg-option" data-type="image">
-                <div class="option-icon">🖼️</div>
-                <div class="option-text">
-                    <h4>Изображения</h4>
-                    <p>Фоновые изображения</p>
-                </div>
-            </div>
-            <div class="bg-option" data-type="video">
-                <div class="option-icon">🎥</div>
-                <div class="option-text">
-                    <h4>Видео</h4>
-                    <p>Анимированные фоны</p>
-                </div>
-            </div>
-            <div class="bg-option" data-type="custom">
-                <div class="option-icon">📤</div>
-                <div class="option-text">
-                    <h4>Загрузить свои</h4>
-                    <p>Ваши файлы</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Подменю для градиентов -->
-        <div class="submenu gradient-submenu" id="gradientMenu">
-            <div class="submenu-header">
-                <button class="back-btn">← Назад</button>
-                <h4>Выберите градиент</h4>
-            </div>
-            <div class="gradient-options">
-                <div class="gradient-option" data-gradient="gradient1"></div>
-                <div class="gradient-option" data-gradient="gradient2"></div>
-                <div class="gradient-option" data-gradient="gradient3"></div>
-                <div class="gradient-option" data-gradient="gradient4"></div>
-                <div class="gradient-option" data-gradient="gradient5"></div>
-                <div class="gradient-option" data-gradient="gradient6"></div>
-            </div>
-        </div>
-    </div>
-
     <div class="container">
         <div class="header">
             <div class="logo-container">
@@ -70,6 +16,7 @@
                 <button class="btn red-btn" id="changePositions">🎨</button>
                 <button class="btn purple-btn" id="importFromHistory">📥</button>
                 <button class="btn blue-btn" id="deleteSites">🗑️</button>
+                <button class="btn green-btn" id="changeBackground">🌄</button>
             </div>
         </div>
 
@@ -81,45 +28,55 @@
     </div>
 
     <script src="script.js"></script>
+
+    <!-- Меню выбора фона (актуальное с твоими опциями) -->
     <div id="backgroundMenu" class="bg-menu" style="display: none;">
-    <button id="closeMenu" class="close-btn">×</button>
-    <h3>🌄 Выбор фона</h3>
+        <button id="closeMenu" class="close-btn">×</button>
+        <h3>🌄 Выбор фона</h3>
 
-    <div class="bg-option" data-type="gradient">
-        <span>🌈</span>
-        <div>
-            <h4>Градиент</h4>
-            <p>Выберите готовый градиент</p>
+        <div class="bg-option" data-type="gradient">
+            <span>🌈</span>
+            <div>
+                <h4>Градиент</h4>
+                <p>Выберите готовый градиент</p>
+            </div>
+        </div>
+
+        <div class="bg-option" data-type="photo">
+            <span>📸</span>
+            <div>
+                <h4>Фото</h4>
+                <p>Выберите готовые обои</p>
+            </div>
+        </div>
+
+        <div class="bg-option" data-type="image">
+            <span>🖼️</span>
+            <div>
+                <h4>Загрузить свои</h4>
+                <p>Загрузите свою картинку</p>
+            </div>
         </div>
     </div>
 
-    <div class="bg-option" data-type="solid">
-        <span>🎨</span>
-        <div>
-            <h4>Сплошной цвет</h4>
-            <p>Выберите один цвет фона</p>
-        </div>
+    <div id="gradientMenu" class="gradient-menu" style="display: none;">
+        <button class="back-btn">← Назад</button>
+        <h3>🌈 Выбор градиента</h3>
+
+        <div class="gradient-option" data-gradient="gradient1" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+        <div class="gradient-option" data-gradient="gradient2" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
+        <div class="gradient-option" data-gradient="gradient3" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
+        <div class="gradient-option" data-gradient="gradient4" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"></div>
+        <div class="gradient-option" data-gradient="gradient5" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
+        <div class="gradient-option" data-gradient="gradient6" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);"></div>
     </div>
 
-    <div class="bg-option" data-type="image">
-        <span>🖼️</span>
-        <div>
-            <h4>Изображение</h4>
-            <p>Загрузите свою картинку</p>
-        </div>
+    <div id="photoMenu" class="gradient-menu" style="display: none;">
+        <button class="back-btn">← Назад</button>
+        <h3>🖼️ Выбор фото</h3>
+
+        <div class="gradient-option photo-option" data-photo="1" style="background-image: url('20221019093936_Priroda_8361-M.jpg'); background-size: cover; background-position: center;"></div>
+        <div class="gradient-option photo-option" data-photo="2" style="background-image: url('images.jpg'); background-size: cover; background-position: center;"></div>
     </div>
-</div>
-
-<div id="gradientMenu" class="gradient-menu" style="display: none;">
-    <button class="back-btn">← Назад</button>
-    <h3>🌈 Выбор градиента</h3>
-
-    <div class="gradient-option" data-gradient="gradient1" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
-    <div class="gradient-option" data-gradient="gradient2" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
-    <div class="gradient-option" data-gradient="gradient3" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
-    <div class="gradient-option" data-gradient="gradient4" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);"></div>
-    <div class="gradient-option" data-gradient="gradient5" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
-    <div class="gradient-option" data-gradient="gradient6" style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);"></div>
-</div>
 </body>
 </html>

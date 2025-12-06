@@ -1,0 +1,12 @@
+{
+  "name": "startpozi-browser",
+  "version": "1.0.0",
+  "description": "A custom browser for StartPOZI search engine",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^32.1.2"
+  }
+}

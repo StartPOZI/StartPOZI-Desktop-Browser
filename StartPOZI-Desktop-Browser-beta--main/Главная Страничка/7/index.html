@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StartPOZI - Главная</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Меню выбора фона -->
+    <div class="background-menu" id="backgroundMenu">
+        <div class="menu-header">
+            <h3>Выбор фона</h3>
+            <button class="close-menu" id="closeMenu">×</button>
+        </div>
+        <div class="menu-content">
+            <div class="bg-option" data-type="gradient">
+                <div class="option-icon">🌈</div>
+                <div class="option-text">
+                    <h4>Градиент</h4>
+                    <p>Выберите готовые градиенты</p>
+                </div>
+            </div>
+            <div class="bg-option" data-type="image">
+                <div class="option-icon">🖼️</div>
+                <div class="option-text">
+                    <h4>Изображения</h4>
+                    <p>Ежедневные обои от Bing</p> <!-- Изменил описание -->
+                </div>
+            </div>
+            <div class="bg-option" data-type="video">
+                <div class="option-icon">🎥</div>
+                <div class="option-text">
+                    <h4>Видео</h4>
+                    <p>Анимированные фоны</p>
+                </div>
+            </div>
+            <div class="bg-option" data-type="custom">
+                <div class="option-icon">📤</div>
+                <div class="option-text">
+                    <h4>Загрузить свои</h4>
+                    <p>Ваши файлы</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Подменю для градиентов -->
+        <div class="submenu gradient-submenu" id="gradientMenu">
+            <div class="submenu-header">
+                <button class="back-btn">← Назад</button>
+                <h4>Выберите градиент</h4>
+            </div>
+            <div class="gradient-options">
+                <div class="gradient-option" data-gradient="gradient1"></div>
+                <div class="gradient-option" data-gradient="gradient2"></div>
+                <div class="gradient-option" data-gradient="gradient3"></div>
+                <div class="gradient-option" data-gradient="gradient4"></div>
+                <div class="gradient-option" data-gradient="gradient5"></div>
+                <div class="gradient-option" data-gradient="gradient6"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <div class="logo-container">
+                <div class="logo">Start<span>POZI</span></div>
+            </div>
+            <div class="control-buttons">
+                <button class="btn red-btn" id="changePositions">🎨</button>
+                <button class="btn purple-btn" id="importFromHistory">📥</button>
+                <button class="btn blue-btn" id="deleteSites">🗑️</button>
+                <button class="btn green-btn" id="changeBackground">🌄</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sites-grid" id="sitesGrid">
+                <!-- Сайты будут добавляться через JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <div class="bing-credit" id="bingCredit">Фото дня от Bing</div> <!-- Добавил credit -->
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,405 @@
+
+        <div class="settings-container">
+            <div class="settings-sidebar">
+                <div class="settings-nav">
+                    <button class="nav-item active" data-section="security">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        <span>Безопасность</span>
+                    </button>
+                    <button class="nav-item" data-section="downloads">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7,10 12,15 17,10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Загрузки</span>
+                    </button>
+                    <button class="nav-item" data-section="history">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3v5h5"></path>
+                            <path d="M3 8c0 6.627 5.373 12 12 12s12-5.373 12-12"></path>
+                        </svg>
+                        <span>История</span>
+                    </button>
+                    <button class="nav-item" data-section="general">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <span>Общие</span>
+                    </button>
+                    <!-- Вкладка темы -->
+                    <button class="nav-item" data-section="customization">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+                        </svg>
+                        <span>Кастомизация</span>
+                    </button>
+                    <button class="nav-item" data-section="favorites">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="none" stroke="currentColor" stroke-width="2"></path>
+                        </svg>
+                        <span>Избранное</span>
+                    </button>
+                    <button class="nav-item" data-section="extensions">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                            <path d="M9 9h6v6H9z"></path>
+                        </svg>
+                        <span>Расширения</span>
+                    </button>
+                    <button class="nav-item" data-section="profile">
+                        <svg class="settings-nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <span>Профиль</span>
+                    </button>
+                </div>
+                <button class="close-settings-btn" id="closeSettingsBtn">
+                    <svg class="close-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="settings-content">
+                <!-- Безопасность -->
+                <div class="settings-section active" id="security-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg> Безопасность</h2>
+                    <p class="section-description">Защита от угроз и вредоносного контента</p>
+                    
+                    <div class="security-options">
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="checkFileSafety" checked="">
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Проверять безопасность файлов</span>
+                                    <span class="security-desc">Сканировать загружаемые файлы на вирусы</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="antiPhishing" checked="">
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Антифишинг банковских карт</span>
+                                    <span class="security-desc">Защита от фишинговых сайтов</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="secureBanking" checked="">
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Защищенный режим для банков</span>
+                                    <span class="security-desc">Открывать банковские сайты в изолированном режиме</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+
+                        
+                        <div class="security-item">
+                            <label class="security-label">
+                                <input type="checkbox" id="secureDNS" checked="">
+                                <span class="checkmark"></span>
+                                <div class="security-info">
+                                    <span class="security-title">Безопасный DNS</span>
+                                    <span class="security-desc">Использовать защищенные DNS-серверы</span>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="security-item">
+                            <div class="security-info">
+                                <span class="security-title">Системный прокси Windows</span>
+                                <span class="security-desc">Очистить настройки прокси в системе Windows</span>
+                            </div>
+                            <button class="clear-windows-proxy-btn" id="clearWindowsProxyBtn">
+                                <svg class="action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18"></path>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                                Очистить системный прокси
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Загрузки -->
+                <div class="settings-section" id="downloads-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7,10 12,15 17,10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg> Загрузки</h2>
+                    <p class="section-description">Управление загруженными файлами</p>
+                    
+                    <div class="downloads-list" id="downloadsList"><p style="color: #888; text-align: center;">Нет загруженных файлов</p></div>
+                    
+                    <div class="downloads-actions">
+                        <button class="clear-downloads-btn" id="clearDownloadsBtn">
+                            <svg class="action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            </svg> Очистить историю загрузок
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- История -->
+                <div class="settings-section" id="history-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3v5h5"></path>
+                        <path d="M3 8c0 6.627 5.373 12 12 12s12-5.373 12-12"></path>
+                    </svg> История</h2>
+                    <p class="section-description">История посещений сайтов</p>
+                    <div class="history-search" style="margin-bottom:16px;display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="historySearchInput" placeholder="Поиск по истории..." style="flex:1;padding:10px 14px;border-radius:8px;border:1px solid #333;background:#232323;color:#fff;font-size:15px;outline:none;">
+                        <button id="historySearchClearBtn" style="padding:10px 16px;border-radius:8px;border:none;background:#444;color:#fff;cursor:pointer;font-size:15px;">✕</button>
+                    </div>
+                    <div class="history-list" id="historyList"><p style="color: #888; text-align: center;">История пуста</p></div>
+                    <div class="history-actions">
+                        <button class="clear-history-btn" id="clearHistoryBtn">
+                            <svg class="action-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            </svg> Очистить историю
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Общие настройки -->
+                <div class="settings-section" id="general-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg> Общие настройки</h2>
+                    <p class="section-description">Основные настройки браузера</p>
+                    
+                    <div class="general-options">
+                        <div class="setting-item">
+                            <label for="searchEngine">Поисковая система:</label>
+                            <select id="searchEngine">
+                                <option value="duckduckgo">DuckDuckGo</option>
+                                <option value="google">Google</option>
+                                <option value="bing">Bing</option>
+                            </select>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label for="saveTabs">
+                                <input type="checkbox" id="saveTabs" checked="">
+                                Сохранять открытые вкладки при закрытии
+                            </label>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                <!-- Секция кастомизации -->
+                <div class="settings-section" id="customization-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg> Кастомизация</h2>
+                    <p class="section-description">Выберите оформление, тему и цвет браузера</p>
+                    <div class="theme-chooser">
+                        <label class="theme-option">
+                            <input type="radio" name="themeMode" value="light">
+                            <div class="theme-preview theme-preview-light"></div>
+                            <span>Светлая</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="themeMode" value="dark">
+                            <div class="theme-preview theme-preview-dark"></div>
+                            <span>Тёмная</span>
+                        </label>
+                        <label class="theme-option">
+                            <input type="radio" name="themeMode" value="system">
+                            <div class="theme-preview theme-preview-system"></div>
+                            <span>Как в системе</span>
+                        </label>
+                    </div>
+                    <div class="titlebar-style-chooser" style="margin-top:18px;display:flex;gap:18px;align-items:center;">
+                        <span style="font-size:15px;font-weight:500;min-width:90px;">Стиль панели:</span>
+                        <label class="titlebar-style-option">
+                            <input type="radio" name="titlebarStyle" value="macos" checked="">
+                            <div class="titlebar-style-preview" style="width:48px;height:18px;display:flex;align-items:center;justify-content:flex-end;background:#232323;border-radius:6px;box-shadow:0 1px 4px #0002;gap:4px;padding:0 6px;">
+                                <div style="width:12px;height:12px;border-radius:50%;background:#ff5f56;"></div>
+                                <div style="width:12px;height:12px;border-radius:50%;background:#f4c025;"></div>
+                                <div style="width:12px;height:12px;border-radius:50%;background:#27c93f;"></div>
+                            </div>
+                            <span style="font-size:13px;margin-top:4px;">macOS</span>
+                        </label>
+                        <label class="titlebar-style-option">
+                            <input type="radio" name="titlebarStyle" value="windows">
+                            <div class="titlebar-style-preview" style="width:48px;height:18px;display:flex;align-items:center;justify-content:flex-end;background:#f3f3f3;border-radius:4px;box-shadow:0 1px 4px #0002;gap:2px;padding:0 4px;">
+                                <div style="width:12px;height:12px;border-radius:2px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#222;">—</div>
+                                <div style="width:12px;height:12px;border-radius:2px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#222;">□</div>
+                                <div style="width:12px;height:12px;border-radius:2px;background:#e57373;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;">✕</div>
+                            </div>
+                            <span style="font-size:13px;margin-top:4px;">Windows</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Секция избранного -->
+                <div class="settings-section" id="favorites-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" fill="none" stroke="currentColor" stroke-width="2"></path></svg> Избранное</h2>
+                    <p class="section-description">Ваши избранные сайты</p>
+                    <div class="favorites-list" id="favoritesList"><p style="color: #888; text-align: center;">Нет избранных сайтов</p></div>
+                    <div class="favorites-actions">
+                        <button class="clear-favorites-btn" id="clearFavoritesBtn" style="background:#232323;color:#ff4444;border:none;padding:12px 24px;border-radius:10px;font-size:15px;font-weight:500;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px #0002;transition:background 0.2s;cursor:pointer;margin:18px auto 0 auto;">
+                            <svg class="action-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3,6 5,6 21,6"></polyline>
+                                <path d="M19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"></path>
+                            </svg>
+                            <span>Очистить все избранные</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Секция расширений -->
+                <div class="settings-section" id="extensions-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                        <path d="M9 9h6v6H9z"></path>
+                    </svg> Расширения</h2>
+                    <p class="section-description">Управление расширениями браузера</p>
+                    
+                    <div class="extensions-content">
+            <div style="margin-bottom: 30px; text-align: center;">
+                                    <button class="extension-store-btn" onclick="openExtensionStore()" style="background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%); border: none; border-radius: 8px; color: #000; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                        </svg>
+                        Открыть магазин расширений
+                    </button>
+            </div>
+        
+                <div class="extensions-info" style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.5);">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 16px; display: block; margin-left: auto; margin-right: auto;">
+                        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                        <path d="M9 9h6v6H9z"></path>
+                    </svg>
+                    <h3 style="margin-bottom: 8px; color: rgba(255, 255, 255, 0.7);">Нет установленных расширений</h3>
+                    <p style="margin-bottom: 20px;">Установите расширения из магазина для улучшения функциональности браузера.</p>
+                </div>
+            </div>
+                </div>
+                
+                <!-- Профиль -->
+                <div class="settings-section" id="profile-section">
+                    <h2><svg class="section-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg> Профиль</h2>
+                    <p class="section-description">Управление профилем и подпиской</p>
+                    
+                    <div class="profile-content">
+                        <div class="profile-header">
+                            <div class="profile-avatar-container">
+                                <div class="profile-avatar" id="profileAvatar">
+                <svg class="avatar-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+            </div>
+                                <button class="change-avatar-btn" id="changeAvatarBtn">
+                                    <svg class="change-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                                        <circle cx="12" cy="13" r="4"></circle>
+                                    </svg>
+                                    Изменить
+                                </button>
+                            </div>
+                            <div class="profile-info">
+                                <h3 class="profile-name">Пользователь</h3>
+                                <p class="profile-status" id="profileStatus">Бесплатный аккаунт</p>
+                            </div>
+                        </div>
+                        
+                        <div class="subscription-section">
+                            <div class="subscription-card">
+                                <div class="subscription-header">
+                                    <h3>ZhukPlus</h3>
+                                    <div class="subscription-badge">Премиум</div>
+                                </div>
+                                <div class="subscription-features">
+                                    <div class="feature-item">
+                                        <svg class="feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20,6 9,17 4,12"></polyline>
+                                        </svg>
+                                        <span>Эксклюзивные фоны</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <svg class="feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20,6 9,17 4,12"></polyline>
+                                        </svg>
+                                        <span>Премиум расширения</span>
+                                    </div>
+                                    <div class="feature-item">
+                                        <svg class="feature-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20,6 9,17 4,12"></polyline>
+                                        </svg>
+                                        <span>Приоритетная поддержка</span>
+                                    </div>
+                                </div>
+                                <div class="subscription-price">
+                                    <span class="price">299 ₽</span>
+                                    <span class="period">/месяц</span>
+                                </div>
+                                <button class="subscribe-btn" id="subscribeBtn">
+                <svg class="subscribe-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                </svg>
+                Подписаться на ZhukPlus
+            </button>
+                                <button class="unsubscribe-btn" id="unsubscribeBtn" style="display: none;">
+                                    <svg class="unsubscribe-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                    Отменить подписку
+                                </button>
+                                <button class="payment-history-btn" id="paymentHistoryBtn" style="
+                                    width: 100%; padding: 12px 16px; margin-top: 12px;
+                                    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+                                    border-radius: 8px; color: #fff; cursor: pointer; font-size: 14px;
+                                    display: flex; align-items: center; justify-content: center; gap: 8px;
+                                    transition: all 0.3s ease;
+                                ">
+                                    <svg class="history-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 3v5h5"></path>
+                                        <path d="M3 8c0 6.627 5.373 12 12 12s12-5.373 12-12"></path>
+                                    </svg>
+                                    История платежей
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+
+                
+                <!-- Удалена вкладка и секция 'Обновления' по просьбе пользователя -->
+                
+
+                
+                <div class="settings-actions">
+                    <button class="save-btn" id="saveSettingsBtn">Сохранить все настройки</button>
+                </div>
+            </div>
+        </div>
+    

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Стартовая страница</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="time-container">
+                <h1 class="time" id="time">00:00</h1>
+            </div>
+        </div>
+
+        <div class="search-container">
+            <form action="https://startpozi.netlify.app/search.html" method="GET" class="search-form" id="search-form">
+                <div class="search-box">
+                    <input type="text" name="q" class="search-input" id="search-input" placeholder="Найти в интернете..." autocomplete="off">
+                    <button type="submit" class="search-button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <div class="autocomplete-box" id="autocomplete-container"></div>
+                </div>
+            </form>
+        </div>
+
+        <div class="edit-button" id="edit-button">
+            <i class="fas fa-pencil-alt"></i>
+        </div>
+
+        <div class="settings-panel" id="settings-panel">
+            <div class="settings-header">
+                <h2>Настройки внешнего вида</h2>
+                <button class="close-settings" id="close-settings">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="settings-content">
+                <div class="background-gallery">
+                    <h3>Галерея фонов</h3>
+                    <div class="gallery-tabs">
+                        <button class="tab-button active" data-tab="gradients">Градиенты</button>
+                        <button class="tab-button" data-tab="nature">Природа</button>
+                        <button class="tab-button" data-tab="cities">Города</button>
+                        <button class="tab-button" data-tab="abstract">Абстракт</button>
+                        <button class="tab-button" data-tab="my">Мои</button>
+                        <button class="tab-button" data-tab="animated">Анимированные</button>
+                    </div>
+                    <div class="gallery-content">
+                        <!-- Вкладки будут заполняться через JavaScript -->
+                    </div>
+                </div>
+                <div class="upload-section">
+                    <h4>Загрузить свой фон</h4>
+                    <input type="file" id="background-upload" accept="image/*, .gif">
+                    <button id="upload-button">Загрузить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

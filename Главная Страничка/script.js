@@ -1,18 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Элементы
+    // Элементы (без зелёной кнопки)
     const redBtn = document.getElementById('changePositions');
     const importBtn = document.getElementById('importFromHistory');
     const deleteBtn = document.getElementById('deleteSites');
-    const greenBtn = document.getElementById('changeBackground');
     const sitesGrid = document.getElementById('sitesGrid');
 
-    // Элементы меню фона
-    const backgroundMenu = document.getElementById('backgroundMenu');
-    const closeMenu = document.getElementById('closeMenu');
-    const gradientMenu = document.getElementById('gradientMenu');
-    const backBtn = gradientMenu.querySelector('.back-btn');
+    // Удаляем все упоминания о меню фона
+    // (так как зелёная кнопка удалена, меню фона больше не нужно)
 
-    // Создаем overlay
+    // Создаем overlay только для меню истории
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
     overlay.style.cssText = `
@@ -41,85 +37,6 @@ document.addEventListener('DOMContentLoaded', function() {
         { name: 'ChatGPT', url: 'https://chat.openai.com', icon: '🤖', category: 'ии' },
         { name: 'Gmail', url: 'https://mail.google.com', icon: '📧', category: 'почта' }
     ];
-
-    // ========== МЕНЮ ФОНА (ИСПРАВЛЕННОЕ) ==========
-
-    // ЗЕЛЕНАЯ КНОПКА - меню выбора фона (РАБОТАЕТ!)
-    greenBtn.addEventListener('click', function() {
-        console.log('Зеленая кнопка нажата!');
-
-        // Закрываем меню истории если открыто
-        closeHistoryMenu();
-
-        // Показываем overlay
-        overlay.style.display = 'block';
-
-        // Показываем главное меню фона
-        backgroundMenu.style.display = 'block';
-        backgroundMenu.style.position = 'fixed';
-        backgroundMenu.style.top = '50%';
-        backgroundMenu.style.left = '50%';
-        backgroundMenu.style.transform = 'translate(-50%, -50%)';
-        backgroundMenu.style.zIndex = '1000';
-
-        // Скрываем меню градиентов
-        gradientMenu.style.display = 'none';
-
-        console.log('Меню фона открыто');
-    });
-
-    // Закрытие меню фона
-    closeMenu.addEventListener('click', function() {
-        backgroundMenu.style.display = 'none';
-        gradientMenu.style.display = 'none';
-        overlay.style.display = 'none';
-    });
-
-    // Кнопка "Назад" в меню градиентов
-    backBtn.addEventListener('click', function() {
-        gradientMenu.style.display = 'none';
-        backgroundMenu.style.display = 'block';
-    });
-
-    // Обработчики для опций в главном меню
-    document.querySelectorAll('.bg-option').forEach(option => {
-        option.addEventListener('click', function() {
-            const type = this.getAttribute('data-type');
-
-            if (type === 'gradient') {
-                // Показываем меню градиентов
-                backgroundMenu.style.display = 'none';
-                gradientMenu.style.display = 'block';
-                gradientMenu.style.position = 'fixed';
-                gradientMenu.style.top = '50%';
-                gradientMenu.style.left = '50%';
-                gradientMenu.style.transform = 'translate(-50%, -50%)';
-                gradientMenu.style.zIndex = '1000';
-            } else {
-                alert(`Выбран тип фона: ${type} (функция в разработке)`);
-            }
-        });
-    });
-
-    // Обработчики для выбора градиента
-    document.querySelectorAll('.gradient-option').forEach(option => {
-        option.addEventListener('click', function() {
-            const gradient = this.getAttribute('data-gradient');
-            setBackgroundGradient(gradient);
-
-            // Закрываем все меню
-            backgroundMenu.style.display = 'none';
-            gradientMenu.style.display = 'none';
-            overlay.style.display = 'none';
-        });
-    });
-
-    // Закрытие по клику на overlay
-    overlay.addEventListener('click', function() {
-        backgroundMenu.style.display = 'none';
-        gradientMenu.style.display = 'none';
-        this.style.display = 'none';
-    });
 
     // ========== УСТАНОВКА ГРАДИЕНТА ==========
 
@@ -234,10 +151,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ФИОЛЕТОВАЯ КНОПКА - импорт из истории
     importBtn.addEventListener('click', async function() {
         if (isHistoryMenuOpen) return;
-
-        // Закрываем меню фона если открыто
-        backgroundMenu.style.display = 'none';
-        gradientMenu.style.display = 'none';
 
         isHistoryMenuOpen = true;
         await showEnhancedHistoryMenu();
@@ -697,7 +610,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Сохранение фона
+    // Сохранение фона (упрощённая версия)
     function saveBackground() {
         try {
             const background = document.body.style.background ||
@@ -923,5 +836,4 @@ document.addEventListener('DOMContentLoaded', function() {
     initSites();
 
     console.log('StartPOZI инициализирован');
-    console.log('Зеленая кнопка готова к работе!');
 });

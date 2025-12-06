@@ -58,12 +58,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function setBackgroundImage(url) {
-        document.body.style.background = `url('${url}')`;
-        document.body.style.backgroundSize = 'cover';
-        document.body.style.backgroundPosition = 'center';
-        document.body.style.backgroundRepeat = 'no-repeat';
-        document.body.style.backgroundAttachment = 'fixed';
-        saveBackground();
+        const img = new Image();
+        img.src = url;
+        img.onload = () => {
+            console.log('Изображение загружено успешно');
+            document.body.style.background = `#121212 url('${url}') no-repeat center/cover fixed`;  // #121212 — тёмно-серый fallback
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+            document.body.style.backgroundRepeat = 'no-repeat';
+            document.body.style.backgroundAttachment = 'fixed';
+            saveBackground();
+        };
+        img.onerror = () => {
+            console.error('Ошибка загрузки изображения:', url);
+            document.body.style.background = '#121212';  // Fallback на тёмный цвет при ошибке
+        };
     }
 
     function resetBackgroundStyles() {
@@ -80,9 +89,16 @@ document.addEventListener('DOMContentLoaded', function() {
         input.onchange = e => {
             const file = e.target.files[0];
             if (file) {
+                if (!file.type.startsWith('image/')) {
+                    alert('Пожалуйста, выберите изображение (JPG, PNG и т.д.)');
+                    return;
+                }
                 const reader = new FileReader();
                 reader.onload = event => {
                     setBackgroundImage(event.target.result);
+                };
+                reader.onerror = () => {
+                    alert('Ошибка чтения файла. Попробуйте другой.');
                 };
                 reader.readAsDataURL(file);
             }
@@ -123,6 +139,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function closeBackgroundMenus() {
         [backgroundMenu, gradientMenu, photoMenu].forEach(menu => menu.style.display = 'none');
         overlay.style.display = 'none';
+        overlay.style.opacity = '0';  // Дополнительно
     }
 
     // Background menu handlers
@@ -163,7 +180,12 @@ document.addEventListener('DOMContentLoaded', function() {
     photoMenu.querySelectorAll('.photo-option').forEach(opt => {
         opt.addEventListener('click', () => {
             const photo = opt.dataset.photo;
-            const url = photo === '1' ? 'https://www.shutterstock.com/image-photo/mountains-during-flowers-blossom-sunrise-260nw-1306759183.jpg' : 'https://media.istockphoto.com/id/1300970146/photo/impressive-summer-sunrise-on-eibsee-lake-with-zugspitze-mountain-range-sunny-outdoor-scene-in.jpg?s=612x612&w=0&k=20&c=qH7-_lkSaUJKWUI29rqR-eaXvZd_9-5_QEtjruqkFdk=';
+            let url;
+            if (photo === '1') {
+                url = 'https://www.niophoto.com/wp-content/media/lej-da-staz-fog-sunrise.jpg';  // Похожее на первое изображение: озеро в горах с туманом на рассвете
+            } else {
+                url = 'https://thumbs.dreamstime.com/b/field-yellow-flowers-mountain-valley-summer-sunset-colorful-landscape-pine-trees-green-grass-blooming-hills-356992217.jpg';  // Похожее на второе: долина с лесами и жёлтыми цветами на закате
+            }
             setBackgroundImage(url);
             closeBackgroundMenus();
         });

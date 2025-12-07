@@ -1,6 +1,8 @@
 # StartPOZI Браузер
 
 ![Лицензия MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+[![Privacy](https://img.shields.io/badge/privacy-100%25-brightgreen)](https://startpozi.netlify.app/about.html)
+[![Version](https://img.shields.io/badge/version-1.0-blue)](https://startpozi.netlify.app)
 
 ## Загрузить последнюю версию
 

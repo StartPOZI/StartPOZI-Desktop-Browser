@@ -27,6 +27,7 @@ body {
     margin-bottom: 40px;
     position: relative;
 }
+
 .bg-menu {
     display: none;
     background: rgba(12, 58, 109, 0.95);
@@ -252,7 +253,7 @@ body {
     border: 2px solid #87ceeb;
 }
 
-/* Sites Grid */
+/* Sites Grid - ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ ФАВИКОНОВ */
 .sites-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -288,10 +289,34 @@ body {
     0 0 20px rgba(76, 201, 240, 0.3);
 }
 
+/* Контейнер для фавиконов */
 .site-icon {
-    font-size: 48px;
+    width: 48px;
+    height: 48px;
     margin-bottom: 15px;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Стили для фавиконов (изображений) */
+.site-icon img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: 6px;
+}
+
+/* Стили для эмодзи (запасной вариант) */
+.site-icon .emoji-fallback {
+    font-size: 24px;
+    line-height: 32px;
+    display: none; /* Скрыт по умолчанию */
 }
 
 .site-name {
@@ -353,7 +378,66 @@ box-sizing: border-box !important;
 z-index: 1002 !important;
 }
 
-/* Стили дл...(truncated 3126 characters)...иний */
+/* Стили для контейнера градиентов */
+#gradientMenu > div:last-child {
+display: flex !important;
+flex-wrap: wrap !important;
+justify-content: center !important;
+gap: 15px !important;
+margin-top: 20px !important;
+}
+
+/* Стили для каждого градиента */
+#gradientMenu .gradient-option {
+width: 100px !important;
+height: 100px !important;
+border-radius: 20px !important;
+margin: 5px !important;
+cursor: pointer !important;
+border: 3px solid transparent !important;
+transition: all 0.3s !important;
+box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+#gradientMenu .gradient-option:hover {
+transform: scale(1.1) !important;
+border-color: white !important;
+box-shadow:
+0 10px 25px rgba(0, 0, 0, 0.3),
+0 0 20px rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Градиент 1 */
+#gradientMenu .gradient-option:nth-child(1) {
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+/* Градиент 2 */
+#gradientMenu .gradient-option:nth-child(2) {
+background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+}
+
+/* Градиент 3 */
+#gradientMenu .gradient-option:nth-child(3) {
+background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
+}
+
+/* Градиент 4 */
+#gradientMenu .gradient-option:nth-child(4) {
+background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%) !important;
+}
+
+/* Градиент 5 */
+#gradientMenu .gradient-option:nth-child(5) {
+background: linear-gradient(135deg, #fa709a 0%, #fee140 100%) !important;
+}
+
+/* Градиент 6 */
+#gradientMenu .gradient-option:nth-child(6) {
+background: linear-gradient(135deg, #30cfd0 0%, #330867 100%) !important;
+}
+
+/* Градиент 7 */
 #gradientMenu .gradient-option:nth-child(7) {
 background: linear-gradient(135deg, #fdcbf1 0%, #e6dee9 100%) !important;
 }
@@ -390,15 +474,6 @@ margin: 0 !important;
 /* Заголовок в меню градиентов */
 #gradientMenu h2 {
 margin: 0 !important;
-}
-
-/* Контейнер для градиентов */
-#gradientMenu > div:last-child {
-display: flex !important;
-flex-wrap: wrap !important;
-justify-content: center !important;
-gap: 15px !important;
-margin-top: 20px !important;
 }
 
 /* ========== КОНФЛИКТЫ И ПЕРЕОПРЕДЕЛЕНИЯ ========== */
@@ -611,6 +686,37 @@ visibility: visible !important;
     background: linear-gradient(135deg, #023e8a, #0077b6, #0096c7);
 }
 
+/* Стили для истории */
+.history-item {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.3s;
+}
+
+.history-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(76, 201, 240, 0.3);
+    transform: translateY(-2px);
+}
+
+.history-item .option-icon {
+    font-size: 24px;
+    margin-right: 15px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(76, 201, 240, 0.1);
+    border-radius: 10px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     body {
@@ -642,7 +748,13 @@ visibility: visible !important;
     }
 
     .site-icon {
-        font-size: 40px;
+        width: 44px;
+        height: 44px;
+    }
+
+    .site-icon img {
+        width: 28px;
+        height: 28px;
     }
 
     .gradient-options {
@@ -700,7 +812,13 @@ visibility: visible !important;
     }
 
     .site-icon {
-        font-size: 32px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .site-icon img {
+        width: 24px;
+        height: 24px;
     }
 
     .site-name {

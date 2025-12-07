@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let draggedItem = null;
     let isHistoryMenuOpen = false;
 
+    // Кэш для фавиконов
+    const faviconCache = new Map();
+
     // Default sites
     const defaultSites = [
         { name: 'Google', url: 'https://www.google.com', icon: '🔍', category: 'поиск' },
@@ -41,7 +44,88 @@ document.addEventListener('DOMContentLoaded', function() {
     ];
 
     // Check if running in Chrome extension context
-    const isExtension = typeof chrome !== 'undefined' && chrome.history && chrome.storage;
+    const isExtension = typeof chrome !== 'undefined' && chrome.history;
+
+    // Функция для получения фавикона сайта
+    async function getFaviconUrl(domain) {
+        // Если есть в кэше, возвращаем из кэша
+        if (faviconCache.has(domain)) {
+            return faviconCache.get(domain);
+        }
+
+        try {
+            // Google Favicon API
+            const googleFaviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+
+            const testImage = new Image();
+
+            return new Promise((resolve) => {
+                testImage.onload = () => {
+                    faviconCache.set(domain, googleFaviconUrl);
+                    resolve(googleFaviconUrl);
+                };
+
+                testImage.onerror = () => {
+                    // Если Google API не сработал, пробуем другие источники
+                    const fallbackSources = [
+                        `https://${domain}/favicon.ico`,
+                        `http://${domain}/favicon.ico`,
+                        `https://www.${domain}/favicon.ico`,
+                        `https://favicon.yandex.net/favicon/${domain}`,
+                        `https://icons.duckduckgo.com/ip3/${domain}.ico`
+                    ];
+
+                    // Пробуем каждый источник последовательно
+                    const tryNextSource = (index) => {
+                        if (index >= fallbackSources.length) {
+                            // Если ничего не сработало, используем эмодзи
+                            const fallbackIcon = getEmojiForDomain(domain);
+                            resolve(fallbackIcon);
+                            return;
+                        }
+
+                        const img = new Image();
+                        img.onload = () => {
+                            faviconCache.set(domain, fallbackSources[index]);
+                            resolve(fallbackSources[index]);
+                        };
+                        img.onerror = () => tryNextSource(index + 1);
+                        img.src = fallbackSources[index];
+                    };
+
+                    tryNextSource(0);
+                };
+
+                testImage.src = googleFaviconUrl;
+            });
+        } catch (error) {
+            console.error('Ошибка получения фавикона для', domain, error);
+            return getEmojiForDomain(domain);
+        }
+    }
+
+    // Функция для получения эмодзи (запасной вариант)
+    function getEmojiForDomain(domain) {
+        const domainLower = domain.toLowerCase();
+        if (domainLower.includes('youtube')) return '▶️';
+        if (domainLower.includes('google')) return '🔍';
+        if (domainLower.includes('github')) return '💻';
+        if (domainLower.includes('chatgpt') || domainLower.includes('openai')) return '🤖';
+        if (domainLower.includes('gmail') || domainLower.includes('mail.')) return '📧';
+        if (domainLower.includes('netflix')) return '🎬';
+        if (domainLower.includes('twitter')) return '🐦';
+        if (domainLower.includes('instagram')) return '📷';
+        if (domainLower.includes('discord')) return '💬';
+        if (domainLower.includes('spotify')) return '🎵';
+        if (domainLower.includes('reddit')) return '👥';
+        if (domainLower.includes('stackoverflow')) return '💡';
+        if (domainLower.includes('twitch')) return '📺';
+        if (domainLower.includes('facebook')) return '📘';
+        if (domainLower.includes('vk')) return '🔵';
+        if (domainLower.includes('telegram')) return '📨';
+        if (domainLower.includes('whatsapp')) return '📱';
+        return '🌐';
+    }
 
     // Background functions
     function setBackgroundGradient(gradientType) {
@@ -444,6 +528,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return 'другое';
     }
 
+    // Обновленная функция для получения иконок для истории
+    function getIconForDomain(domain) {
+        return getEmojiForDomain(domain);
+    }
+
     async function showEnhancedHistoryMenu() {
         const historyMenu = document.createElement('div');
         historyMenu.id = 'historyMenu';
@@ -459,11 +548,8 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="close-menu" id="closeHistory">×</button>
         </div>
         <div class="menu-content">
-        <div class="history-controls">
-        <input type="text" id="historySearch" placeholder="Поиск по имени или URL..."
-        style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
-        <select id="categoryFilter"
-        style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
+        <input type="text" id="historySearch" placeholder="Поиск по имени или URL..." style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
+        <select id="categoryFilter" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
         <option value="all">Все категории</option>
         <option value="поиск">Поиск</option>
         <option value="медиа">Медиа</option>
@@ -472,23 +558,9 @@ document.addEventListener('DOMContentLoaded', function() {
         <option value="почта">Почта</option>
         <option value="другое">Другое</option>
         </select>
-        <div class="import-controls" style="display: flex; gap: 10px; margin-bottom: 15px;">
-        <button id="importFileBtn" style="flex: 1; padding: 10px; background: #4cc9f0; color: white; border: none; border-radius: 10px; cursor: pointer;">
-        📁 Импорт из файла
-        </button>
-        <button id="realHistoryBtn" style="flex: 1; padding: 10px; background: #43e97b; color: white; border: none; border-radius: 10px; cursor: pointer;"
-        ${isExtension ? '' : 'disabled title="Доступно только в расширении Chrome"'}>
-        🔄 Настоящая история
-        </button>
-        </div>
-        </div>
-        <div id="historyStats" style="margin-bottom: 15px; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 10px; font-size: 14px;">
-        Выберите источник истории...
-        </div>
         <div id="historyList" style="max-height: 400px; overflow-y: auto;"></div>
         </div>
         `;
-
         document.body.appendChild(historyMenu);
         historyMenu.style.display = 'block';
         overlay.style.display = 'block';
@@ -509,362 +581,38 @@ document.addEventListener('DOMContentLoaded', function() {
         const historyList = document.getElementById('historyList');
         const searchInput = document.getElementById('historySearch');
         const categoryFilter = document.getElementById('categoryFilter');
-        const historyStats = document.getElementById('historyStats');
-        const importFileBtn = document.getElementById('importFileBtn');
-        const realHistoryBtn = document.getElementById('realHistoryBtn');
 
-        // Функция для получения настоящей истории браузера
-        async function getRealBrowserHistory() {
-            return new Promise((resolve) => {
-                if (!isExtension) {
-                    resolve([]);
-                    return;
-                }
-
-                // Получаем историю за последние 30 дней
-                const millisecondsPerDay = 24 * 60 * 60 * 1000;
-                const thirtyDaysAgo = Date.now() - (30 * millisecondsPerDay);
-
-                chrome.history.search({
-                    text: '',              // Пустая строка = все элементы
-                    startTime: thirtyDaysAgo,
-                    endTime: Date.now(),
-                                      maxResults: 2000       // Увеличиваем лимит
-                }, (historyItems) => {
-                    // Группируем по домену и считаем посещения
-                    const domainMap = new Map();
-
-                    historyItems.forEach(item => {
-                        try {
-                            const url = new URL(item.url);
-                            const domain = url.hostname.replace('www.', '');
-
-                            if (domainMap.has(domain)) {
-                                const existing = domainMap.get(domain);
-                                existing.visits += item.visitCount || 1;
-                                if (new Date(item.lastVisitTime) > new Date(existing.lastVisit)) {
-                                    existing.lastVisit = new Date(item.lastVisitTime);
-                                    existing.name = item.title || existing.name;
-                                }
-                            } else {
-                                domainMap.set(domain, {
-                                    name: item.title || domain,
-                                    url: `https://${domain}`,
-                                    icon: getIconForDomain(domain),
-                                              visits: item.visitCount || 1,
-                                              lastVisit: new Date(item.lastVisitTime),
-                                              category: detectCategory(domain),
-                                              domain: domain
-                                });
-                            }
-                        } catch (e) {
-                            // Пропускаем невалидные URL
-                            console.warn('Невалидный URL:', item.url);
-                        }
-                    });
-
-                    // Преобразуем в массив и сортируем по количеству посещений
-                    const history = Array.from(domainMap.values())
-                    .sort((a, b) => b.visits - a.visits)
-                    .slice(0, 100); // Ограничиваем 100 топ-сайтами
-
-                    resolve(history);
-                });
-            });
-        }
-
-        // Функция для импорта истории из файла
-        function setupFileImport() {
-            importFileBtn.addEventListener('click', () => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json,.html,.txt';
-                input.onchange = async (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-
-                    try {
-                        const text = await file.text();
-                        let historyData;
-
-                        // Пытаемся распарсить JSON
-                        try {
-                            historyData = JSON.parse(text);
-                        } catch (parseError) {
-                            // Если это HTML-экспорт истории Chrome
-                            if (text.includes('<DT><A HREF="')) {
-                                historyData = parseChromeHistoryHTML(text);
-                            } else {
-                                throw new Error('Неверный формат файла. Поддерживаются JSON и HTML экспорт из Chrome.');
-                            }
-                        }
-
-                        const importedHistory = processImportedHistory(historyData);
-                        await saveImportedHistory(importedHistory);
-
-                        // Переключаемся на импортированную историю
-                        importFileBtn.click();
-
-                        alert(`Успешно импортировано ${importedHistory.length} записей истории!`);
-                    } catch (error) {
-                        console.error('Ошибка импорта:', error);
-                        alert(`Ошибка импорта: ${error.message}`);
-                    }
-                };
-                input.click();
-            });
-        }
-
-        // Парсинг HTML-экспорта истории Chrome
-        function parseChromeHistoryHTML(html) {
-            const historyItems = [];
-            const linkRegex = /<DT><A HREF="([^"]+)"[^>]*>([^<]+)<\/A>/g;
-            const dateRegex = /ADD_DATE="([^"]+)"/g;
-
-            let match;
-            while ((match = linkRegex.exec(html)) !== null) {
-                const url = match[1];
-                const title = match[2];
-
-                // Ищем дату для этой записи
-                dateRegex.lastIndex = match.index;
-                const dateMatch = dateRegex.exec(html);
-                const lastVisit = dateMatch ? new Date(parseInt(dateMatch[1]) * 1000) : new Date();
-
-                historyItems.push({
-                    url,
-                    title,
-                    lastVisitTime: lastVisit.getTime()
-                });
-            }
-
-            return historyItems;
-        }
-
-        // Обработка импортированной истории
-        function processImportedHistory(data) {
-            const domainMap = new Map();
-
-            // Обрабатываем разные форматы
-            const items = Array.isArray(data) ? data : Object.values(data);
-
-            items.forEach(item => {
-                try {
-                    const url = item.url || item.link || item.URL || item.href;
-                    const title = item.title || item.name || '';
-                    const lastVisit = item.lastVisitTime || item.lastVisit || item.timestamp || item.time || Date.now();
-
-                    if (!url) return;
-
-                    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
-                    const domain = urlObj.hostname.replace('www.', '');
-
-                    if (domainMap.has(domain)) {
-                        const existing = domainMap.get(domain);
-                        existing.visits += 1;
-                        if (new Date(lastVisit) > new Date(existing.lastVisit)) {
-                            existing.lastVisit = new Date(lastVisit);
-                            existing.name = title || existing.name;
-                        }
-                    } else {
-                        domainMap.set(domain, {
-                            name: title || domain,
-                            url: `https://${domain}`,
-                            icon: getIconForDomain(domain),
-                                      visits: 1,
-                                      lastVisit: new Date(lastVisit),
-                                      category: detectCategory(domain),
-                                      domain: domain,
-                                      imported: true
-                        });
-                    }
-                } catch (e) {
-                    console.warn('Ошибка обработки импортированной записи:', item);
-                }
-            });
-
-            return Array.from(domainMap.values())
-            .sort((a, b) => b.visits - a.visits)
-            .slice(0, 100);
-        }
-
-        // Сохранение импортированной истории
-        async function saveImportedHistory(history) {
-            if (isExtension) {
-                // В расширении сохраняем в chrome.storage
-                await new Promise(resolve => {
-                    chrome.storage.local.set({ imported_history: history }, resolve);
-                });
-            } else {
-                // В локальном режиме сохраняем в localStorage
-                localStorage.setItem('imported_browser_history', JSON.stringify(history));
-            }
-        }
-
-        // Загрузка импортированной истории
-        async function loadImportedHistory() {
-            if (isExtension) {
-                return new Promise(resolve => {
-                    chrome.storage.local.get(['imported_history'], (result) => {
-                        resolve(result.imported_history || []);
-                    });
-                });
-            } else {
-                const saved = localStorage.getItem('imported_browser_history');
-                return saved ? JSON.parse(saved) : [];
-            }
-        }
-
-        // Основная функция рендеринга истории
-        async function renderHistory(useRealHistory = false) {
-            historyList.innerHTML = '<div style="text-align: center; padding: 20px; color: #aaa;">Загрузка...</div>';
-
+        async function renderHistory() {
+            historyList.innerHTML = '';
             const filter = categoryFilter.value;
-            const search = searchInput.value.toLowerCase().trim();
-            let history = [];
+            const search = searchInput.value;
+            const history = await getBrowserHistory(filter, search);
 
-            try {
-                if (useRealHistory && isExtension) {
-                    // Показываем настоящую историю браузера
-                    history = await getRealBrowserHistory();
-                    historyStats.textContent = `Найдено ${history.length} сайтов из истории браузера`;
-                } else {
-                    // Показываем импортированную историю
-                    history = await loadImportedHistory();
-                    historyStats.textContent = `Импортировано ${history.length} сайтов`;
-                }
-
-                // Применяем фильтры
-                if (filter !== 'all') {
-                    history = history.filter(h => h.category === filter);
-                }
-
-                if (search) {
-                    history = history.filter(h =>
-                    h.name.toLowerCase().includes(search) ||
-                    h.url.toLowerCase().includes(search) ||
-                    h.domain?.toLowerCase().includes(search)
-                    );
-                }
-
-                // Рендерим результаты
-                if (history.length === 0) {
-                    historyList.innerHTML = `
-                    <div style="text-align: center; padding: 20px; color: #aaa;">
-                    ${useRealHistory && isExtension ?
-                        'История браузера пуста или не доступна' :
-                        'Импортированная история пуста. Нажмите "Импорт из файла"'}
-                        </div>
-                        `;
-                        return;
-                }
-
-                historyList.innerHTML = '';
-
-                history.forEach(site => {
-                    const item = document.createElement('div');
-                    item.className = 'bg-option history-item';
-                    item.style.marginBottom = '10px';
-                    item.style.background = getCategoryColor(site.category);
-                    item.style.display = 'flex';
-                    item.style.alignItems = 'center';
-                    item.style.padding = '10px';
-                    item.style.borderRadius = '8px';
-                    item.style.cursor = 'pointer';
-                    item.style.transition = 'all 0.2s';
-
-                    item.innerHTML = `
-                    <span class="option-icon" style="font-size: 24px; margin-right: 12px;">${site.icon}</span>
-                    <div class="option-text" style="flex: 1;">
-                    <h4 style="margin: 0 0 5px 0; font-size: 16px;">${site.name}</h4>
-                    <p style="margin: 0; font-size: 12px; opacity: 0.8;">
-                    ${site.domain || new URL(site.url).hostname} •
-                    Посещений: ${site.visits} •
-                    ${getTimeAgo(new Date(site.lastVisit))}
-                    </p>
-                    </div>
-                    <button class="add-history-btn" style="background: #4cc9f0; color: white; border: none; border-radius: 5px; padding: 5px 10px; cursor: pointer; font-size: 12px;">
-                    Добавить
-                    </button>
-                    `;
-
-                    // Обработчик для добавления сайта
-                    const addBtn = item.querySelector('.add-history-btn');
-                    addBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        addSiteFromHistory(site);
-                    });
-
-                    // Обработчик для клика по всей карточке
-                    item.addEventListener('click', (e) => {
-                        if (!e.target.closest('.add-history-btn')) {
-                            addSiteFromHistory(site);
-                        }
-                    });
-
-                    // Эффекты при наведении
-                    item.addEventListener('mouseenter', () => {
-                        item.style.transform = 'translateY(-2px)';
-                        item.style.boxShadow = '0 5px 15px rgba(0,0,0,0.2)';
-                    });
-
-                    item.addEventListener('mouseleave', () => {
-                        item.style.transform = '';
-                        item.style.boxShadow = '';
-                    });
-
-                    historyList.appendChild(item);
-                });
-            } catch (error) {
-                console.error('Ошибка загрузки истории:', error);
-                historyList.innerHTML = `
-                <div style="text-align: center; padding: 20px; color: #ff6b6b;">
-                Ошибка загрузки истории: ${error.message}
+            history.forEach(site => {
+                const item = document.createElement('div');
+                item.className = 'bg-option history-item';
+                item.style.marginBottom = '10px';
+                item.style.background = getCategoryColor(site.category);
+                item.innerHTML = `
+                <span class="option-icon">${site.icon}</span>
+                <div class="option-text">
+                <h4>${site.name}</h4>
+                <p>${new URL(site.url).hostname} • Посещений: ${site.visits} • Последнее: ${getTimeAgo(new Date(site.lastVisit))}</p>
                 </div>
                 `;
-            }
+                item.addEventListener('click', () => {
+                    addSiteFromHistory(site);
+                    historyMenu.remove();
+                    overlay.style.display = 'none';
+                    isHistoryMenuOpen = false;
+                });
+                historyList.appendChild(item);
+            });
         }
 
-        // Обработчики для кнопок переключения режима
-        realHistoryBtn.addEventListener('click', async () => {
-            if (!isExtension) {
-                alert('Настоящая история доступна только в расширении Chrome. Используйте импорт из файла.');
-                return;
-            }
-
-            realHistoryBtn.classList.add('active');
-            realHistoryBtn.style.background = '#667eea';
-            importFileBtn.classList.remove('active');
-            importFileBtn.style.background = '#4cc9f0';
-
-            await renderHistory(true);
-        });
-
-        importFileBtn.addEventListener('click', async () => {
-            importFileBtn.classList.add('active');
-            importFileBtn.style.background = '#667eea';
-            realHistoryBtn.classList.remove('active');
-            realHistoryBtn.style.background = isExtension ? '#43e97b' : '#666';
-
-            await renderHistory(false);
-        });
-
-        // Настройка импорта из файла
-        setupFileImport();
-
-        // Инициализация - по умолчанию показываем импортированную историю
-        importFileBtn.click();
-
-        // События фильтрации
-        searchInput.addEventListener('input', () => {
-            const useRealHistory = realHistoryBtn.classList.contains('active');
-            renderHistory(useRealHistory);
-        });
-
-        categoryFilter.addEventListener('change', () => {
-            const useRealHistory = realHistoryBtn.classList.contains('active');
-            renderHistory(useRealHistory);
-        });
+        searchInput.addEventListener('input', renderHistory);
+        categoryFilter.addEventListener('change', renderHistory);
+        await renderHistory();
     }
 
     function addSiteFromHistory(site) {
@@ -934,7 +682,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
                 const url = card.getAttribute('data-url');
                 const name = card.querySelector('.site-name').textContent;
-                const icon = card.querySelector('.site-icon').textContent;
+                const iconElement = card.querySelector('.site-icon img');
+                const icon = iconElement ? iconElement.src : card.querySelector('.site-icon .emoji-fallback')?.textContent || '🌐';
                 const category = detectCategory(new URL(url).hostname);
 
                 sites.push({ name, url, icon, category });
@@ -971,18 +720,80 @@ document.addEventListener('DOMContentLoaded', function() {
         loadBackground();
     }
 
+    // ОБНОВЛЕННАЯ ФУНКЦИЯ: Создание карточки сайта с фавиконом
     function createSiteCard(site) {
         const card = document.createElement('div');
         card.className = 'site-card';
         card.dataset.url = site.url;
         card.dataset.category = site.category || 'другое';
 
-        card.innerHTML = `
-        <div class="site-icon">${site.icon}</div>
-        <div class="site-name">${site.name}</div>
-        <div class="site-url">${new URL(site.url).hostname}</div>
-        <div class="site-category" style="display: none;">${site.category || 'другое'}</div>
-        `;
+        // Создаем контейнер для иконки
+        const iconContainer = document.createElement('div');
+        iconContainer.className = 'site-icon';
+
+        // Создаем элемент для эмодзи (запасной вариант)
+        const emojiFallback = document.createElement('div');
+        emojiFallback.className = 'emoji-fallback';
+        emojiFallback.textContent = site.icon || '🌐';
+        emojiFallback.style.display = 'none';
+
+        // Создаем элемент для фавикона
+        const faviconImg = document.createElement('img');
+        faviconImg.alt = site.name;
+        faviconImg.style.width = '32px';
+        faviconImg.style.height = '32px';
+        faviconImg.style.objectFit = 'contain';
+        faviconImg.style.borderRadius = '6px';
+
+        iconContainer.appendChild(faviconImg);
+        iconContainer.appendChild(emojiFallback);
+
+        const nameElement = document.createElement('div');
+        nameElement.className = 'site-name';
+        nameElement.textContent = site.name;
+
+        const urlElement = document.createElement('div');
+        urlElement.className = 'site-url';
+        const domain = new URL(site.url).hostname;
+        urlElement.textContent = domain;
+
+        const categoryElement = document.createElement('div');
+        categoryElement.className = 'site-category';
+        categoryElement.style.display = 'none';
+        categoryElement.textContent = site.category || 'другое';
+
+        card.appendChild(iconContainer);
+        card.appendChild(nameElement);
+        card.appendChild(urlElement);
+        card.appendChild(categoryElement);
+
+        // Пытаемся загрузить фавикон
+        getFaviconUrl(domain).then(iconUrl => {
+            if (iconUrl.startsWith('http')) {
+                // Это URL изображения
+                faviconImg.src = iconUrl;
+                faviconImg.onerror = () => {
+                    // Если изображение не загрузилось, показываем эмодзи
+                    faviconImg.style.display = 'none';
+                    emojiFallback.style.display = 'block';
+                };
+                faviconImg.onload = () => {
+                    // Изображение загружено успешно
+                    emojiFallback.style.display = 'none';
+                    faviconImg.style.display = 'block';
+                };
+            } else {
+                // Это эмодзи
+                faviconImg.style.display = 'none';
+                emojiFallback.textContent = iconUrl;
+                emojiFallback.style.display = 'block';
+            }
+        }).catch(() => {
+            // В случае ошибки используем эмодзи
+            faviconImg.style.display = 'none';
+            emojiFallback.textContent = site.icon || '🌐';
+            emojiFallback.style.display = 'block';
+        });
 
         card.addEventListener('click', function(e) {
             if (!isEditMode && !isDeleteMode) {
@@ -1017,33 +828,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const domain = new URL(validUrl).hostname;
         const category = detectCategory(domain);
 
-        let icon = getIconForDomain(domain);
+        const site = {
+            name,
+            url: validUrl,
+            icon: getEmojiForDomain(domain),
+                          category
+        };
 
-        const newCard = createSiteCard({ name, url: validUrl, icon, category });
-
+        const newCard = createSiteCard(site);
         const addBtn = document.getElementById('addSiteBtn');
         addBtn.parentNode.insertBefore(newCard, addBtn);
-        addToBrowserHistory({ name, url: validUrl, icon, category });
+        addToBrowserHistory(site);
         saveSites();
 
         if (isEditMode) enableDragAndDrop();
-    }
-
-    function getIconForDomain(domain) {
-        const domainLower = domain.toLowerCase();
-        if (domainLower.includes('youtube')) return '▶️';
-        if (domainLower.includes('google')) return '🔍';
-        if (domainLower.includes('github')) return '💻';
-        if (domainLower.includes('chatgpt') || domainLower.includes('openai')) return '🤖';
-        if (domainLower.includes('gmail') || domainLower.includes('mail.')) return '📧';
-        if (domainLower.includes('netflix')) return '🎬';
-        if (domainLower.includes('twitter')) return '🐦';
-        if (domainLower.includes('instagram')) return '📷';
-        if (domainLower.includes('discord')) return '💬';
-        if (domainLower.includes('spotify')) return '🎵';
-        if (domainLower.includes('reddit')) return '👥';
-        if (domainLower.includes('stackoverflow')) return '💡';
-        return '🌐';
     }
 
     // Drag and drop

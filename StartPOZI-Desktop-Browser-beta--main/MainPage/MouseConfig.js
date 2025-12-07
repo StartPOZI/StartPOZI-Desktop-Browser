@@ -4,7 +4,7 @@
 
     // === КОНФИГУРАЦИЯ ===
     const CONFIG = {
-        disableDevTools: true,       // Блокировать инструменты разработчика
+        disableDevTools: false,       // Блокировать инструменты разработчика
         disableRightClick: true,     // Блокировать правую кнопку мыши
         disableCopy: false,           // Блокировать копирование
         disableSelect: true,         // Блокировать выделение текста
@@ -12,7 +12,7 @@
         showWarning: true,           // Показывать предупреждения
         redirectOnDevTools: false,   // Перенаправлять при открытии DevTools
         redirectUrl: 'about:blank',  // Куда перенаправлять
-        debugMode: false             // Режим отладки (true для тестирования)
+        debugMode: true // Режим отладки (true для тестирования)
     };
 
     // === ЛОГИРОВАНИЕ ===

@@ -48,7 +48,9 @@ document.addEventListener('DOMContentLoaded', function() {
                           gradient3: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
                           gradient4: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
                           gradient5: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                          gradient6: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)'
+                          gradient6: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+                          gradient7: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', // Добавлено: gradient7 (бирюзово-фиолетовый, как в CSS)
+gradient8: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)'  // Добавлено: gradient8 (пастельный/белый, как в CSS)
         };
 
         const gradient = gradients[gradientType] || gradients.gradient1;
@@ -62,7 +64,8 @@ document.addEventListener('DOMContentLoaded', function() {
         img.src = url;
         img.onload = () => {
             console.log('Изображение загружено успешно');
-            document.body.style.background = `#121212 url('${url}') no-repeat center/cover fixed`;  // #121212 — тёмно-серый fallback
+            resetBackgroundStyles(); // Очистка старых стилей перед установкой
+            document.body.style.background = `url('${url}') no-repeat center / cover fixed`;
             document.body.style.backgroundSize = 'cover';
             document.body.style.backgroundPosition = 'center';
             document.body.style.backgroundRepeat = 'no-repeat';
@@ -71,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         img.onerror = () => {
             console.error('Ошибка загрузки изображения:', url);
-            document.body.style.background = '#121212';  // Fallback на тёмный цвет при ошибке
+            alert('Не удалось загрузить изображение. Фон не изменился.');
         };
     }
 
@@ -182,9 +185,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const photo = opt.dataset.photo;
             let url;
             if (photo === '1') {
-                url = 'https://www.niophoto.com/wp-content/media/lej-da-staz-fog-sunrise.jpg';  // Похожее на первое изображение: озеро в горах с туманом на рассвете
+                url = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=85';
             } else {
-                url = 'https://thumbs.dreamstime.com/b/field-yellow-flowers-mountain-valley-summer-sunset-colorful-landscape-pine-trees-green-grass-blooming-hills-356992217.jpg';  // Похожее на второе: долина с лесами и жёлтыми цветами на закате
+                url = 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=85';
             }
             setBackgroundImage(url);
             closeBackgroundMenus();
@@ -352,23 +355,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const domain = new URL(site.url).hostname;
             const category = detectCategory(domain);
 
-            const existingIndex = history.findIndex(h => h.url === site.url);
-
-            if (existingIndex !== -1) {
-                history[existingIndex].visits++;
-                history[existingIndex].lastVisit = new Date().toISOString();
+            const existing = history.find(h => h.url === site.url);
+            if (existing) {
+                existing.visits = (existing.visits || 0) + 1;
+                existing.lastVisit = new Date().toISOString();
             } else {
                 history.push({
-                    name: site.name,
-                    url: site.url,
-                    icon: site.icon,
+                    ...site,
                     visits: 1,
                     lastVisit: new Date().toISOString(),
-                             category: category
+                             category
                 });
             }
-
-            history.sort((a, b) => b.visits - a.visits);
             localStorage.setItem('browser_history_real', JSON.stringify(history));
             return history;
         } catch (e) {

@@ -40,6 +40,9 @@ document.addEventListener('DOMContentLoaded', function() {
         { name: 'Gmail', url: 'https://mail.google.com', icon: '📧', category: 'почта' }
     ];
 
+    // Check if running in Chrome extension context
+    const isExtension = typeof chrome !== 'undefined' && chrome.history && chrome.storage;
+
     // Background functions
     function setBackgroundGradient(gradientType) {
         const gradients = {
@@ -293,98 +296,142 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deleteIcon) deleteIcon.remove();
     }
 
-    async function showHistoryMenuIfNotOpen() {
+    function showHistoryMenuIfNotOpen() {
         if (isHistoryMenuOpen) return;
 
         isHistoryMenuOpen = true;
-        await showEnhancedHistoryMenu();
+        showEnhancedHistoryMenu();
     }
 
     // History functions
     function initBrowserHistory() {
-        try {
-            let savedHistory = localStorage.getItem('browser_history_real');
-            let history = savedHistory ? JSON.parse(savedHistory) : [];
-
-            defaultSites.forEach(site => {
-                if (!history.some(h => h.url === site.url)) {
-                    history.push({
-                        ...site,
-                        visits: Math.floor(Math.random() * 15) + 5,
-                                 lastVisit: new Date(Date.now() - Math.random() * 86400000 * 7).toISOString(),
-                                 category: site.category || 'другое'
-                    });
-                }
-            });
-
-            localStorage.setItem('browser_history_real', JSON.stringify(history));
-            return history;
-        } catch (e) {
-            console.error('Ошибка инициализации истории:', e);
-            return [];
+        if (isExtension) {
+            // In extension, no need to initialize defaults in history
+            return;
+        } else {
+            try {
+                let savedHistory = localStorage.getItem('browser_history_real');
+                let history = savedHistory ? JSON.parse(savedHistory) : [];
+                defaultSites.forEach(site => {
+                    if (!history.some(h => h.url === site.url)) {
+                        history.push({
+                            ...site,
+                            visits: Math.floor(Math.random() * 15) + 5,
+                                     lastVisit: new Date(Date.now() - Math.random() * 86400000 * 7).toISOString(),
+                                     category: site.category || 'другое'
+                        });
+                    }
+                });
+                localStorage.setItem('browser_history_real', JSON.stringify(history));
+                return history;
+            } catch (e) {
+                console.error('Ошибка инициализации истории:', e);
+                return [];
+            }
         }
     }
 
     function getBrowserHistory(filter = 'all', search = '') {
-        try {
-            const savedHistory = localStorage.getItem('browser_history_real');
-            let history = savedHistory ? JSON.parse(savedHistory) : [];
+        if (isExtension) {
+            return new Promise((resolve) => {
+                const query = {
+                    text: search.trim(),
+                               maxResults: 500,
+                               startTime: Date.now() - 30 * 24 * 60 * 60 * 1000 // Last 30 days
+                };
+                chrome.history.search(query, (results) => {
+                    let history = results.map(item => {
+                        let urlObj;
+                        try {
+                            urlObj = new URL(item.url);
+                        } catch (e) {
+                            return null; // Skip invalid URLs
+                        }
+                        const domain = urlObj.hostname;
+                        return {
+                            name: item.title || domain,
+                            url: item.url,
+                            icon: getIconForDomain(domain),
+                                              visits: item.visitCount || 0,
+                                              lastVisit: item.lastVisitTime ? new Date(item.lastVisitTime).toISOString() : new Date().toISOString(),
+                                              category: detectCategory(domain)
+                        };
+                    }).filter(item => item !== null);
 
-            if (filter !== 'all') {
-                history = history.filter(h => h.category === filter);
+                    if (filter !== 'all') {
+                        history = history.filter(h => h.category === filter);
+                    }
+
+                    resolve(history);
+                });
+            });
+        } else {
+            try {
+                const savedHistory = localStorage.getItem('browser_history_real');
+                let history = savedHistory ? JSON.parse(savedHistory) : [];
+                if (filter !== 'all') {
+                    history = history.filter(h => h.category === filter);
+                }
+                if (search && search.trim() !== '') {
+                    const searchLower = search.toLowerCase().trim();
+                    history = history.filter(h =>
+                    h.name.toLowerCase().includes(searchLower) ||
+                    h.url.toLowerCase().includes(searchLower)
+                    );
+                }
+                return Promise.resolve(history);
+            } catch (e) {
+                console.error('Ошибка получения истории:', e);
+                return Promise.resolve([]);
             }
-
-            if (search && search.trim() !== '') {
-                const searchLower = search.toLowerCase().trim();
-                history = history.filter(h =>
-                h.name.toLowerCase().includes(searchLower) ||
-                h.url.toLowerCase().includes(searchLower)
-                );
-            }
-
-            return history;
-        } catch (e) {
-            console.error('Ошибка получения истории:', e);
-            return [];
         }
     }
 
     function addToBrowserHistory(site) {
-        try {
-            let history = getBrowserHistory();
-            const domain = new URL(site.url).hostname;
-            const category = detectCategory(domain);
-
-            const existing = history.find(h => h.url === site.url);
-            if (existing) {
-                existing.visits = (existing.visits || 0) + 1;
-                existing.lastVisit = new Date().toISOString();
-            } else {
-                history.push({
-                    ...site,
-                    visits: 1,
-                    lastVisit: new Date().toISOString(),
-                             category
-                });
+        if (isExtension) {
+            chrome.history.addUrl({ url: site.url });
+        } else {
+            try {
+                let history = getBrowserHistorySync(); // Sync version for sim
+                const domain = new URL(site.url).hostname;
+                const category = detectCategory(domain);
+                const existing = history.find(h => h.url === site.url);
+                if (existing) {
+                    existing.visits = (existing.visits || 0) + 1;
+                    existing.lastVisit = new Date().toISOString();
+                } else {
+                    history.push({
+                        ...site,
+                        visits: 1,
+                        lastVisit: new Date().toISOString(),
+                                 category
+                    });
+                }
+                localStorage.setItem('browser_history_real', JSON.stringify(history));
+            } catch (e) {
+                console.error('Ошибка добавления в историю:', e);
             }
-            localStorage.setItem('browser_history_real', JSON.stringify(history));
-            return history;
-        } catch (e) {
-            console.error('Ошибка добавления в историю:', e);
-            return getBrowserHistory();
         }
     }
 
     function removeFromBrowserHistory(url) {
-        try {
-            let history = getBrowserHistory();
-            history = history.filter(h => h.url !== url);
-            localStorage.setItem('browser_history_real', JSON.stringify(history));
-            return history;
-        } catch (e) {
-            console.error('Ошибка удаления из истории:', e);
-            return getBrowserHistory();
+        if (isExtension) {
+            chrome.history.deleteUrl({ url });
+        } else {
+            try {
+                let history = getBrowserHistorySync();
+                history = history.filter(h => h.url !== url);
+                localStorage.setItem('browser_history_real', JSON.stringify(history));
+            } catch (e) {
+                console.error('Ошибка удаления из истории:', e);
+            }
         }
+    }
+
+    // Sync version for simulation
+    function getBrowserHistorySync() {
+        const savedHistory = localStorage.getItem('browser_history_real');
+        return savedHistory ? JSON.parse(savedHistory) : [];
     }
 
     function detectCategory(domain) {
@@ -412,8 +459,11 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="close-menu" id="closeHistory">×</button>
         </div>
         <div class="menu-content">
-        <input type="text" id="historySearch" placeholder="Поиск по имени или URL..." style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
-        <select id="categoryFilter" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
+        <div class="history-controls">
+        <input type="text" id="historySearch" placeholder="Поиск по имени или URL..."
+        style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
+        <select id="categoryFilter"
+        style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #4cc9f0; background: rgba(255, 255, 255, 0.1); color: white;">
         <option value="all">Все категории</option>
         <option value="поиск">Поиск</option>
         <option value="медиа">Медиа</option>
@@ -422,9 +472,23 @@ document.addEventListener('DOMContentLoaded', function() {
         <option value="почта">Почта</option>
         <option value="другое">Другое</option>
         </select>
+        <div class="import-controls" style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <button id="importFileBtn" style="flex: 1; padding: 10px; background: #4cc9f0; color: white; border: none; border-radius: 10px; cursor: pointer;">
+        📁 Импорт из файла
+        </button>
+        <button id="realHistoryBtn" style="flex: 1; padding: 10px; background: #43e97b; color: white; border: none; border-radius: 10px; cursor: pointer;"
+        ${isExtension ? '' : 'disabled title="Доступно только в расширении Chrome"'}>
+        🔄 Настоящая история
+        </button>
+        </div>
+        </div>
+        <div id="historyStats" style="margin-bottom: 15px; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 10px; font-size: 14px;">
+        Выберите источник истории...
+        </div>
         <div id="historyList" style="max-height: 400px; overflow-y: auto;"></div>
         </div>
         `;
+
         document.body.appendChild(historyMenu);
         historyMenu.style.display = 'block';
         overlay.style.display = 'block';
@@ -445,38 +509,362 @@ document.addEventListener('DOMContentLoaded', function() {
         const historyList = document.getElementById('historyList');
         const searchInput = document.getElementById('historySearch');
         const categoryFilter = document.getElementById('categoryFilter');
+        const historyStats = document.getElementById('historyStats');
+        const importFileBtn = document.getElementById('importFileBtn');
+        const realHistoryBtn = document.getElementById('realHistoryBtn');
 
-        function renderHistory() {
-            historyList.innerHTML = '';
-            const filter = categoryFilter.value;
-            const search = searchInput.value;
-            const history = getBrowserHistory(filter, search);
+        // Функция для получения настоящей истории браузера
+        async function getRealBrowserHistory() {
+            return new Promise((resolve) => {
+                if (!isExtension) {
+                    resolve([]);
+                    return;
+                }
 
-            history.forEach(site => {
-                const item = document.createElement('div');
-                item.className = 'bg-option history-item';
-                item.style.marginBottom = '10px';
-                item.style.background = getCategoryColor(site.category);
-                item.innerHTML = `
-                <span class="option-icon">${site.icon}</span>
-                <div class="option-text">
-                <h4>${site.name}</h4>
-                <p>${new URL(site.url).hostname} • Посещений: ${site.visits} • Последнее: ${getTimeAgo(new Date(site.lastVisit))}</p>
-                </div>
-                `;
-                item.addEventListener('click', () => {
-                    addSiteFromHistory(site);
-                    historyMenu.remove();
-                    overlay.style.display = 'none';
-                    isHistoryMenuOpen = false;
+                // Получаем историю за последние 30 дней
+                const millisecondsPerDay = 24 * 60 * 60 * 1000;
+                const thirtyDaysAgo = Date.now() - (30 * millisecondsPerDay);
+
+                chrome.history.search({
+                    text: '',              // Пустая строка = все элементы
+                    startTime: thirtyDaysAgo,
+                    endTime: Date.now(),
+                                      maxResults: 2000       // Увеличиваем лимит
+                }, (historyItems) => {
+                    // Группируем по домену и считаем посещения
+                    const domainMap = new Map();
+
+                    historyItems.forEach(item => {
+                        try {
+                            const url = new URL(item.url);
+                            const domain = url.hostname.replace('www.', '');
+
+                            if (domainMap.has(domain)) {
+                                const existing = domainMap.get(domain);
+                                existing.visits += item.visitCount || 1;
+                                if (new Date(item.lastVisitTime) > new Date(existing.lastVisit)) {
+                                    existing.lastVisit = new Date(item.lastVisitTime);
+                                    existing.name = item.title || existing.name;
+                                }
+                            } else {
+                                domainMap.set(domain, {
+                                    name: item.title || domain,
+                                    url: `https://${domain}`,
+                                    icon: getIconForDomain(domain),
+                                              visits: item.visitCount || 1,
+                                              lastVisit: new Date(item.lastVisitTime),
+                                              category: detectCategory(domain),
+                                              domain: domain
+                                });
+                            }
+                        } catch (e) {
+                            // Пропускаем невалидные URL
+                            console.warn('Невалидный URL:', item.url);
+                        }
+                    });
+
+                    // Преобразуем в массив и сортируем по количеству посещений
+                    const history = Array.from(domainMap.values())
+                    .sort((a, b) => b.visits - a.visits)
+                    .slice(0, 100); // Ограничиваем 100 топ-сайтами
+
+                    resolve(history);
                 });
-                historyList.appendChild(item);
             });
         }
 
-        searchInput.addEventListener('input', renderHistory);
-        categoryFilter.addEventListener('change', renderHistory);
-        renderHistory();
+        // Функция для импорта истории из файла
+        function setupFileImport() {
+            importFileBtn.addEventListener('click', () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json,.html,.txt';
+                input.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    try {
+                        const text = await file.text();
+                        let historyData;
+
+                        // Пытаемся распарсить JSON
+                        try {
+                            historyData = JSON.parse(text);
+                        } catch (parseError) {
+                            // Если это HTML-экспорт истории Chrome
+                            if (text.includes('<DT><A HREF="')) {
+                                historyData = parseChromeHistoryHTML(text);
+                            } else {
+                                throw new Error('Неверный формат файла. Поддерживаются JSON и HTML экспорт из Chrome.');
+                            }
+                        }
+
+                        const importedHistory = processImportedHistory(historyData);
+                        await saveImportedHistory(importedHistory);
+
+                        // Переключаемся на импортированную историю
+                        importFileBtn.click();
+
+                        alert(`Успешно импортировано ${importedHistory.length} записей истории!`);
+                    } catch (error) {
+                        console.error('Ошибка импорта:', error);
+                        alert(`Ошибка импорта: ${error.message}`);
+                    }
+                };
+                input.click();
+            });
+        }
+
+        // Парсинг HTML-экспорта истории Chrome
+        function parseChromeHistoryHTML(html) {
+            const historyItems = [];
+            const linkRegex = /<DT><A HREF="([^"]+)"[^>]*>([^<]+)<\/A>/g;
+            const dateRegex = /ADD_DATE="([^"]+)"/g;
+
+            let match;
+            while ((match = linkRegex.exec(html)) !== null) {
+                const url = match[1];
+                const title = match[2];
+
+                // Ищем дату для этой записи
+                dateRegex.lastIndex = match.index;
+                const dateMatch = dateRegex.exec(html);
+                const lastVisit = dateMatch ? new Date(parseInt(dateMatch[1]) * 1000) : new Date();
+
+                historyItems.push({
+                    url,
+                    title,
+                    lastVisitTime: lastVisit.getTime()
+                });
+            }
+
+            return historyItems;
+        }
+
+        // Обработка импортированной истории
+        function processImportedHistory(data) {
+            const domainMap = new Map();
+
+            // Обрабатываем разные форматы
+            const items = Array.isArray(data) ? data : Object.values(data);
+
+            items.forEach(item => {
+                try {
+                    const url = item.url || item.link || item.URL || item.href;
+                    const title = item.title || item.name || '';
+                    const lastVisit = item.lastVisitTime || item.lastVisit || item.timestamp || item.time || Date.now();
+
+                    if (!url) return;
+
+                    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+                    const domain = urlObj.hostname.replace('www.', '');
+
+                    if (domainMap.has(domain)) {
+                        const existing = domainMap.get(domain);
+                        existing.visits += 1;
+                        if (new Date(lastVisit) > new Date(existing.lastVisit)) {
+                            existing.lastVisit = new Date(lastVisit);
+                            existing.name = title || existing.name;
+                        }
+                    } else {
+                        domainMap.set(domain, {
+                            name: title || domain,
+                            url: `https://${domain}`,
+                            icon: getIconForDomain(domain),
+                                      visits: 1,
+                                      lastVisit: new Date(lastVisit),
+                                      category: detectCategory(domain),
+                                      domain: domain,
+                                      imported: true
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Ошибка обработки импортированной записи:', item);
+                }
+            });
+
+            return Array.from(domainMap.values())
+            .sort((a, b) => b.visits - a.visits)
+            .slice(0, 100);
+        }
+
+        // Сохранение импортированной истории
+        async function saveImportedHistory(history) {
+            if (isExtension) {
+                // В расширении сохраняем в chrome.storage
+                await new Promise(resolve => {
+                    chrome.storage.local.set({ imported_history: history }, resolve);
+                });
+            } else {
+                // В локальном режиме сохраняем в localStorage
+                localStorage.setItem('imported_browser_history', JSON.stringify(history));
+            }
+        }
+
+        // Загрузка импортированной истории
+        async function loadImportedHistory() {
+            if (isExtension) {
+                return new Promise(resolve => {
+                    chrome.storage.local.get(['imported_history'], (result) => {
+                        resolve(result.imported_history || []);
+                    });
+                });
+            } else {
+                const saved = localStorage.getItem('imported_browser_history');
+                return saved ? JSON.parse(saved) : [];
+            }
+        }
+
+        // Основная функция рендеринга истории
+        async function renderHistory(useRealHistory = false) {
+            historyList.innerHTML = '<div style="text-align: center; padding: 20px; color: #aaa;">Загрузка...</div>';
+
+            const filter = categoryFilter.value;
+            const search = searchInput.value.toLowerCase().trim();
+            let history = [];
+
+            try {
+                if (useRealHistory && isExtension) {
+                    // Показываем настоящую историю браузера
+                    history = await getRealBrowserHistory();
+                    historyStats.textContent = `Найдено ${history.length} сайтов из истории браузера`;
+                } else {
+                    // Показываем импортированную историю
+                    history = await loadImportedHistory();
+                    historyStats.textContent = `Импортировано ${history.length} сайтов`;
+                }
+
+                // Применяем фильтры
+                if (filter !== 'all') {
+                    history = history.filter(h => h.category === filter);
+                }
+
+                if (search) {
+                    history = history.filter(h =>
+                    h.name.toLowerCase().includes(search) ||
+                    h.url.toLowerCase().includes(search) ||
+                    h.domain?.toLowerCase().includes(search)
+                    );
+                }
+
+                // Рендерим результаты
+                if (history.length === 0) {
+                    historyList.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: #aaa;">
+                    ${useRealHistory && isExtension ?
+                        'История браузера пуста или не доступна' :
+                        'Импортированная история пуста. Нажмите "Импорт из файла"'}
+                        </div>
+                        `;
+                        return;
+                }
+
+                historyList.innerHTML = '';
+
+                history.forEach(site => {
+                    const item = document.createElement('div');
+                    item.className = 'bg-option history-item';
+                    item.style.marginBottom = '10px';
+                    item.style.background = getCategoryColor(site.category);
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.padding = '10px';
+                    item.style.borderRadius = '8px';
+                    item.style.cursor = 'pointer';
+                    item.style.transition = 'all 0.2s';
+
+                    item.innerHTML = `
+                    <span class="option-icon" style="font-size: 24px; margin-right: 12px;">${site.icon}</span>
+                    <div class="option-text" style="flex: 1;">
+                    <h4 style="margin: 0 0 5px 0; font-size: 16px;">${site.name}</h4>
+                    <p style="margin: 0; font-size: 12px; opacity: 0.8;">
+                    ${site.domain || new URL(site.url).hostname} •
+                    Посещений: ${site.visits} •
+                    ${getTimeAgo(new Date(site.lastVisit))}
+                    </p>
+                    </div>
+                    <button class="add-history-btn" style="background: #4cc9f0; color: white; border: none; border-radius: 5px; padding: 5px 10px; cursor: pointer; font-size: 12px;">
+                    Добавить
+                    </button>
+                    `;
+
+                    // Обработчик для добавления сайта
+                    const addBtn = item.querySelector('.add-history-btn');
+                    addBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        addSiteFromHistory(site);
+                    });
+
+                    // Обработчик для клика по всей карточке
+                    item.addEventListener('click', (e) => {
+                        if (!e.target.closest('.add-history-btn')) {
+                            addSiteFromHistory(site);
+                        }
+                    });
+
+                    // Эффекты при наведении
+                    item.addEventListener('mouseenter', () => {
+                        item.style.transform = 'translateY(-2px)';
+                        item.style.boxShadow = '0 5px 15px rgba(0,0,0,0.2)';
+                    });
+
+                    item.addEventListener('mouseleave', () => {
+                        item.style.transform = '';
+                        item.style.boxShadow = '';
+                    });
+
+                    historyList.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Ошибка загрузки истории:', error);
+                historyList.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #ff6b6b;">
+                Ошибка загрузки истории: ${error.message}
+                </div>
+                `;
+            }
+        }
+
+        // Обработчики для кнопок переключения режима
+        realHistoryBtn.addEventListener('click', async () => {
+            if (!isExtension) {
+                alert('Настоящая история доступна только в расширении Chrome. Используйте импорт из файла.');
+                return;
+            }
+
+            realHistoryBtn.classList.add('active');
+            realHistoryBtn.style.background = '#667eea';
+            importFileBtn.classList.remove('active');
+            importFileBtn.style.background = '#4cc9f0';
+
+            await renderHistory(true);
+        });
+
+        importFileBtn.addEventListener('click', async () => {
+            importFileBtn.classList.add('active');
+            importFileBtn.style.background = '#667eea';
+            realHistoryBtn.classList.remove('active');
+            realHistoryBtn.style.background = isExtension ? '#43e97b' : '#666';
+
+            await renderHistory(false);
+        });
+
+        // Настройка импорта из файла
+        setupFileImport();
+
+        // Инициализация - по умолчанию показываем импортированную историю
+        importFileBtn.click();
+
+        // События фильтрации
+        searchInput.addEventListener('input', () => {
+            const useRealHistory = realHistoryBtn.classList.contains('active');
+            renderHistory(useRealHistory);
+        });
+
+        categoryFilter.addEventListener('change', () => {
+            const useRealHistory = realHistoryBtn.classList.contains('active');
+            renderHistory(useRealHistory);
+        });
     }
 
     function addSiteFromHistory(site) {

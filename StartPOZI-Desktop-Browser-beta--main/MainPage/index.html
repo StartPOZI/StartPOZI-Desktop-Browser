@@ -27,45 +27,27 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
-    <script src="MouseConfig.js"></script>
-    <script src="debug.js"></script>
-
-
-    <!-- Меню выбора фона (актуальное с твоими опциями) -->
+    <!-- Меню выбора фона -->
     <div id="backgroundMenu" class="bg-menu" style="display: none;">
         <button id="closeMenu" class="close-btn">×</button>
         <h3>🌄 Выбор фона</h3>
-
         <div class="bg-option" data-type="gradient">
             <span>🌈</span>
-            <div>
-                <h4>Градиент</h4>
-                <p>Выберите готовый градиент</p>
-            </div>
+            <div><h4>Градиент</h4><p>Выберите готовый градиент</p></div>
         </div>
-
         <div class="bg-option" data-type="photo">
             <span>📸</span>
-            <div>
-                <h4>Фото</h4>
-                <p>Выберите готовые обои</p>
-            </div>
+            <div><h4>Фото</h4><p>Выберите готовые обои</p></div>
         </div>
-
         <div class="bg-option" data-type="image">
             <span>🖼️</span>
-            <div>
-                <h4>Загрузить свои</h4>
-                <p>Загрузите свою картинку</p>
-            </div>
+            <div><h4>Загрузить свои</h4><p>Загрузите свою картинку</p></div>
         </div>
     </div>
 
     <div id="gradientMenu" class="gradient-menu" style="display: none;">
         <button class="back-btn">← Назад</button>
         <h3>🌈 Выбор градиента</h3>
-
         <div class="gradient-option" data-gradient="gradient1" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
         <div class="gradient-option" data-gradient="gradient2" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
         <div class="gradient-option" data-gradient="gradient3" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
@@ -76,18 +58,33 @@
     <div id="photoMenu" class="gradient-menu" style="display: none;">
         <button class="back-btn">← Назад</button>
         <h3>🖼️ Выбор фото</h3>
-
-        <div class="gradient-option photo-option" data-photo="1" style="background-image: url('20221019093936_Priroda_8361-M.jpg'); background-size: cover; background-position: center;"></div> <!-- Изменено: локальный файл для preview -->
-        <div class="gradient-option photo-option" data-photo="2" style="background-image: url('images.jpg'); background-size: cover; background-position: center;"></div> <!-- Изменено: локальный файл для preview -->
+        <div class="gradient-option photo-option" data-photo="1" style="background-image: url('20221019093936_Priroda_8361-M.jpg'); background-size: cover; background-position: center;"></div>
+        <div class="gradient-option photo-option" data-photo="2" style="background-image: url('images.jpg'); background-size: cover; background-position: center;"></div>
     </div>
+
+    <!-- ВАЖНЫЙ СКРИПТ — ОТКРЫВАЕТ ПЛИТКИ В НОВОЙ ВКЛАДКЕ -->
+    <script>
+        // ГЛАВНЫЙ СКРИПТ: открываем ВСЕ плитки в новой вкладке браузера
+        document.addEventListener('click', function(e) {
+            const tile = e.target.closest('[data-url]');
+            if (!tile) return;
+
+            const url = tile.getAttribute('data-url');
+            if (!url || url === '') return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Отправляем в родительский процесс (браузер) — открыть новую вкладку
+            window.parent.postMessage({
+                type: 'OPEN_LINK',
+                url: url.startsWith('http') ? url : 'https://' + url
+            }, '*');
+        });
+    </script>
+
+    <script src="script.js"></script>
+    <script src="MouseConfig.js"></script>
+    <script src="debug.js"></script>
 </body>
-<script>
-document.addEventListener('click', e => {
-  const a = e.target.closest('a');
-  if (a?.href) {
-    e.preventDefault();
-    window.postMessage({ type: 'OPEN_SITE', url: a.href }, '*');
-  }
-});
-</script>
 </html>

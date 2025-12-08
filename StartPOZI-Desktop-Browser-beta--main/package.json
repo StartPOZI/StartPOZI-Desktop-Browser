@@ -8,5 +8,9 @@
   },
   "dependencies": {
     "electron": "^32.1.2"
-  }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }

@@ -1,16 +1,17 @@
 const { ipcRenderer } = require('electron');
 
-// Перехватываем клики по ссылкам на стартовой странице
-window.addEventListener('message', event => {
-    if (event.data?.type === 'OPEN_LINK') {
-        ipcRenderer.send('OPEN_URL', event.data.url);
+// Ловим все клики по плиткам и ссылкам
+window.addEventListener('message', e => {
+    if (e.data?.type === 'OPEN_LINK') {
+        ipcRenderer.send('OPEN_URL', e.data.url);
     }
 });
 
-// Перехват window.open (на всякий случай)
-window.open = function(url) {
+// Перехватываем window.open и ссылки _blank для обычных сайтов
+window.open = (url, name, features) => {
     if (url && !url.startsWith('javascript:')) {
         ipcRenderer.send('OPEN_URL', url);
+        return null;
     }
     return null;
 };

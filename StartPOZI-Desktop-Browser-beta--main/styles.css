@@ -223,6 +223,8 @@ body {
   flex: 1;
   position: relative;
   background-color: #000;
+  min-height: 0; /* ← Это уже есть у тебя */
+  overflow: hidden; /* ← ДОБАВЬ ЭТУ СТРОКУ */
 }
 
 .tab-content {

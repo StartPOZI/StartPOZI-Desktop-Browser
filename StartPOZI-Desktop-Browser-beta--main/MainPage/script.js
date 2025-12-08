@@ -910,5 +910,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialization
     initSites();
 
+
     console.log('StartPOZI инициализирован');
 });

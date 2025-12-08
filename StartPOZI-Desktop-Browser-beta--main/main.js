@@ -1,47 +1,46 @@
-const { app, BrowserWindow, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 
+let mainWindow;
+
 function createWindow() {
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-  console.log(`Screen size: ${width}x${height}`);
-  const win = new BrowserWindow({
-    width: width,
-    height: height,
+  mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
     frame: false,
+    show: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webviewTag: true
-    }
+      webviewTag: true,
+      preload: path.join(__dirname, 'preload.js'),
+                                 webSecurity: false,
+                                 allowRunningInsecureContent: true
+    },
+    backgroundColor: '#1e1e1e'
   });
 
-  win.loadFile('index.html');
-  win.maximize();
-  console.log(`Window size: ${win.getSize()[0]}x${win.getSize()[1]}`);
+  mainWindow.loadFile('index.html');
 
-  ipcMain.on('minimize-window', () => win.minimize());
-  ipcMain.on('maximize-window', () => {
-    if (win.isMaximized()) {
-      win.unmaximize();
-    } else {
-      win.maximize();
-    }
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
+    mainWindow.show();
+
+    // Создаём первую вкладку
+    mainWindow.webContents.send('OPEN_URL', `file://${path.join(__dirname, 'MainPage', 'index.html')}`);
   });
-  ipcMain.on('close-window', () => win.close());
 }
 
-app.whenReady().then(() => {
-  createWindow();
+// Кнопки окна
+ipcMain.on('minimize', () => mainWindow.minimize());
+ipcMain.on('maximize', () => mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize());
+ipcMain.on('close', () => mainWindow.close());
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
+// ОТКРЫТИЕ НОВОЙ ВКЛАДКИ — ИЗ ЛЮБОГО МЕСТА (preload, renderer, MainPage)
+ipcMain.on('OPEN_URL', (e, url) => {
+  mainWindow?.webContents.send('OPEN_URL', url);
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+app.whenReady().then(createWindow);
+app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

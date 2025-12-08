@@ -29,6 +29,8 @@
 
     <script src="script.js"></script>
     <script src="MouseConfig.js"></script>
+    <script src="debug.js"></script>
+
 
     <!-- Меню выбора фона (актуальное с твоими опциями) -->
     <div id="backgroundMenu" class="bg-menu" style="display: none;">
@@ -79,4 +81,13 @@
         <div class="gradient-option photo-option" data-photo="2" style="background-image: url('images.jpg'); background-size: cover; background-position: center;"></div> <!-- Изменено: локальный файл для preview -->
     </div>
 </body>
+<script>
+document.addEventListener('click', e => {
+  const a = e.target.closest('a');
+  if (a?.href) {
+    e.preventDefault();
+    window.postMessage({ type: 'OPEN_SITE', url: a.href }, '*');
+  }
+});
+</script>
 </html>

@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+// main.js — ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСЯ 2025 года
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 
 let win;
@@ -17,14 +18,12 @@ function createWindow() {
       webviewTag: true,
       preload: path.join(__dirname, 'preload.js'),
                           webSecurity: false,
-                          allowRunningInsecureContent: true
+                          allowRunningInsecureContent: true,
     },
     backgroundColor: '#1e1e1e'
   });
 
   win.loadFile(path.join(__dirname, 'index.html'));
-
-  // win.webContents.openDevTools({ mode: 'detach' }); // Раскомментируй, если нужно отладка
 
   win.once('ready-to-show', () => {
     win.maximize();
@@ -35,8 +34,37 @@ function createWindow() {
       win.webContents.send('OPEN_URL', startUrl);
     }, 300);
   });
+
+  // КЛЮЧЕВОЙ МОМЕНТ: ловим событие создания <webview>
+  win.webContents.on('did-attach-webview', (event, webContents) => {
+    // Это срабатывает каждый раз, когда создаётся новый <webview> (то есть новая вкладка)
+
+    // 1. Отменяем открытие новых окон (включая клик колёсиком!)
+    webContents.on('new-window', (e, url, frameName, disposition, options) => {
+      e.preventDefault();
+
+      // Если это клик колёсиком или target="_blank" — открываем в новой вкладке внутри нашего браузера
+      if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('file:')) {
+        win.webContents.send('OPEN_URL', url);
+      } else {
+        // mailto:, tg:, steam: и т.п. — в системе
+        shell.openExternal(url).catch(() => {});
+      }
+    });
+
+    // 2. Дополнительно блокируем popup-ы, если сайт пытается открыть окно сам
+    webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith('http')) {
+        win.webContents.send('OPEN_URL', url);
+      } else {
+        shell.openExternal(url);
+      }
+      return { action: 'deny' }; // полностью блокируем создание окна
+    });
+  });
 }
 
+// Остальные ipc без изменений
 ipcMain.on('minimize', () => win?.minimize());
 ipcMain.on('maximize', () => {
   if (win?.isMaximized()) win.unmaximize();

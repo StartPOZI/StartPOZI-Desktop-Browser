@@ -806,7 +806,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addBtn.className = 'site-card add-site';
         addBtn.id = 'addSiteBtn';
         addBtn.innerHTML = `
-        <div class="site-icon">Plus</div>
+        <div class="site-icon">✚</div>
         <div class="site-name">Добавить сайт</div>
         <div class="site-url">нажмите</div>
         `;

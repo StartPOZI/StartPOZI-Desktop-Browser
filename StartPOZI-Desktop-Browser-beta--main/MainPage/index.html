@@ -5,49 +5,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StartPOZI - Главная</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .logo-img { height: 60px; width: auto; user-select: none; pointer-events: none; }
+        .logo-img.tile-logo { height: 48px; }
+
+        /* Единый стиль для всех SVG-иконок */
+        .icon-svg {
+            width: 28px;
+            height: 28px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .btn svg { width: 26px; height: 26px; pointer-events: none; }
+        .bg-option span svg { width: 34px; height: 34px; }
+    </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="logo-container">
-                <div class="logo">Start<span>POZI</span></div>
+                <img src="93d36d0e0d088a5c.png" alt="StartPOZI" class="logo-img">
             </div>
             <div class="control-buttons">
-                <button class="btn red-btn" id="changePositions">🎨</button>
-                <button class="btn purple-btn" id="importFromHistory">📥</button>
-                <button class="btn blue-btn" id="deleteSites">🗑️</button>
-                <button class="btn green-btn" id="changeBackground">🌄</button>
+                <button class="btn red-btn" id="changePositions" title="Изменить позиции">
+                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="btn purple-btn" id="importFromHistory" title="Импорт из истории">
+                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+                <button class="btn blue-btn" id="deleteSites" title="Удалить сайты">
+                    <svg class="icon-svg" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                </button>
+                <button class="btn green-btn" id="changeBackground" title="Сменить фон">
+                    <svg class="icon-svg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </button>
             </div>
         </div>
 
         <div class="main-content">
-            <div class="sites-grid" id="sitesGrid">
-                <!-- Сайты будут добавляться через JavaScript -->
-            </div>
+            <div class="sites-grid" id="sitesGrid"></div>
         </div>
     </div>
 
-    <!-- Меню выбора фона -->
+    <!-- Меню выбора фона — с новыми топовыми иконками -->
     <div id="backgroundMenu" class="bg-menu" style="display: none;">
         <button id="closeMenu" class="close-btn">×</button>
-        <h3>🌄 Выбор фона</h3>
+        <h3>Выбор фона</h3>
+
+        <!-- Градиент -->
         <div class="bg-option" data-type="gradient">
-            <span>🌈</span>
+            <span>
+<svg viewBox="0 0 120 120" width="240" height="240" fill="currentColor">
+
+  <!-- Ряд 1 -->
+  <rect x="5"  y="5"  width="22" height="22" rx="6" />
+  <rect x="32" y="5"  width="18" height="18" rx="5" />
+  <rect x="55" y="5"  width="14" height="14" rx="4" />
+  <circle cx="82" cy="15" r="7" />
+  <circle cx="103" cy="15" r="5" />
+
+  <!-- Ряд 2 -->
+  <rect x="5"  y="32" width="22" height="22" rx="6" />
+  <rect x="32" y="34" width="18" height="18" rx="5" />
+  <rect x="55" y="36" width="14" height="14" rx="4" />
+  <circle cx="82" cy="43" r="7" />
+  <circle cx="103" cy="43" r="5" />
+
+  <!-- Ряд 3 -->
+  <rect x="5"  y="59" width="22" height="22" rx="6" />
+  <circle cx="41" cy="70" r="9" />
+  <circle cx="62" cy="70" r="7" />
+  <circle cx="82" cy="70" r="5" />
+  <circle cx="103" cy="70" r="4" />
+
+  <!-- Ряд 4 -->
+  <circle cx="16" cy="97" r="10" />
+  <circle cx="41" cy="97" r="8" />
+  <circle cx="62" cy="97" r="5" />
+  <circle cx="82" cy="97" r="4" />
+  <circle cx="103" cy="97" r="3" />
+
+</svg>
+
+
+
+            </span>
             <div><h4>Градиент</h4><p>Выберите готовый градиент</p></div>
         </div>
+
+        <!-- Фото -->
         <div class="bg-option" data-type="photo">
-            <span>📸</span>
+            <span>
+                <svg class="icon-svg" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="12" cy="11" r="3" stroke="currentColor" stroke-width="2"/>
+                    <path d="M20 7 L16 9 L20 11 Z" fill="currentColor"/>
+                    <path d="M3 20 L8 15 L12 18 L16 14 L21 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
             <div><h4>Фото</h4><p>Выберите готовые обои</p></div>
         </div>
+
+        <!-- Загрузить свои -->
         <div class="bg-option" data-type="image">
-            <span>🖼️</span>
+            <span>
+                <svg class="icon-svg" viewBox="0 0 24 24">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <rect x="3" y="12" width="18" height="9" rx="2"/>
+                    <circle cx="12" cy="16" r="2"/>
+                </svg>
+            </span>
             <div><h4>Загрузить свои</h4><p>Загрузите свою картинку</p></div>
         </div>
     </div>
 
     <div id="gradientMenu" class="gradient-menu" style="display: none;">
         <button class="back-btn">← Назад</button>
-        <h3>🌈 Выбор градиента</h3>
+        <h3>Выбор градиента</h3>
         <div class="gradient-option" data-gradient="gradient1" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
         <div class="gradient-option" data-gradient="gradient2" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
         <div class="gradient-option" data-gradient="gradient3" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
@@ -57,25 +135,19 @@
 
     <div id="photoMenu" class="gradient-menu" style="display: none;">
         <button class="back-btn">← Назад</button>
-        <h3>🖼️ Выбор фото</h3>
+        <h3>Выбор фото</h3>
         <div class="gradient-option photo-option" data-photo="1" style="background-image: url('20221019093936_Priroda_8361-M.jpg'); background-size: cover; background-position: center;"></div>
         <div class="gradient-option photo-option" data-photo="2" style="background-image: url('images.jpg'); background-size: cover; background-position: center;"></div>
     </div>
 
-    <!-- ВАЖНЫЙ СКРИПТ — ОТКРЫВАЕТ ПЛИТКИ В НОВОЙ ВКЛАДКЕ -->
     <script>
-        // ГЛАВНЫЙ СКРИПТ: открываем ВСЕ плитки в новой вкладке браузера
         document.addEventListener('click', function(e) {
             const tile = e.target.closest('[data-url]');
             if (!tile) return;
-
             const url = tile.getAttribute('data-url');
             if (!url || url === '') return;
-
             e.preventDefault();
             e.stopPropagation();
-
-            // Отправляем в родительский процесс (браузер) — открыть новую вкладку
             window.parent.postMessage({
                 type: 'OPEN_LINK',
                 url: url.startsWith('http') ? url : 'https://' + url

@@ -1,4 +1,4 @@
-// main.js — ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСЯ 2025 года
+// main.js — ФИНАЛЬНАЯ ВЕРСИЯ С PRELOAD ДЛЯ WEBVIEW 2025
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 
@@ -16,7 +16,7 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       webviewTag: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.js'), // это для основного окна, оставляем
                           webSecurity: false,
                           allowRunningInsecureContent: true,
     },
@@ -35,36 +35,43 @@ function createWindow() {
     }, 300);
   });
 
-  // КЛЮЧЕВОЙ МОМЕНТ: ловим событие создания <webview>
+  // === УСТАНОВКА PRELOAD ДЛЯ КАЖДОГО WEBVIEW ===
+  win.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    // Устанавливаем preload-скрипт для webview — здесь переопределим диалоги
+    webPreferences.preload = path.join(__dirname, 'webview-preload.js');
+
+    // Обеспечиваем те же настройки, что и в основном окне (на всякий случай)
+    webPreferences.nodeIntegration = true;
+    webPreferences.contextIsolation = false;
+    webPreferences.webSecurity = false;
+    webPreferences.allowRunningInsecureContent = true;
+  });
+
+  // === БЕЗОПАСНОЕ ОТКРЫТИЕ ССЫЛОК В НОВЫХ ВКЛАДКАХ ===
   win.webContents.on('did-attach-webview', (event, webContents) => {
-    // Это срабатывает каждый раз, когда создаётся новый <webview> (то есть новая вкладка)
-
-    // 1. Отменяем открытие новых окон (включая клик колёсиком!)
-    webContents.on('new-window', (e, url, frameName, disposition, options) => {
-      e.preventDefault();
-
-      // Если это клик колёсиком или target="_blank" — открываем в новой вкладке внутри нашего браузера
+    // Блокируем настоящие попапы и открываем ссылки внутри нашего браузера
+    webContents.setWindowOpenHandler(({ url }) => {
       if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('file:')) {
         win.webContents.send('OPEN_URL', url);
       } else {
-        // mailto:, tg:, steam: и т.п. — в системе
         shell.openExternal(url).catch(() => {});
       }
+      return { action: 'deny' };
     });
 
-    // 2. Дополнительно блокируем popup-ы, если сайт пытается открыть окно сам
-    webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('http')) {
+    // Дополнительно ловим клик колёсиком и target="_blank"
+    webContents.on('new-window', (e, url) => {
+      e.preventDefault();
+      if (url.startsWith('http:') || url.startsWith('https:') || url.startsWith('file:')) {
         win.webContents.send('OPEN_URL', url);
       } else {
-        shell.openExternal(url);
+        shell.openExternal(url).catch(() => {});
       }
-      return { action: 'deny' }; // полностью блокируем создание окна
     });
   });
 }
 
-// Остальные ipc без изменений
+// === Управление окном ===
 ipcMain.on('minimize', () => win?.minimize());
 ipcMain.on('maximize', () => {
   if (win?.isMaximized()) win.unmaximize();

@@ -49,17 +49,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==================== НОВЫЕ ФУНКЦИИ: ИМПОРТ ИЗ JSON + ЭКСПОРТ ====================
 
     // Импорт из JSON-файла
-    function importSitesFromJSON() {
+    async function importSitesFromJSON() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json,application/json';
 
-        input.onchange = e => {
+        input.onchange = async e => {
             const file = e.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = event => {
+            reader.onload = async event => {
                 try {
                     const raw = event.target.result;
                     let data = JSON.parse(raw);
@@ -110,20 +110,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     saveSites();
                     if (isEditMode) enableDragAndDrop();
-                    alert(`Импорт завершён! Добавлено сайтов: ${added}`);
+                    await alert(`Импорт завершён! Добавлено сайтов: ${added}`);
                 } catch (err) {
                     console.error(err);
-                    alert('Ошибка импорта:\n' + err.message);
+                    await alert('Ошибка импорта:\n' + err.message);
                 }
             };
-            reader.onerror = () => alert('Ошибка чтения файла');
+            reader.onerror = async () => await alert('Ошибка чтения файла');
             reader.readAsText(file);
         };
         input.click();
     }
 
     // Экспорт текущих сайтов в JSON
-    function exportSitesToJSON() {
+    async function exportSitesToJSON() {
         const sites = [];
         document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
             const img = card.querySelector('.site-icon img');
@@ -136,6 +136,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
+        function removeDeleteIconFromCard(card) {
+            card.style.cursor = '';
+            card.style.borderColor = '';
+            const deleteIcon = card.querySelector('.delete-icon');
+            if (deleteIcon) deleteIcon.remove();
+        }
+
+
+
         const data = JSON.stringify(sites, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -144,31 +153,222 @@ document.addEventListener('DOMContentLoaded', function() {
         a.download = `startpozi-backup-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        alert('Закладки экспортированы в файл!');
+        await alert('Закладки экспортированы в файл!');
     }
 
     // === ЗАМЕНА старого обработчика importBtn ===
-    importBtn.addEventListener('click', () => {
-        const choice = confirm(
+    importBtn.addEventListener('click', async () => {
+        const choice = await confirm(
             "Откуда импортировать сайты с JSON файла?\n\n" +
             "Отмена или закрытие окна — Переход в меню истории, которые вы портировали"
         );
 
         if (choice) {
-            importSitesFromJSON();
+            await importSitesFromJSON();
         } else {
             showHistoryMenuIfNotOpen();
         }
     });
 
     // Двойной клик по кнопке = экспорт
-    importBtn.addEventListener('dblclick', e => {
+    importBtn.addEventListener('dblclick', async e => {
         e.preventDefault();
         e.stopPropagation();
-        exportSitesToJSON();
+        await exportSitesToJSON();
     });
 
     importBtn.title = "Клик — импорт | Двойной клик — экспорт";
+
+    // Функции для добавления/удаления иконки крестика при режиме удаления
+    function addDeleteIconToCard(card) {
+        card.style.cursor = 'pointer';
+        card.style.borderColor = '#ff6b6b';
+        card.style.position = 'relative';
+
+        if (!card.querySelector('.delete-icon')) {
+            const deleteIcon = document.createElement('div');
+            deleteIcon.className = 'delete-icon';
+            deleteIcon.innerHTML = '×';
+            deleteIcon.style.cssText = `
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 25px;
+            height: 25px;
+            background: #ff6b6b;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+            `;
+
+            // Эффект при наведении на крестик
+            deleteIcon.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.2)';
+                this.style.background = '#ff3b3b';
+            });
+
+            deleteIcon.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+                this.style.background = '#ff6b6b';
+            });
+
+            deleteIcon.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const siteName = card.querySelector('.site-name').textContent;
+                const url = card.getAttribute('data-url');
+
+                if (confirm(`Удалить сайт "${siteName}"?`)) {
+                    // Анимация удаления
+                    card.style.transform = 'scale(0.8)';
+                    card.style.opacity = '0';
+                    card.style.transition = 'all 0.3s ease';
+
+                    setTimeout(() => {
+                        card.remove();
+                        removeFromBrowserHistory(url);
+                        saveSites();
+                    }, 300);
+                }
+            });
+
+            card.appendChild(deleteIcon);
+        }
+    }
+
+
+
+    // Функция переключения режима удаления
+    function toggleDeleteMode() {
+        isDeleteMode = !isDeleteMode;
+        isEditMode = false;
+
+        if (isDeleteMode) {
+            // Визуальная индикация активного режима удаления
+            deleteBtn.style.boxShadow = '0 0 25px rgba(67, 97, 238, 0.8)';
+            deleteBtn.style.backdropFilter = 'blur(10px)';
+            deleteBtn.style.transform = 'scale(1.05)';
+            deleteBtn.classList.add('active'); // Добавить эту строку
+
+            redBtn.style.boxShadow = '';
+            redBtn.style.backdropFilter = '';
+            redBtn.style.transform = '';
+            redBtn.classList.remove('active'); // Добавить эту строку
+
+            // Добавляем крестики на все карточки
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(addDeleteIconToCard);
+
+            // Меняем стиль карточек для индикации режима удаления
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
+                card.style.transition = 'all 0.3s ease';
+                card.style.boxShadow = '0 0 15px rgba(255, 107, 107, 0.5)';
+            });
+        } else {
+            // Возвращаем обычный вид кнопке
+            deleteBtn.style.boxShadow = '';
+            deleteBtn.style.backdropFilter = '';
+            deleteBtn.style.transform = '';
+            deleteBtn.classList.remove('active'); // Добавить эту строку
+
+            // Убираем крестики со всех карточек
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(removeDeleteIconFromCard);
+
+            // Возвращаем обычный стиль карточек
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
+                card.style.boxShadow = '';
+            });
+        }
+    }
+
+
+    // Функция переключения режима редактирования
+    function toggleEditMode() {
+        isEditMode = !isEditMode;
+        isDeleteMode = false;
+
+        if (isEditMode) {
+            // Визуальная индикация активного режима редактирования
+            redBtn.style.boxShadow = '0 0 25px rgba(255, 107, 107, 0.8)';
+            redBtn.style.backdropFilter = 'blur(10px)';
+            redBtn.style.transform = 'scale(1.05)';
+            redBtn.classList.add('active'); // Добавить эту строку
+
+            deleteBtn.style.boxShadow = '';
+            deleteBtn.style.backdropFilter = '';
+            deleteBtn.style.transform = '';
+            deleteBtn.classList.remove('active'); // Добавить эту строку
+
+            // Если был включен режим удаления - убираем крестики
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(removeDeleteIconFromCard);
+            enableDragAndDrop();
+        } else {
+            // Возвращаем обычный вид кнопке
+            redBtn.style.boxShadow = '';
+            redBtn.style.backdropFilter = '';
+            redBtn.style.transform = '';
+            redBtn.classList.remove('active'); // Добавить эту строку
+            disableDragAndDrop();
+            saveSites();
+        }
+    }
+
+
+
+    // Добавляем обработчики для остальных кнопок
+    redBtn.addEventListener('click', toggleEditMode);
+    deleteBtn.addEventListener('click', toggleDeleteMode);
+
+    greenBtn.addEventListener('click', () => {
+        showMenu(backgroundMenu);
+    });
+
+    // Обработчики для меню фона
+    document.querySelectorAll('.bg-option').forEach(option => {
+        option.addEventListener('click', () => {
+            const type = option.dataset.type;
+            closeBackgroundMenus();
+            if (type === 'gradient') {
+                showMenu(gradientMenu);
+            } else if (type === 'photo') {
+                showMenu(photoMenu);
+            } else if (type === 'image') {
+                uploadCustomImage();
+            }
+        });
+    });
+
+    document.querySelectorAll('.gradient-option, .photo-option').forEach(option => {
+        option.addEventListener('click', () => {
+            if (option.dataset.gradient) {
+                setBackgroundGradient(option.dataset.gradient);
+            } else if (option.dataset.photo) {
+                const url = option.style.backgroundImage.slice(5, -2); // извлекаем URL из style
+                setBackgroundImage(url);
+            }
+            closeBackgroundMenus();
+        });
+    });
+
+    document.querySelectorAll('.back-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            closeBackgroundMenus();
+            showMenu(backgroundMenu);
+        });
+    });
+
+    document.getElementById('closeMenu').addEventListener('click', closeBackgroundMenus);
+
+    overlay.addEventListener('click', closeBackgroundMenus);
+
+
+
 
     // ==================== ОРИГИНАЛЬНЫЙ КОД (без изменений) ====================
 
@@ -255,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
         saveBackground();
     }
 
-    function setBackgroundImage(url) {
+    async function setBackgroundImage(url) {
         const img = new Image();
         img.src = url;
         img.onload = () => {
@@ -268,9 +468,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.style.backgroundAttachment = 'fixed';
             saveBackground();
         };
-        img.onerror = () => {
+        img.onerror = async () => {
             console.error('Ошибка загрузки изображения:', url);
-            alert('Не удалось загрузить изображение. Фон не изменился.');
+            await alert('Не удалось загрузить изображение. Фон не изменился.');
         };
     }
 
@@ -281,23 +481,23 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.style.backgroundAttachment = '';
     }
 
-    function uploadCustomImage() {
+    async function uploadCustomImage() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
-        input.onchange = e => {
+        input.onchange = async e => {
             const file = e.target.files[0];
             if (file) {
                 if (!file.type.startsWith('image/')) {
-                    alert('Пожалуйста, выберите изображение (JPG, PNG и т.д.)');
+                    await alert('Пожалуйста, выберите изображение (JPG, PNG и т.д.)');
                     return;
                 }
                 const reader = new FileReader();
-                reader.onload = event => {
-                    setBackgroundImage(event.target.result);
+                reader.onload = async event => {
+                    await setBackgroundImage(event.target.result);
                 };
-                reader.onerror = () => {
-                    alert('Ошибка чтения файла. Попробуйте другой.');
+                reader.onerror = async () => {
+                    await alert('Ошибка чтения файла. Попробуйте другой.');
                 };
                 reader.readAsDataURL(file);
             }
@@ -337,283 +537,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function closeBackgroundMenus() {
         [backgroundMenu, gradientMenu, photoMenu].forEach(menu => menu.style.display = 'none');
         overlay.style.display = 'none';
-        overlay.style.opacity = '0';
-    }
-
-    backgroundMenu.querySelectorAll('.bg-option').forEach(option => {
-        option.addEventListener('click', () => {
-            const type = option.dataset.type;
-            if (type === 'gradient') {
-                backgroundMenu.style.display = 'none';
-                showMenu(gradientMenu);
-            } else if (type === 'photo') {
-                backgroundMenu.style.display = 'none';
-                showMenu(photoMenu);
-            } else if (type === 'image') {
-                uploadCustomImage();
-                closeBackgroundMenus();
-            }
-        });
-    });
-
-    gradientMenu.querySelector('.back-btn').addEventListener('click', () => {
-        gradientMenu.style.display = 'none';
-        showMenu(backgroundMenu);
-    });
-
-    photoMenu.querySelector('.back-btn').addEventListener('click', () => {
-        photoMenu.style.display = 'none';
-        showMenu(backgroundMenu);
-    });
-
-    gradientMenu.querySelectorAll('.gradient-option').forEach(opt => {
-        opt.addEventListener('click', () => {
-            const gradientType = opt.dataset.gradient;
-            setBackgroundGradient(gradientType);
-            closeBackgroundMenus();
-        });
-    });
-
-    photoMenu.querySelectorAll('.photo-option').forEach(opt => {
-        opt.addEventListener('click', () => {
-            const photo = opt.dataset.photo;
-            let url;
-            if (photo === '1') {
-                url = '20221019093936_Priroda_8361-M.jpg';
-            } else {
-                url = 'images.jpg';
-            }
-            setBackgroundImage(url);
-            closeBackgroundMenus();
-        });
-    });
-
-    overlay.addEventListener('click', closeBackgroundMenus);
-    document.querySelectorAll('.close-btn, .close-menu').forEach(btn => {
-        btn.addEventListener('click', closeBackgroundMenus);
-    });
-
-    greenBtn.addEventListener('click', () => showMenu(backgroundMenu));
-
-    redBtn.addEventListener('click', toggleEditMode);
-    deleteBtn.addEventListener('click', toggleDeleteMode);
-
-    function toggleEditMode() {
-        isEditMode = !isEditMode;
-        isDeleteMode = false;
-
-        if (isEditMode) {
-            redBtn.style.boxShadow = '0 0 25px rgba(255, 107, 107, 0.8)';
-            redBtn.style.backdropFilter = 'blur(10px)';
-            deleteBtn.style.boxShadow = '';
-            deleteBtn.style.backdropFilter = '';
-            enableDragAndDrop();
-        } else {
-            redBtn.style.boxShadow = '';
-            redBtn.style.backdropFilter = '';
-            disableDragAndDrop();
-            saveSites();
-        }
-    }
-
-    function toggleDeleteMode() {
-        isDeleteMode = !isDeleteMode;
-        isEditMode = false;
-
-        if (isDeleteMode) {
-            deleteBtn.style.boxShadow = '0 0 25px rgba(67, 97, 238, 0.8)';
-            deleteBtn.style.backdropFilter = 'blur(10px)';
-            redBtn.style.boxShadow = '';
-            redBtn.style.backdropFilter = '';
-
-            document.querySelectorAll('.site-card:not(.add-site)').forEach(addDeleteIconToCard);
-        } else {
-            deleteBtn.style.boxShadow = '';
-            deleteBtn.style.backdropFilter = '';
-
-            document.querySelectorAll('.site-card:not(.add-site)').forEach(removeDeleteIconFromCard);
-        }
-    }
-
-    function addDeleteIconToCard(card) {
-        card.style.cursor = 'pointer';
-        card.style.borderColor = '#ff6b6b';
-        card.style.position = 'relative';
-
-        if (!card.querySelector('.delete-icon')) {
-            const deleteIcon = document.createElement('div');
-            deleteIcon.className = 'delete-icon';
-            deleteIcon.innerHTML = '×';
-            deleteIcon.style.cssText = `
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            width: 25px;
-            height: 25px;
-            background: #ff6b6b;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 20px;
-            font-weight: bold;
-            z-index: 10;
-            `;
-
-            deleteIcon.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const siteName = card.querySelector('.site-name').textContent;
-                const url = card.getAttribute('data-url');
-
-                if (confirm(`Удалить сайт "${siteName}"?`)) {
-                    card.remove();
-                    removeFromBrowserHistory(url);
-                    saveSites();
-                }
-            });
-
-            card.appendChild(deleteIcon);
-        }
-    }
-
-    function removeDeleteIconFromCard(card) {
-        card.style.cursor = '';
-        card.style.borderColor = '';
-        const deleteIcon = card.querySelector('.delete-icon');
-        if (deleteIcon) deleteIcon.remove();
-    }
-
-    function showHistoryMenuIfNotOpen() {
-        if (isHistoryMenuOpen) return;
-        isHistoryMenuOpen = true;
-        showEnhancedHistoryMenu();
-    }
-
-    function initBrowserHistory() {
-        if (isExtension) return;
-        try {
-            let savedHistory = localStorage.getItem('browser_history_real');
-            let history = savedHistory ? JSON.parse(savedHistory) : [];
-            defaultSites.forEach(site => {
-                if (!history.some(h => h.url === site.url)) {
-                    history.push({
-                        ...site,
-                        visits: Math.floor(Math.random() * 15) + 5,
-                                 lastVisit: new Date(Date.now() - Math.random() * 86400000 * 7).toISOString(),
-                                 category: site.category || 'другое'
-                    });
-                }
-            });
-            localStorage.setItem('browser_history_real', JSON.stringify(history));
-            return history;
-        } catch (e) {
-            console.error('Ошибка инициализации истории:', e);
-            return [];
-        }
-    }
-
-    function getBrowserHistory(filter = 'all', search = '') {
-        if (isExtension) {
-            return new Promise((resolve) => {
-                const query = {
-                    text: search.trim(),
-                               maxResults: 500,
-                               startTime: Date.now() - 30 * 24 * 60 * 60 * 1000
-                };
-                chrome.history.search(query, (results) => {
-                    let history = results.map(item => {
-                        let urlObj;
-                        try {
-                            urlObj = new URL(item.url);
-                        } catch (e) {
-                            return null;
-                        }
-                        const domain = urlObj.hostname;
-                        return {
-                            name: item.title || domain,
-                            url: item.url,
-                            icon: getIconForDomain(domain),
-                                              visits: item.visitCount || 0,
-                                              lastVisit: item.lastVisitTime ? new Date(item.lastVisitTime).toISOString() : new Date().toISOString(),
-                                              category: detectCategory(domain)
-                        };
-                    }).filter(item => item !== null);
-
-                    if (filter !== 'all') {
-                        history = history.filter(h => h.category === filter);
-                    }
-
-                    resolve(history);
-                });
-            });
-        } else {
-            try {
-                const savedHistory = localStorage.getItem('browser_history_real');
-                let history = savedHistory ? JSON.parse(savedHistory) : [];
-                if (filter !== 'all') {
-                    history = history.filter(h => h.category === filter);
-                }
-                if (search && search.trim() !== '') {
-                    const searchLower = search.toLowerCase().trim();
-                    history = history.filter(h =>
-                    h.name.toLowerCase().includes(searchLower) ||
-                    h.url.toLowerCase().includes(searchLower)
-                    );
-                }
-                return Promise.resolve(history);
-            } catch (e) {
-                console.error('Ошибка получения истории:', e);
-                return Promise.resolve([]);
-            }
-        }
-    }
-
-    function addToBrowserHistory(site) {
-        if (isExtension) {
-            chrome.history.addUrl({ url: site.url });
-        } else {
-            try {
-                let history = getBrowserHistorySync();
-                const domain = new URL(site.url).hostname;
-                const category = detectCategory(domain);
-                const existing = history.find(h => h.url === site.url);
-                if (existing) {
-                    existing.visits = (existing.visits || 0) + 1;
-                    existing.lastVisit = new Date().toISOString();
-                } else {
-                    history.push({
-                        ...site,
-                        visits: 1,
-                        lastVisit: new Date().toISOString(),
-                                 category
-                    });
-                }
-                localStorage.setItem('browser_history_real', JSON.stringify(history));
-            } catch (e) {
-                console.error('Ошибка добавления в историю:', e);
-            }
-        }
-    }
-
-    function removeFromBrowserHistory(url) {
-        if (isExtension) {
-            chrome.history.deleteUrl({ url });
-        } else {
-            try {
-                let history = getBrowserHistorySync();
-                history = history.filter(h => h.url !== url);
-                localStorage.setItem('browser_history_real', JSON.stringify(history));
-            } catch (e) {
-                console.error('Ошибка удаления из истории:', e);
-            }
-        }
-    }
-
-    function getBrowserHistorySync() {
-        const savedHistory = localStorage.getItem('browser_history_real');
-        return savedHistory ? JSON.parse(savedHistory) : [];
     }
 
     function detectCategory(domain) {
@@ -628,6 +551,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getIconForDomain(domain) {
         return getEmojiForDomain(domain);
+    }
+
+    // ИСТОРИЯ (предполагаемая реализация, поскольку обрезана в оригинале)
+    let browserHistory = [];
+
+    function initBrowserHistory() {
+        browserHistory = JSON.parse(localStorage.getItem('startpozi_history')) || [];
+    }
+
+    async function getBrowserHistory(category = 'all', search = '') {
+        let filtered = browserHistory;
+        if (category !== 'all') {
+            filtered = filtered.filter(site => site.category === category);
+        }
+        if (search) {
+            const lowerSearch = search.toLowerCase();
+            filtered = filtered.filter(site => site.name.toLowerCase().includes(lowerSearch) || new URL(site.url).hostname.toLowerCase().includes(lowerSearch));
+        }
+        return filtered.sort((a, b) => b.lastVisit - a.lastVisit);
+    }
+
+    function addToBrowserHistory(site) {
+        const existing = browserHistory.find(s => s.url === site.url);
+        if (existing) {
+            existing.visits = (existing.visits || 1) + 1;
+            existing.lastVisit = Date.now();
+        } else {
+            browserHistory.push({...site, visits: 1, lastVisit: Date.now()});
+        }
+        localStorage.setItem('startpozi_history', JSON.stringify(browserHistory));
+    }
+
+    function removeFromBrowserHistory(url) {
+        browserHistory = browserHistory.filter(site => site.url !== url);
+        localStorage.setItem('startpozi_history', JSON.stringify(browserHistory));
     }
 
     async function showEnhancedHistoryMenu() {
@@ -697,8 +655,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 <p>${new URL(site.url).hostname} • Посещений: ${site.visits} • Последнее: ${getTimeAgo(new Date(site.lastVisit))}</p>
                 </div>
                 `;
-                item.addEventListener('click', () => {
-                    addSiteFromHistory(site);
+                item.addEventListener('click', async () => {
+                    await addSiteFromHistory(site);
                     historyMenu.remove();
                     overlay.style.display = 'none';
                     isHistoryMenuOpen = false;
@@ -712,10 +670,17 @@ document.addEventListener('DOMContentLoaded', function() {
         await renderHistory();
     }
 
-    function addSiteFromHistory(site) {
+    function showHistoryMenuIfNotOpen() {
+        if (!isHistoryMenuOpen) {
+            isHistoryMenuOpen = true;
+            showEnhancedHistoryMenu();
+        }
+    }
+
+    async function addSiteFromHistory(site) {
         const existingCard = Array.from(document.querySelectorAll('.site-card:not(.add-site)')).find(card => card.getAttribute('data-url') === site.url);
         if (existingCard) {
-            alert('Этот сайт уже добавлен!');
+            await alert('Этот сайт уже добавлен!');
             return;
         }
 
@@ -790,7 +755,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function initSites() {
+    async function initSites() {
         sitesGrid.innerHTML = '';
         initBrowserHistory();
         const savedSites = loadSavedData();
@@ -880,24 +845,20 @@ document.addEventListener('DOMContentLoaded', function() {
             emojiFallback.style.display = 'block';
         });
 
-        card.addEventListener('click', function(e) {
+        card.addEventListener('click', async function(e) {
             if (!isEditMode && !isDeleteMode) {
                 addToBrowserHistory(site);
                 window.open(site.url, '_blank');
-            } else if (isDeleteMode) {
-                if (confirm(`Удалить сайт "${site.name}"?`)) {
-                    this.remove();
-                    removeFromBrowserHistory(site.url);
-                    saveSites();
-                }
             }
+            // В режиме удаления клик по карточке игнорируется (удаление только через крестик)
+            // В режиме редактирования клик также игнорируется (работает drag&drop)
         });
 
         return card;
     }
 
-    function addNewSite() {
-        const url = prompt('Введите URL сайта (например: https://example.com):');
+    async function addNewSite() {
+        const url = await prompt('Введите URL сайта (например: https://example.com):');
         if (!url) return;
 
         let validUrl = url.startsWith('http') ? url : 'https://' + url;
@@ -905,11 +866,11 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             new URL(validUrl);
         } catch (e) {
-            alert('Некорректный URL. Пример: https://example.com');
+            await alert('Некорректный URL. Пример: https://example.com');
             return;
         }
 
-        const name = prompt('Введите название сайта:') || 'Новый сайт';
+        const name = (await prompt('Введите название сайта:')) || 'Новый сайт';
         const domain = new URL(validUrl).hostname;
         const category = detectCategory(domain);
 

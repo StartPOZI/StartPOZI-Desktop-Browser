@@ -7,6 +7,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "deasync": "^0.1.31",
     "electron": "^32.1.2"
   },
   "keywords": [],

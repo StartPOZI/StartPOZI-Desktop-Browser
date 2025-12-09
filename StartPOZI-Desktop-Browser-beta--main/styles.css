@@ -76,13 +76,13 @@ body {
 .tab .close:hover { color: #fff; }
 
 #addTab {
-  padding: 6px 12px;
-  background-color: #333;
-  border: none;
-  color: #ccc;
-  cursor: pointer;
-  border-radius: 6px;
-  font-size: 18px;
+padding: 6px 12px;
+background-color: #333;
+border: none;
+color: #ccc;
+cursor: pointer;
+border-radius: 6px;
+font-size: 18px;
 }
 
 #addTab:hover { background-color: #444; }
@@ -149,27 +149,27 @@ body {
 }
 
 #searchInput {
-  flex-grow: 1;
-  padding: 12px;
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 14px;
-  outline: none;
+flex-grow: 1;
+padding: 12px;
+background: transparent;
+border: none;
+color: #fff;
+font-size: 14px;
+outline: none;
 }
 
 #searchBtn {
-  background: transparent;
-  border: none;
-  color: #ccc;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
+background: transparent;
+border: none;
+color: #ccc;
+cursor: pointer;
+padding: 8px;
+border-radius: 8px;
 }
 
 #searchBtn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+background: rgba(255, 255, 255, 0.15);
+color: #fff;
 }
 
 /* Меню */
@@ -178,18 +178,18 @@ body {
 }
 
 #menuBtn {
-  padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 10px;
-  color: #ccc;
-  cursor: pointer;
-  font-size: 14px;
+padding: 10px 16px;
+background: rgba(255, 255, 255, 0.1);
+border: none;
+border-radius: 10px;
+color: #ccc;
+cursor: pointer;
+font-size: 14px;
 }
 
 #menuBtn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+background: rgba(255, 255, 255, 0.2);
+color: #fff;
 }
 
 .dropdown {
@@ -241,4 +241,231 @@ webview {
   width: 100%;
   height: 100%;
   border: none;
+}
+
+/* === ДИАЛОГИ В СТИЛЕ FIREFOX (добавлено) === */
+.browser-dialog-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  animation: dialog-fade-in 0.15s ease-out;
+}
+
+.browser-dialog-box {
+  background: #2a2a2a;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateY(-10px);
+  animation: dialog-slide-in 0.2s ease-out forwards;
+}
+
+.browser-dialog-icon {
+  width: 48px;
+  height: 48px;
+  margin: 24px auto 0;
+  border-radius: 50%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.browser-dialog-icon.info { background-color: #0a84ff; }
+.browser-dialog-icon.question { background-color: #ff9500; }
+.browser-dialog-icon.input { background-color: #34c759; }
+
+.browser-dialog-content {
+  padding: 0 24px 24px;
+}
+
+.browser-dialog-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.browser-dialog-message {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #ccc;
+}
+
+.browser-dialog-input {
+  display: none;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #333;
+  color: #fff;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.browser-dialog-input:focus {
+  outline: none;
+  border-color: #0a84ff;
+}
+
+.browser-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid #404040;
+}
+
+.browser-dialog-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+  min-width: 72px;
+}
+
+.browser-dialog-button {
+  background: #404040;
+  color: #fff;
+}
+
+.browser-dialog-button:hover {
+  background: #505050;
+}
+
+.browser-dialog-button.primary {
+  background: #0a84ff;
+}
+
+.browser-dialog-button.primary:hover {
+  background: #0066cc;
+}
+
+@keyframes dialog-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialog-slide-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+#customDialogOverlay {
+display: none;
+position: fixed;
+inset: 0;
+background: rgba(0,0,0,0.7);
+);
+backdrop-filter: blur(12px);
+align-items: center;
+justify-content: center;
+z-index: 999999;
+}
+
+.dialogBox {
+  background: #252525;
+  border-radius: 16px;
+  width: 440px;
+  max-width: 92vw;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+  border: 1px solid #444;
+  animation: pop 0.35s ease-out;
+}
+
+.dialogIcon {
+  width: 80px;
+  height: 80px;
+  margin: 30px auto 10px;
+  background: #0a84ff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2a10 10 0 100 20 10 10 0 000-20zm1 14h-2v-4h2v4zm0-6h-2V8h2v2z'/%3E%3C/svg%3E") center/44px no-repeat;
+  border-radius: 50%;
+}
+
+#dialogTitle {
+text-align: center;
+font-size: 20px;
+font-weight: 600;
+color: white;
+margin: 0 40px;
+}
+
+#dialogMessage {
+text-align: center;
+font-size: 15px;
+color: #ccc;
+margin: 16px 40px 24px;
+line-height: 1.5;
+}
+
+#dialogInput {
+display: none;
+margin: 0 40px 24px;
+padding: 14px 18px;
+background: #1a1a1a;
+border: 1px solid #555;
+border-radius: 12px;
+color: white;
+font-size: 16px;
+}
+
+#dialogInput:focus {
+outline: none;
+border-color: #0a84ff;
+box-shadow: 0 0 0 4px rgba(10,132,255,0.3);
+}
+
+.dialogButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 20px 40px 34px;
+  background: #2a2a2a;
+}
+
+.dialogButtons button {
+  min-width: 110px;
+  padding: 12px 0;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dialogButtons button {
+  background: #404040;
+  color: #ddd;
+}
+
+.dialogButtons button:hover {
+  background: #505050;
+}
+
+.dialogButtons button.primary {
+  background: #0a84ff;
+  color: white;
+}
+
+.dialogButtons button.primary:hover {
+  background: #006dcf;
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
 }

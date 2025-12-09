@@ -8,7 +8,7 @@
         disableRightClick: true,     // Блокировать правую кнопку мыши
         disableCopy: false,           // Блокировать копирование
         disableSelect: true,         // Блокировать выделение текста
-        disableShortcuts: true,      // Блокировать горячие клавиши
+        disableShortcuts: false,      // Блокировать горячие клавиши
         showWarning: true,           // Показывать предупреждения
         redirectOnDevTools: false,   // Перенаправлять при открытии DevTools
         redirectUrl: 'about:blank',  // Куда перенаправлять

@@ -43,8 +43,22 @@ document.addEventListener('DOMContentLoaded', function() {
         { name: 'Gmail', url: 'https://mail.google.com', icon: 'Envelope', category: 'почта' }
     ];
 
-    // Check if running in Chrome extension context
-    const isExtension = typeof chrome !== 'undefined' && chrome.history;
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+
+    async function alert(message) {
+        return new Promise(resolve => {
+            window.alert(message);
+            resolve();
+        });
+    }
+
+    async function confirm(message) {
+        return window.confirm(message);
+    }
+
+    async function prompt(message) {
+        return window.prompt(message);
+    }
 
     // ==================== НОВЫЕ ФУНКЦИИ: ИМПОРТ ИЗ JSON + ЭКСПОРТ ====================
 
@@ -136,15 +150,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
-        function removeDeleteIconFromCard(card) {
-            card.style.cursor = '';
-            card.style.borderColor = '';
-            const deleteIcon = card.querySelector('.delete-icon');
-            if (deleteIcon) deleteIcon.remove();
-        }
-
-
-
         const data = JSON.stringify(sites, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -155,29 +160,6 @@ document.addEventListener('DOMContentLoaded', function() {
         URL.revokeObjectURL(url);
         await alert('Закладки экспортированы в файл!');
     }
-
-    // === ЗАМЕНА старого обработчика importBtn ===
-    importBtn.addEventListener('click', async () => {
-        const choice = await confirm(
-            "Откуда импортировать сайты с JSON файла?\n\n" +
-            "Отмена или закрытие окна — Переход в меню истории, которые вы портировали"
-        );
-
-        if (choice) {
-            await importSitesFromJSON();
-        } else {
-            showHistoryMenuIfNotOpen();
-        }
-    });
-
-    // Двойной клик по кнопке = экспорт
-    importBtn.addEventListener('dblclick', async e => {
-        e.preventDefault();
-        e.stopPropagation();
-        await exportSitesToJSON();
-    });
-
-    importBtn.title = "Клик — импорт | Двойной клик — экспорт";
 
     // Функции для добавления/удаления иконки крестика при режиме удаления
     function addDeleteIconToCard(card) {
@@ -210,40 +192,60 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
 
             // Эффект при наведении на крестик
-            deleteIcon.addEventListener('mouseenter', function() {
-                this.style.transform = 'scale(1.2)';
-                this.style.background = '#ff3b3b';
-            });
-
-            deleteIcon.addEventListener('mouseleave', function() {
-                this.style.transform = 'scale(1)';
-                this.style.background = '#ff6b6b';
-            });
-
             deleteIcon.addEventListener('click', function(e) {
                 e.stopPropagation();
                 const siteName = card.querySelector('.site-name').textContent;
                 const url = card.getAttribute('data-url');
 
-                if (confirm(`Удалить сайт "${siteName}"?`)) {
-                    // Анимация удаления
-                    card.style.transform = 'scale(0.8)';
-                    card.style.opacity = '0';
-                    card.style.transition = 'all 0.3s ease';
+                // Удаляем без подтверждения
+                // Анимация удаления
+                card.style.transform = 'scale(0.8)';
+                card.style.opacity = '0';
+                card.style.transition = 'all 0.3s ease';
 
-                    setTimeout(() => {
-                        card.remove();
-                        removeFromBrowserHistory(url);
-                        saveSites();
-                    }, 300);
-                }
+                setTimeout(() => {
+                    card.remove();
+                    removeFromBrowserHistory(url);
+                    saveSites();
+                }, 300);
             });
 
             card.appendChild(deleteIcon);
         }
     }
 
+    function removeDeleteIconFromCard(card) {
+        card.style.cursor = '';
+        card.style.borderColor = '';
+        card.style.position = '';
+        const deleteIcon = card.querySelector('.delete-icon');
+        if (deleteIcon) deleteIcon.remove();
+    }
 
+    // ==================== ОБРАБОТЧИКИ КНОПОК ====================
+
+    // === ЗАМЕНА старого обработчика importBtn ===
+    importBtn.addEventListener('click', async () => {
+        const choice = await confirm(
+            "Откуда импортировать сайты с JSON файла?\n\n" +
+            "Отмена или закрытие окна — Переход в меню истории, которые вы портировали"
+        );
+
+        if (choice) {
+            await importSitesFromJSON();
+        } else {
+            showHistoryMenuIfNotOpen();
+        }
+    });
+
+    // Двойной клик по кнопке = экспорт
+    importBtn.addEventListener('dblclick', async e => {
+        e.preventDefault();
+        e.stopPropagation();
+        await exportSitesToJSON();
+    });
+
+    importBtn.title = "Клик — импорт | Двойной клик — экспорт";
 
     // Функция переключения режима удаления
     function toggleDeleteMode() {
@@ -255,12 +257,12 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteBtn.style.boxShadow = '0 0 25px rgba(67, 97, 238, 0.8)';
             deleteBtn.style.backdropFilter = 'blur(10px)';
             deleteBtn.style.transform = 'scale(1.05)';
-            deleteBtn.classList.add('active'); // Добавить эту строку
+            deleteBtn.classList.add('active');
 
             redBtn.style.boxShadow = '';
             redBtn.style.backdropFilter = '';
             redBtn.style.transform = '';
-            redBtn.classList.remove('active'); // Добавить эту строку
+            redBtn.classList.remove('active');
 
             // Добавляем крестики на все карточки
             document.querySelectorAll('.site-card:not(.add-site)').forEach(addDeleteIconToCard);
@@ -275,9 +277,9 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteBtn.style.boxShadow = '';
             deleteBtn.style.backdropFilter = '';
             deleteBtn.style.transform = '';
-            deleteBtn.classList.remove('active'); // Добавить эту строку
+            deleteBtn.classList.remove('active');
 
-            // Убираем крестики со всех карточек
+            // Убираем крестики со всех карточки
             document.querySelectorAll('.site-card:not(.add-site)').forEach(removeDeleteIconFromCard);
 
             // Возвращаем обычный стиль карточек
@@ -286,7 +288,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-
 
     // Функция переключения режима редактирования
     function toggleEditMode() {
@@ -298,12 +299,12 @@ document.addEventListener('DOMContentLoaded', function() {
             redBtn.style.boxShadow = '0 0 25px rgba(255, 107, 107, 0.8)';
             redBtn.style.backdropFilter = 'blur(10px)';
             redBtn.style.transform = 'scale(1.05)';
-            redBtn.classList.add('active'); // Добавить эту строку
+            redBtn.classList.add('active');
 
             deleteBtn.style.boxShadow = '';
             deleteBtn.style.backdropFilter = '';
             deleteBtn.style.transform = '';
-            deleteBtn.classList.remove('active'); // Добавить эту строку
+            deleteBtn.classList.remove('active');
 
             // Если был включен режим удаления - убираем крестики
             document.querySelectorAll('.site-card:not(.add-site)').forEach(removeDeleteIconFromCard);
@@ -313,17 +314,177 @@ document.addEventListener('DOMContentLoaded', function() {
             redBtn.style.boxShadow = '';
             redBtn.style.backdropFilter = '';
             redBtn.style.transform = '';
-            redBtn.classList.remove('active'); // Добавить эту строку
+            redBtn.classList.remove('active');
             disableDragAndDrop();
             saveSites();
         }
     }
 
+    // ==================== МАССОВОЕ УДАЛЕНИЕ ПРИ КЛИКЕ КОЛЕСИКОМ ====================
 
+    // Обработчик для колесика мыши (middle click)
+    deleteBtn.addEventListener('auxclick', async (e) => {
+        if (e.button === 1) { // Кнопка колесика имеет значение 1
+            e.preventDefault();
+            await deleteAllSitesWithConfirm();
+        }
+    });
 
-    // Добавляем обработчики для остальных кнопок
+    // Клик левой кнопкой мыши - обычное переключение режима удаления
+    deleteBtn.addEventListener('click', (e) => {
+        if (e.button === 0) { // Левая кнопка мыши
+            toggleDeleteMode();
+        }
+    });
+
+    // Функция массового удаления с подтверждением
+    async function deleteAllSitesWithConfirm() {
+        const siteCount = document.querySelectorAll('.site-card:not(.add-site)').length;
+
+        if (siteCount === 0) {
+            await alert("Нет сайтов для удаления!");
+            return;
+        }
+
+        // Создаем диалоговое окно с кнопками "Да" и "Нет"
+        const confirmed = await confirmMassDelete(siteCount);
+
+        if (confirmed === 'yes') {
+            // Запускаем анимацию удаления всех сайтов
+            document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
+                card.style.transform = 'scale(0.8)';
+                card.style.opacity = '0';
+                card.style.transition = 'all 0.3s ease';
+            });
+
+            setTimeout(() => {
+                document.querySelectorAll('.site-card:not(.add-site)').forEach(card => {
+                    const url = card.getAttribute('data-url');
+                    removeFromBrowserHistory(url);
+                    card.remove();
+                });
+                saveSites(); // Сохраняем пустое состояние
+
+                // Если был активен режим удаления - выключаем его
+                if (isDeleteMode) {
+                    toggleDeleteMode();
+                }
+
+                alert(`Удалено ${siteCount} сайтов!`);
+            }, 300);
+        } else if (confirmed === 'no') {
+            // Пользователь нажал "Нет" - ничего не делаем
+            console.log("Удаление отменено пользователем");
+        }
+        // Если confirmed === 'cancel' - пользователь закрыл окно
+    }
+
+    // Функция создания диалогового окна с кнопками "Да" и "Нет"
+    async function confirmMassDelete(siteCount) {
+        return new Promise((resolve) => {
+            // Создаем overlay для диалогового окна
+            const dialogOverlay = document.createElement('div');
+            dialogOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            `;
+
+            // Создаем диалоговое окно
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+            background: linear-gradient(135deg, #1a237e, #283593);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            border: 2px solid #4cc9f0;
+            `;
+
+            dialog.innerHTML = `
+            <h3 style="margin: 0 0 15px 0; color: #fff; font-size: 22px;">⚠️ Внимание!</h3>
+            <p style="color: #e0e0e0; margin-bottom: 25px; font-size: 16px; line-height: 1.5;">
+            Вы собираетесь удалить <strong style="color: #ff6b6b;">${siteCount}</strong> сайтов.<br>
+            Это действие нельзя отменить!
+            </p>
+            <div style="display: flex; gap: 15px; justify-content: center;">
+            <button id="confirmYes" style="
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #ff6b6b, #ff3b3b);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            ">Да, удалить всё</button>
+            <button id="confirmNo" style="
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #4cc9f0, #2a9df4);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex: 1;
+            ">Нет, отменить</button>
+            </div>
+            <p style="color: #b0b0b0; margin-top: 20px; font-size: 14px;">
+            (Нажмите ESC или кликните вне окна для отмены)
+            </p>
+            `;
+
+            dialogOverlay.appendChild(dialog);
+            document.body.appendChild(dialogOverlay);
+
+            // Функция закрытия диалога
+            function closeDialog(result) {
+                document.body.removeChild(dialogOverlay);
+                resolve(result);
+            }
+
+            // Обработчики кнопок
+            document.getElementById('confirmYes').addEventListener('click', () => closeDialog('yes'));
+            document.getElementById('confirmNo').addEventListener('click', () => closeDialog('no'));
+
+            // Закрытие по клику на overlay
+            dialogOverlay.addEventListener('click', (e) => {
+                if (e.target === dialogOverlay) {
+                    closeDialog('cancel');
+                }
+            });
+
+            // Закрытие по клавише ESC
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    closeDialog('cancel');
+                    document.removeEventListener('keydown', escHandler);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+
+            // Удаляем обработчик ESC после закрытия
+            dialogOverlay.addEventListener('remove', () => {
+                document.removeEventListener('keydown', escHandler);
+            });
+        });
+    }
+
     redBtn.addEventListener('click', toggleEditMode);
-    deleteBtn.addEventListener('click', toggleDeleteMode);
 
     greenBtn.addEventListener('click', () => {
         showMenu(backgroundMenu);
@@ -364,13 +525,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.getElementById('closeMenu').addEventListener('click', closeBackgroundMenus);
-
     overlay.addEventListener('click', closeBackgroundMenus);
 
-
-
-
-    // ==================== ОРИГИНАЛЬНЫЙ КОД (без изменений) ====================
+    // ==================== ОРИГИНАЛЬНЫЕ ФУНКЦИИ ====================
 
     async function getFaviconUrl(domain) {
         if (faviconCache.has(domain)) {
@@ -418,24 +575,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getEmojiForDomain(domain) {
         const domainLower = domain.toLowerCase();
-        if (domainLower.includes('youtube')) return 'Play';
-        if (domainLower.includes('google')) return 'Search';
-        if (domainLower.includes('github')) return 'Code';
-        if (domainLower.includes('chatgpt') || domainLower.includes('openai')) return 'Robot';
-        if (domainLower.includes('gmail') || domainLower.includes('mail.')) return 'Envelope';
-        if (domainLower.includes('netflix')) return 'Movie';
-        if (domainLower.includes('twitter')) return 'Bird';
-        if (domainLower.includes('instagram')) return 'Camera';
-        if (domainLower.includes('discord')) return 'Chat';
-        if (domainLower.includes('spotify')) return 'Music';
-        if (domainLower.includes('reddit')) return 'People';
-        if (domainLower.includes('stackoverflow')) return 'Lightbulb';
-        if (domainLower.includes('twitch')) return 'TV';
-        if (domainLower.includes('facebook')) return 'Book';
-        if (domainLower.includes('vk')) return 'Blue Circle';
-        if (domainLower.includes('telegram')) return 'Paper Plane';
-        if (domainLower.includes('whatsapp')) return 'Phone';
-        return 'Web';
+        if (domainLower.includes('youtube')) return '🎬';
+        if (domainLower.includes('google')) return '🔍';
+        if (domainLower.includes('github')) return '💻';
+        if (domainLower.includes('chatgpt') || domainLower.includes('openai')) return '🤖';
+        if (domainLower.includes('gmail') || domainLower.includes('mail.')) return '✉️';
+        if (domainLower.includes('netflix')) return '🎥';
+        if (domainLower.includes('twitter')) return '🐦';
+        if (domainLower.includes('instagram')) return '📷';
+        if (domainLower.includes('discord')) return '💬';
+        if (domainLower.includes('spotify')) return '🎵';
+        if (domainLower.includes('reddit')) return '👥';
+        if (domainLower.includes('stackoverflow')) return '💡';
+        if (domainLower.includes('twitch')) return '📺';
+        if (domainLower.includes('facebook')) return '📘';
+        if (domainLower.includes('vk')) return '🔵';
+        if (domainLower.includes('telegram')) return '📨';
+        if (domainLower.includes('whatsapp')) return '📱';
+        return '🌐';
     }
 
     function setBackgroundGradient(gradientType) {
@@ -549,11 +706,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return 'другое';
     }
 
-    function getIconForDomain(domain) {
-        return getEmojiForDomain(domain);
-    }
-
-    // ИСТОРИЯ (предполагаемая реализация, поскольку обрезана в оригинале)
+    // ==================== ИСТОРИЯ ====================
     let browserHistory = [];
 
     function initBrowserHistory() {
@@ -694,7 +847,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function getCategoryColor(category) {
         const backgrounds = {
             'поиск': 'rgba(255, 107, 107, 0.1)',
-                          'медиa': 'rgba(67, 97, 238, 0.1)',
+                          'медиа': 'rgba(67, 97, 238, 0.1)',
                           'разработка': 'rgba(157, 78, 221, 0.1)',
                           'ии': 'rgba(76, 201, 240, 0.1)',
                           'почта': 'rgba(67, 233, 123, 0.1)',
@@ -791,7 +944,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const emojiFallback = document.createElement('div');
         emojiFallback.className = 'emoji-fallback';
-        emojiFallback.textContent = site.icon || 'Web';
+        emojiFallback.textContent = site.icon || '🌐';
         emojiFallback.style.display = 'none';
 
         const faviconImg = document.createElement('img');
@@ -841,7 +994,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }).catch(() => {
             faviconImg.style.display = 'none';
-            emojiFallback.textContent = site.icon || 'Web';
+            emojiFallback.textContent = site.icon || '🌐';
             emojiFallback.style.display = 'block';
         });
 
@@ -850,8 +1003,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 addToBrowserHistory(site);
                 window.open(site.url, '_blank');
             }
-            // В режиме удаления клик по карточке игнорируется (удаление только через крестик)
-            // В режиме редактирования клик также игнорируется (работает drag&drop)
         });
 
         return card;
@@ -953,4 +1104,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initSites();
     console.log('StartPOZI инициализирован. Импорт из JSON — OK, экспорт — двойной клик.');
+    console.log('Управление красной кнопкой: ЛКМ - режим удаления, Колесико - массовое удаление');
 });

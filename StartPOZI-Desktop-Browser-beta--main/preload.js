@@ -1,9 +1,7 @@
 // preload.js — АСИНХРОННОЕ переопределение диалогов для ГЛАВНОГО ОКНА
-
-const { contextBridge, ipcRenderer } = require('electron'); // если нужно экспозить API, оставь; иначе удали
+const { contextBridge, ipcRenderer } = require('electron');
 
 (function() {
-    // Сама функция диалога — асинхронная, с Promise
     const showDialog = ({title='Подтвердите действие', message='', defaultValue='', showInput=false}) => {
         return new Promise(resolve => {
             const overlay = document.createElement('div');
@@ -38,7 +36,6 @@ const { contextBridge, ipcRenderer } = require('electron'); // если нужн
         });
     };
 
-    // Переопределяем глобальные функции АСИНХРОННО (возвращают Promise)
     window.alert = async (msg) => await showDialog({title:'Сообщение', message:msg});
     window.confirm = async (msg) => await showDialog({title:'Подтверждение', message:msg});
     window.prompt = async (msg, def='') => await showDialog({
@@ -49,5 +46,6 @@ const { contextBridge, ipcRenderer } = require('electron'); // если нужн
     });
 })();
 
-// Если нужно экспозить API в window (например, для ipc), добавь:
-// contextBridge.exposeInMainWorld('electronAPI', { ... });
+contextBridge.exposeInMainWorld('electronAPI', {
+    openUrl: (url) => ipcRenderer.send('OPEN_URL', url)
+});

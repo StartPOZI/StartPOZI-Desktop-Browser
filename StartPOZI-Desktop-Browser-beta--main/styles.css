@@ -1,7 +1,7 @@
-/* Основные стили */
+/* StartPOZI Browser — Основные стили 2025 */
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background-color: #1a1a1a;
   color: #fff;
   user-select: none;
@@ -13,84 +13,134 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #1a1a1a;
 }
 
 /* Тайтлбар macOS */
 .custom-titlebar.macos {
   height: 30px;
-  background-color: #2a2a2a;
+  background: linear-gradient(to bottom, #333 0%, #2a2a2a 100%);
   display: flex;
   align-items: center;
   justify-content: flex-end;
   -webkit-app-region: drag;
-  padding: 0 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid #000;
 }
 
 .window-controls button {
-  width: 12px; height: 12px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   margin-left: 8px;
   border: none;
   cursor: pointer;
   -webkit-app-region: no-drag;
+  transition: 0.2s;
 }
 
-#min-btn { background-color: #ffbd2e; }
-#max-btn { background-color: #29cd42; }
-#close-btn { background-color: #ff5f56; }
-#min-btn:hover { background-color: #e6ab2a; }
-#max-btn:hover { background-color: #25b93b; }
-#close-btn:hover { background-color: #e04e49; }
+#min-btn   { background-color: #ffbd2e; }
+#max-btn   { background-color: #28ca42; }
+#close-btn { background-color: #ff5f57; }
 
-/* Вкладки */
+#min-btn:hover   { background-color: #e1a42a; }
+#max-btn:hover   { background-color: #23b13a; }
+#close-btn:hover { background-color: #e04644; }
+
+/* Панель вкладок */
 .tabs {
   height: 40px;
-  background-color: #2a2a2a;
+  background: #2a2a2a;
   display: flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 5px 10px 0;
   border-bottom: 1px solid #333;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
+
+.tabs::-webkit-scrollbar { display: none; }
 
 .tab {
   display: flex;
   align-items: center;
   padding: 6px 12px;
-  background-color: #333;
-  margin-right: 5px;
+  background: #333;
+  margin-right: 6px;
   cursor: pointer;
-  border-radius: 8px 8px 0 0;
+  border-radius: 10px 10px 0 0;
   min-width: 120px;
   max-width: 220px;
+  transition: all 0.2s;
+  font-size: 13.5px;
 }
 
+.tab:hover { background: #3a3a3a; }
 .tab.active {
-  background-color: #444;
-  font-weight: bold;
+  background: #444;
+  font-weight: 600;
+  box-shadow: 0 -2px 0 #00c8ff inset;
 }
 
-.tab .favicon { width: 16px; height: 16px; margin-right: 8px; }
-.tab .title { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tab .close { background: none; border: none; color: #aaa; cursor: pointer; font-size: 16px; margin-left: 8px; }
-.tab .close:hover { color: #fff; }
+.tab .title {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 8px;
+}
 
+.tab .close {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 16px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+
+.tab .close:hover {
+  background: #ff4444;
+  color: white;
+}
+
+/* Кнопка "+" */
 #addTab {
-padding: 6px 12px;
-background-color: #333;
+width: 36px;
+height: 36px;
+border-radius: 10px;
+background: rgba(255,255,255,0.07);
 border: none;
-color: #ccc;
+display: flex;
+align-items: center;
+justify-content: center;
 cursor: pointer;
-border-radius: 6px;
-font-size: 18px;
+transition: all 0.22s ease;
+margin-left: 8px;
 }
 
-#addTab:hover { background-color: #444; }
+#addTab:hover {
+background: rgba(0,200,255,0.3);
+transform: scale(1.08);
+}
+
+#addTab svg {
+width: 16px;
+height: 16px;
+stroke-width: 3;
+}
 
 /* Панель инструментов */
 .toolbar {
   height: 56px;
-  background-color: #2a2a2a;
+  background: #2a2a2a;
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -98,78 +148,80 @@ font-size: 18px;
   gap: 12px;
 }
 
-/* Навигационные кнопки — РАБОТАЮТ! */
-.navigation-bar .nav-buttons {
-  display: flex;
-  gap: 8px;
-}
-
+/* Навигационные кнопки */
 .nav-btn {
   width: 40px;
   height: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
   border-radius: 10px;
-  color: #ccc;
-  cursor: pointer;
+  background: rgba(255,255,255,0.06);
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition: 0.2s;
 }
 
-.nav-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-}
-
-.nav-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.nav-btn:disabled:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
+.nav-btn:hover { background: rgba(0,200,255,0.2); }
+.nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .nav-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
 }
 
 /* Поиск */
 .search-bar {
-  flex-grow: 1;
-  display: flex;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 0 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  flex: 1;
+  max-width: 680px;
 }
 
 #searchInput {
-flex-grow: 1;
-padding: 12px;
-background: transparent;
-border: none;
-color: #fff;
-font-size: 14px;
+width: 100%;
+height: 40px;
+padding: 0 48px 0 16px;
+background: rgba(255,255,255,0.08);
+border: 1px solid rgba(255,255,255,0.12);
+border-radius: 12px;
+color: white;
+font-size: 15px;
 outline: none;
+transition: 0.2s;
+}
+
+#searchInput:focus {
+border-color: #00c8ff;
+box-shadow: 0 0 0 3px rgba(0,200,255,0.2);
+}
+
+#searchInput::placeholder {
+color: rgba(255,255,255,0.5);
 }
 
 #searchBtn {
-background: transparent;
+position: absolute;
+right: 4px;
+top: 4px;
+width: 32px;
+height: 32px;
+background: rgba(0,200,255,0.2);
 border: none;
-color: #ccc;
+border-radius: 10px;
+display: flex;
+align-items: center;
+justify-content: center;
 cursor: pointer;
-padding: 8px;
-border-radius: 8px;
+transition: 0.2s;
 }
 
-#searchBtn:hover {
-background: rgba(255, 255, 255, 0.15);
-color: #fff;
+#searchBtn:hover { background: rgba(0,200,255,0.4); }
+
+#searchBtn svg {
+width: 18px;
+height: 18px;
+stroke-width: 2.4;
 }
 
 /* Меню */
@@ -178,204 +230,139 @@ color: #fff;
 }
 
 #menuBtn {
-padding: 10px 16px;
-background: rgba(255, 255, 255, 0.1);
+width: 40px;
+height: 40px;
+background: rgba(255,255,255,0.06);
 border: none;
 border-radius: 10px;
-color: #ccc;
 cursor: pointer;
-font-size: 14px;
+display: flex;
+align-items: center;
+justify-content: center;
+transition: 0.2s;
 }
 
-#menuBtn:hover {
-background: rgba(255, 255, 255, 0.2);
-color: #fff;
-}
+#menuBtn:hover { background: rgba(0,200,255,0.2); }
 
 .dropdown {
-  display: none;
   position: absolute;
-  right: 0;
   top: 50px;
-  background-color: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 12px;
-  min-width: 180px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-  z-index: 1000;
+  right: 12px;
+  background: rgba(30,30,30,0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
   overflow: hidden;
+  display: none;
+  z-index: 10000;
+  ;
+  width: 260px;
 }
 
-.dropdown.show { display: block; }
+.dropdown.show {
+  display: block;
+  animation: menuFade 0.2s ease;
+}
+
+@keyframes menuFade {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
 
 .menu-item {
-  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  padding: 12px 18px;
+  gap: 14px;
+  font-size: 14.5px;
+  transition: background 0.2s;
   cursor: pointer;
-  transition: 0.2s;
 }
 
 .menu-item:hover {
-  background-color: #383838;
+  background: rgba(0,200,255,0.12);
 }
 
-/* Веб-вью */
+.menu-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  stroke-width: 2;
+}
+
+.separator {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 8px 16px;
+}
+
+/* Контейнер вкладок */
 .tabs-container {
   flex: 1;
   position: relative;
-  background-color: #000;
-  min-height: 0; /* ← Это уже есть у тебя */
-  overflow: hidden; /* ← ДОБАВЬ ЭТУ СТРОКУ */
+  background: #000;
 }
 
 .tab-content {
-  display: none;
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
   width: 100%;
   height: 100%;
+  top: 0;
+  left: 0;
+  display: none;
 }
 
-.tab-content.active { display: block; }
+.tab-content.active {
+  display: block;
+}
 
+/* Webview */
 webview {
   width: 100%;
   height: 100%;
   border: none;
 }
 
-/* === ДИАЛОГИ В СТИЛЕ FIREFOX (добавлено) === */
-.browser-dialog-overlay {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 9999;
-  align-items: center;
-  justify-content: center;
-  animation: dialog-fade-in 0.15s ease-out;
+/* Скроллбары (на всякий случай) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.browser-dialog-box {
-  background: #2a2a2a;
-  border: 1px solid #404040;
-  border-radius: 8px;
-  width: 400px;
-  max-width: 90vw;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  opacity: 0;
-  transform: translateY(-10px);
-  animation: dialog-slide-in 0.2s ease-out forwards;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.browser-dialog-icon {
-  width: 48px;
-  height: 48px;
-  margin: 24px auto 0;
-  border-radius: 50%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-
-.browser-dialog-icon.info { background-color: #0a84ff; }
-.browser-dialog-icon.question { background-color: #ff9500; }
-.browser-dialog-icon.input { background-color: #34c759; }
-
-.browser-dialog-content {
-  padding: 0 24px 24px;
-}
-
-.browser-dialog-title {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.browser-dialog-message {
-  margin: 0 0 16px;
-  font-size: 14px;
-  line-height: 1.4;
-  color: #ccc;
-}
-
-.browser-dialog-input {
-  display: none;
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #555;
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.2);
   border-radius: 4px;
-  background: #333;
-  color: #fff;
-  font-size: 14px;
-  box-sizing: border-box;
 }
 
-.browser-dialog-input:focus {
-  outline: none;
-  border-color: #0a84ff;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.3);
 }
 
-.browser-dialog-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 16px 24px;
-  border-top: 1px solid #404040;
-}
-
-.browser-dialog-button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.1s;
-  min-width: 72px;
-}
-
-.browser-dialog-button {
-  background: #404040;
-  color: #fff;
-}
-
-.browser-dialog-button:hover {
-  background: #505050;
-}
-
-.browser-dialog-button.primary {
-  background: #0a84ff;
-}
-
-.browser-dialog-button.primary:hover {
-  background: #0066cc;
-}
-
-@keyframes dialog-fade-in {
+/* Анимации */
+@keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes dialog-slide-in {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-#customDialogOverlay {
-display: none;
-position: fixed;
-inset: 0;
-background: rgba(0,0,0,0.7);
-);
-backdrop-filter: blur(12px);
-align-items: center;
-justify-content: center;
-z-index: 999999;
+/* Диалоги (если используешь preload) */
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
 }
 
 .dialogBox {
@@ -388,32 +375,23 @@ z-index: 999999;
   animation: pop 0.35s ease-out;
 }
 
-.dialogIcon {
-  width: 80px;
-  height: 80px;
-  margin: 30px auto 10px;
-  background: #0a84ff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2a10 10 0 100 20 10 10 0 000-20zm1 14h-2v-4h2v4zm0-6h-2V8h2v2z'/%3E%3C/svg%3E") center/44px no-repeat;
-  border-radius: 50%;
-}
-
 #dialogTitle {
 text-align: center;
 font-size: 20px;
 font-weight: 600;
 color: white;
-margin: 0 40px;
+margin: 30px 40px 10px;
 }
 
 #dialogMessage {
 text-align: center;
 font-size: 15px;
 color: #ccc;
-margin: 16px 40px 24px;
+margin: 0 40px 24px;
 line-height: 1.5;
 }
 
 #dialogInput {
-display: none;
 margin: 0 40px 24px;
 padding: 14px 18px;
 background: #1a1a1a;
@@ -421,12 +399,7 @@ border: 1px solid #555;
 border-radius: 12px;
 color: white;
 font-size: 16px;
-}
-
-#dialogInput:focus {
-outline: none;
-border-color: #0a84ff;
-box-shadow: 0 0 0 4px rgba(10,132,255,0.3);
+width: calc(100% - 80px);
 }
 
 .dialogButtons {
@@ -465,7 +438,4 @@ box-shadow: 0 0 0 4px rgba(10,132,255,0.3);
   background: #006dcf;
 }
 
-@keyframes pop {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
+/* Финал — 400 строк */

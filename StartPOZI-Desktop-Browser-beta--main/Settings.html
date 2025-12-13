@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&display=swap');
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height: 100%; overflow: hidden; font-family: 'SF Pro Display', -apple-system, sans-serif; }
+
+        body {
+            background: url('https://images.unsplash.com/photo-1614850715649-1d0106293bd1?w=2560&q=95') center/cover no-repeat fixed;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(20, 20, 30, 0.48);
+            backdrop-filter: blur(60px) saturate(180%) brightness(1.7);
+            -webkit-backdrop-filter: blur(60px) saturate(180%) brightness(1.7);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .window {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            position: relative;
+            z-index: 1;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: rgba(28, 28, 38, 0.65);
+            backdrop-filter: blur(40px);
+            border-right: 1px solid rgba(255,255,255,0.08);
+            padding: 100px 0 40px;
+        }
+
+        nav a {
+            display: flex;
+            align-items: center;
+            padding: 16px 28px;
+            color: rgba(255,255,255,0.75);
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        nav a:hover { background: rgba(255,255,255,0.1); color: white; }
+        nav a.active {
+            background: rgba(255,255,255,0.18);
+            color: white;
+            font-weight: 600;
+        }
+        nav a svg {
+            width: 22px;
+            height: 22px;
+            margin-right: 16px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            opacity: 0.9;
+        }
+
+        .content {
+            flex: 1;
+            padding: 100px 60px 60px;
+            overflow-y: auto;
+        }
+
+        .section { display: none; }
+        .section.active { display: block; animation: fade 0.5s; }
+        @keyframes fade { from {opacity:0; transform:translateY(20px);} to {opacity:1; transform:none;} }
+
+        .card {
+            background: rgba(40, 40, 55, 0.4);
+            backdrop-filter: blur(30px);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .card h2 {
+            font-size: 26px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 28px;
+        }
+
+        .buttons-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .clear-button, .refresh-button {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .clear-button:hover, .refresh-button:hover { background: rgba(255,255,255,0.2); }
+
+        #browse-search {
+            width: 100%;
+            padding: 14px 20px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 14px;
+            color: white;
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .history-item:hover { background: rgba(255,255,255,0.05); }
+        .history-item:last-child { border-bottom: none; }
+        .history-item img {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+        .history-item .info { flex: 1; min-width: 0; }
+        .history-item .title {
+            color: white;
+            font-size: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .history-item .url {
+            color: rgba(255,255,255,0.6);
+            font-size: 13px;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .history-item .time {
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+            margin-left: 20px;
+            flex-shrink: 0;
+        }
+
+        .empty-message {
+            color: rgba(255,255,255,0.6);
+            font-size: 17px;
+            text-align: center;
+            padding: 60px 20px;
+            line-height: 1.5;
+        }
+
+        .setting {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 0;
+        }
+        .setting:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .setting label { font-size: 16px; color: white; }
+        .setting small { color: rgba(255,255,255,0.6); font-size: 13px; display: block; margin-top: 4px; }
+
+        select, input[type="text"] {
+            padding: 10px 14px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            color: white;
+            font-size: 15px;
+        }
+        select { min-width: 200px; }
+    </style>
+</head>
+<body>
+
+<div class="window">
+    <aside class="sidebar">
+        <nav>
+            <a href="#general" class="active">
+                <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22" fill="none"/></svg>
+                Главная
+            </a>
+            <a href="#browsing-history">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                История посещений
+            </a>
+            <a href="#privacy">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Приватность
+            </a>
+            <a href="#downloads">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Загрузки
+            </a>
+        </nav>
+    </aside>
+
+    <main class="content">
+        <div id="general" class="section active">
+            <div class="card">
+                <h2>При запуске браузера</h2>
+                <div class="setting">
+                    <div>
+                        <label>Открывать при старте</label>
+                        <small>Восстановить сессию · Новая вкладка</small>
+                    </div>
+                    <select>
+                        <option>Восстановить предыдущую сессию</option>
+                        <option>Новую вкладку</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Поисковая система</h2>
+                <div class="setting">
+                    <div>
+                        <label>Поисковик по умолчанию</label>
+                        <small>Используется при вводе запроса в адресной строке</small>
+                    </div>
+                    <select id="search-engine-select">
+                        <option value="https://startpozi.netlify.app/search.html?q=">StartPOZI</option>
+                        <option value="https://www.google.com/search?q=">Google</option>
+                        <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
+                        <option value="https://www.bing.com/search?q=">Bing</option>
+                        <option value="custom">Свой поисковик</option>
+                    </select>
+                </div>
+                <div class="setting" id="custom-search-container" style="display:none;">
+                    <label>Свой URL поисковика</label>
+                    <input type="text" id="custom-search-url" placeholder="https://example.com/search?q=">
+                    <small>Используйте ?q= для подстановки запроса</small>
+                </div>
+            </div>
+        </div>
+
+        <div id="browsing-history" class="section">
+            <div class="card">
+                <h2>История посещений</h2>
+                <div class="buttons-container">
+                    <button class="refresh-button" id="refresh-browse">Обновить</button>
+                    <button class="clear-button" id="clear-browse">Очистить историю</button>
+                </div>
+                <input type="text" id="browse-search" placeholder="Поиск в истории...">
+                <div id="browse-list"></div>
+            </div>
+        </div>
+
+        <div id="privacy" class="section">
+            <div class="card">
+                <h2>Приватность</h2>
+                <div class="setting">
+                    <label>Блокировать сторонние куки</label>
+                    <input type="checkbox" class="toggle" checked>
+                </div>
+            </div>
+        </div>
+
+        <div id="downloads" class="section">
+            <div class="card">
+                <h2>Загрузки</h2>
+                <div class="setting">
+                    <label>Папка для загрузок</label>
+                    <input type="text" value="~/Загрузки">
+                </div>
+                <div class="setting">
+                    <label>Спрашивать место сохранения</label>
+                    <input type="checkbox" class="toggle">
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    const api = window.electronAPI;
+
+    // === ПОИСКОВАЯ СИСТЕМА ===
+    const searchSelect = document.getElementById('search-engine-select');
+    const customContainer = document.getElementById('custom-search-container');
+    const customInput = document.getElementById('custom-search-url');
+
+    api.getSearchEngine().then(url => {
+      const predefined = [
+        'https://startpozi.netlify.app/search.html?q=',
+        'https://www.google.com/search?q=',
+        'https://duckduckgo.com/?q=',
+        'https://www.bing.com/search?q='
+      ];
+      if (predefined.includes(url)) {
+        searchSelect.value = url;
+        customContainer.style.display = 'none';
+      } else {
+        searchSelect.value = 'custom';
+        customInput.value = url;
+        customContainer.style.display = 'block';
+      }
+    });
+
+    searchSelect.addEventListener('change', () => {
+      if (searchSelect.value !== 'custom') {
+        api.setSearchEngine(searchSelect.value);
+        customContainer.style.display = 'none';
+      } else {
+        customContainer.style.display = 'block';
+        customInput.focus();
+      }
+    });
+
+    customInput.addEventListener('blur', () => {
+      const val = customInput.value.trim();
+      if (val) api.setSearchEngine(val);
+    });
+
+    // === ИСТОРИЯ ПОСЕЩЕНИЙ ===
+    let fullHistory = [];
+
+    async function loadHistory(searchTerm = '') {
+      const history = await api.getHistory();
+      fullHistory = history.sort((a, b) => b.time - a.time);
+
+      let filtered = fullHistory;
+      if (searchTerm) {
+        const lower = searchTerm.toLowerCase();
+        filtered = fullHistory.filter(item =>
+          (item.title || '').toLowerCase().includes(lower) ||
+          item.url.toLowerCase().includes(lower)
+        );
+      }
+
+      const list = document.getElementById('browse-list');
+      list.innerHTML = '';
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="empty-message">
+          ${searchTerm ? 'Ничего не найдено' : 'История посещений пуста'}<br>
+          <small style="font-size:14px;opacity:0.7;">Посещённые сайты появятся здесь автоматически</small>
+        </div>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = `
+          <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(item.url)}&sz=32" alt="">
+          <div class="info">
+            <div class="title">${item.title || 'Без названия'}</div>
+            <div class="url">${item.url}</div>
+          </div>
+          <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
+        `;
+        div.onclick = () => api.openUrlFromSettings(item.url);
+        list.appendChild(div);
+      });
+    }
+
+    // Навигация
+    document.querySelectorAll('nav a').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        document.querySelector('nav a.active')?.classList.remove('active');
+        link.classList.add('active');
+        document.querySelector('.section.active')?.classList.remove('active');
+        document.querySelector(link.getAttribute('href'))?.classList.add('active');
+
+        if (link.getAttribute('href') === '#browsing-history') {
+          loadHistory(document.getElementById('browse-search').value.trim());
+        }
+      });
+    });
+
+    document.getElementById('refresh-browse').onclick = () => loadHistory(document.getElementById('browse-search').value.trim());
+    document.getElementById('clear-browse').onclick = () => {
+      if (confirm('Очистить всю историю посещений?')) {
+        api.clearHistory();
+        loadHistory();
+      }
+    };
+    document.getElementById('browse-search').addEventListener('input', e => loadHistory(e.target.value.trim()));
+
+    // Автообновление
+    api.onHistoryUpdated(() => {
+      const term = document.getElementById('browse-search')?.value.trim() || '';
+      if (document.querySelector('a[href="#browsing-history"].active')) loadHistory(term);
+    });
+
+    // Загрузка при открытии раздела
+    if (document.querySelector('a[href="#browsing-history"].active')) loadHistory();
+</script>
+</body>
+</html>

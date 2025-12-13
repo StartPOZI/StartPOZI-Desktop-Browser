@@ -27,7 +27,6 @@
     }
     .nav-btn:hover { background: rgba(255,255,255,0.14); }
 
-    /* ПОИСК — ТОЧНО ПО ЦЕНТРУ, ЧУТЬ МЕНЬШЕ, БЕЗ ЛУПЫ */
     .search-bar {
       position: absolute;
       left: 50%;
@@ -108,7 +107,6 @@
         <button class="nav-btn" id="refresh"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path></svg></button>
       </div>
 
-
       <div class="search-bar">
         <input type="text" id="searchInput" placeholder="Поиск или адрес..." autocomplete="off">
       </div>
@@ -136,39 +134,5 @@
   </div>
 
   <script src="renderer.js"></script>
-  <script>
-    // Меню работает
-    document.getElementById('menuBtn').onclick = (e) => {
-      e.stopPropagation();
-      document.getElementById('dropdown').classList.toggle('show');
-    };
-    document.addEventListener('click', (e) => {
-      const menu = document.getElementById('dropdown');
-      const btn = document.getElementById('menuBtn');
-      if (!btn.contains(e.target) && !menu.contains(e.target)) menu.classList.remove('show');
-    });
-
-    // Поиск работает по Enter
-    document.getElementById('searchInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const query = e.target.value.trim();
-        if (!query) return;
-
-        let url = query;
-        if (!url.match(/^https?:\/\//i)) {
-          if (url.includes('.')) {
-            url = 'https://' + url;
-          } else {
-            const engine = localStorage.getItem('searchEngineUrl') || 'https://www.google.com/search?q=';
-            url = engine + encodeURIComponent(url);
-          }
-        }
-
-        const activeWebview = document.querySelector('.tab-content.active webview');
-        if (activeWebview) activeWebview.loadURL(url);
-      }
-    });
-  </script>
 </body>
 </html>

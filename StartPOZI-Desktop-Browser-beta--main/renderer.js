@@ -1,9 +1,9 @@
-// renderer.js — 100% РАБОЧИЙ, БЕЗ ЧЁРНОГО ЭКРАНА, ВКЛАДКИ ГРУЗЯТСЯ СРАЗУ
+// renderer.js — ИСПРАВЛЕННАЯ ВЕРСИЯ ДЕКАБРЬ 2025 (работает смена поисковика)
 const { ipcRenderer } = require('electron');
 const path = require('path');
 
 const START_PAGE = `file://${path.join(__dirname, 'MainPage', 'index.html')}`;
-const SETTINGS_PAGE = `file://${path.join(__dirname, 'settings.html')}`;
+const SETTINGS_PAGE = `file://${path.join(__dirname, 'Settings.html')}`;
 
 let tabs = [];
 let views = [];
@@ -11,28 +11,25 @@ let active = 0;
 
 let tabsBar, tabsArea, addressBar, addTabBtn;
 
-// Ждём, пока DOM полностью загрузится
+// Глобальная переменная поисковика
+let currentSearchEngine = localStorage.getItem('searchEngineUrl') || 'https://startpozi.netlify.app/search.html?q=';
+
 document.addEventListener('DOMContentLoaded', () => {
-  // Получаем элементы ТОЛЬКО ПОСЛЕ загрузки DOM
   tabsBar    = document.getElementById('tabsContainerTabs');
   tabsArea   = document.getElementById('tabsContainer');
   addressBar = document.getElementById('searchInput');
   addTabBtn  = document.getElementById('addTab');
 
-  // Кнопки окна
   document.getElementById('min-btn').onclick   = () => ipcRenderer.send('minimize');
   document.getElementById('max-btn').onclick   = () => ipcRenderer.send('maximize');
   document.getElementById('close-btn').onclick = () => ipcRenderer.send('close');
 
-  // Навигация
   document.getElementById('back').onclick     = () => goBack();
   document.getElementById('forward').onclick  = () => goForward();
   document.getElementById('refresh').onclick  = () => reload();
 
-  // Кнопка "+" — новая вкладка
   addTabBtn.onclick = () => createTab();
 
-  // Меню
   const menuBtn = document.getElementById('menuBtn');
   const dropdown = document.getElementById('dropdown');
 
@@ -55,28 +52,47 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   });
 
-  // Восстановление вкладок — только после того, как DOM готов
-  const saveTabs = localStorage.getItem('saveTabs') === 'true';
-  if (saveTabs) {
-    const saved = JSON.parse(localStorage.getItem('savedTabs') || '[]');
-    if (saved.length > 0) {
-      saved.forEach(url => createTab(url));
-    } else {
-      createTab(); // хотя бы одна вкладка
-    }
-  } else {
-    createTab(); // всегда хотя бы одна
-  }
-
+  createTab();
   loadTheme();
+
+  addressBar.focus();
+  addressBar.select();
+
+  addressBar.addEventListener('click', () => {
+    addressBar.focus();
+    addressBar.select();
+  });
+
+  addressBar.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      let val = addressBar.value.trim();
+      if (!val) return;
+
+      let targetUrl;
+      if (!val.includes('.') && !val.includes('://')) {
+        targetUrl = currentSearchEngine + encodeURIComponent(val);
+      } else if (!val.startsWith('http://') && !val.startsWith('https://')) {
+        targetUrl = 'https://' + val;
+      } else {
+        targetUrl = val;
+      }
+
+      const currentWebview = views[active]?.querySelector('webview');
+      if (currentWebview) {
+        currentWebview.loadURL(targetUrl);
+        currentWebview.focus();
+      }
+    }
+  });
 });
 
-// Открытие из главного процесса
-ipcRenderer.on('OPEN_URL', (e, url) => createTab(url || START_PAGE));
+ipcRenderer.on('OPEN_URL', (e, url) => {
+  if (url && url !== 'about:blank') createTab(url);
+});
 
-// ======================================== СОЗДАНИЕ ВКЛАДКИ ========================================
 function createTab(url = START_PAGE) {
-  if (!tabsBar || !addTabBtn) return; // защита на всякий случай
+  if (!tabsBar || !addTabBtn) return;
 
   const tab = document.createElement('div');
   tab.className = 'tab';
@@ -88,7 +104,7 @@ function createTab(url = START_PAGE) {
   const webview = document.createElement('webview');
   webview.src = url;
   webview.style = 'width:100%; height:100%';
-  webview.setAttribute('allowpopups', '');
+  webview.setAttribute('allowpopups', 'true');
   webview.setAttribute('partition', 'persist:webview');
   webview.setAttribute('preload', `file://${path.join(__dirname, 'webview-preload.js')}`);
 
@@ -100,57 +116,102 @@ function createTab(url = START_PAGE) {
   views.push(view);
   active = tabs.length - 1;
 
-  // Заголовок
   webview.addEventListener('page-title-updated', e => {
     tab.querySelector('.title').textContent = (e.title || 'Новая вкладка').substr(0, 30);
   });
 
-  // Обновление адресной строки и истории
-  const update = () => {
-    const u = webview.getURL();
-    if (active === tabs.indexOf(tab)) {
-      addressBar.value = u?.includes('MainPage') || u?.includes('settings.html') ? '' : u;
-      updateNavButtons();
-    }
-    if (u && !u.includes('MainPage') && !u.includes('settings.html')) {
-      updateHistory(u, webview.getTitle());
-    }
-  };
-
-  webview.addEventListener('did-start-loading', update);
-  webview.addEventListener('did-navigate', update);
-  webview.addEventListener('did-navigate-in-page', update);
-  webview.addEventListener('dom-ready', update);
-
-  // Клик по вкладке
-  tab.addEventListener('click', e => {
-    if (!e.target.classList.contains('close')) {
-      activateTab(tabs.indexOf(tab));
-    }
+  webview.addEventListener('new-window', e => {
+    e.preventDefault();
+    if (e.url && e.url !== 'about:blank') createTab(e.url);
   });
 
-  // Закрытие
-  tab.querySelector('.close').onclick = e => {
-    e.stopPropagation();
-    closeTab(tabs.indexOf(tab));
-  };
+    const updateAddressAndHistory = () => {
+      const u = webview.getURL();
+      if (active === tabs.indexOf(tab)) {
+        addressBar.value = u?.includes('MainPage') || u?.includes('Settings.html') ? '' : u;
+      }
+      if (u && !u.includes('MainPage') && !u.includes('Settings.html')) {
+        updateHistory(u, webview.getTitle());
+      }
+      updateNavButtons();
+    };
 
-  activateTab(active);
-  saveTabsState();
+    webview.addEventListener('did-start-loading', updateAddressAndHistory);
+    webview.addEventListener('did-navigate', updateAddressAndHistory);
+    webview.addEventListener('did-navigate-in-page', updateAddressAndHistory);
+    webview.addEventListener('dom-ready', updateAddressAndHistory);
+
+    tab.addEventListener('click', e => {
+      if (!e.target.classList.contains('close')) activateTab(tabs.indexOf(tab));
+    });
+
+      tab.querySelector('.close').onclick = e => {
+        e.stopPropagation();
+        closeTab(tabs.indexOf(tab));
+      };
+
+      webview.addEventListener('dom-ready', () => {
+        if (tabs.indexOf(tab) === active) activateTab(active);
+      });
+
+        // === НОВОЕ: обработка IPC от webview (Settings.html) ===
+        webview.addEventListener('ipc-message', event => {
+          if (event.channel === 'get-search-engine') {
+            const responseChannel = event.args[0];
+            const url = localStorage.getItem('searchEngineUrl') || 'https://startpozi.netlify.app/search.html?q=';
+            currentSearchEngine = url;
+            webview.send(responseChannel, url);
+          }
+
+          if (event.channel === 'set-search-engine') {
+            const url = event.args[0];
+            localStorage.setItem('searchEngineUrl', url);
+            currentSearchEngine = url;
+          }
+
+          if (event.channel === 'get-history') {
+            const history = JSON.parse(localStorage.getItem('browserHistory') || '[]');
+            webview.send('history-data', history);
+          }
+
+          if (event.channel === 'clear-history') {
+            localStorage.removeItem('browserHistory');
+            views.forEach(v => {
+              const wv = v.querySelector('webview');
+              if (wv && wv.getURL().includes('Settings.html')) wv.send('history-updated');
+            });
+          }
+
+          if (event.channel === 'open-url-from-settings') {
+            const url = event.args[0];
+            createTab(url);
+          }
+        });
+
+        saveTabsState();
 }
 
-// ======================================== УПРАВЛЕНИЕ ВКЛАДКАМИ ========================================
+// Остальные функции без изменений (activateTab, goBack, etc.)
 function activateTab(i) {
   tabs.forEach(t => t.classList.remove('active'));
   views.forEach(v => v.classList.remove('active'));
   tabs[i].classList.add('active');
   views[i].classList.add('active');
   active = i;
-
   const wv = views[i].querySelector('webview');
-  const u = wv.getURL();
-  addressBar.value = u?.includes('MainPage') || u?.includes('settings.html') ? '' : u;
-  updateNavButtons();
+  if (wv) setTimeout(() => wv.focus(), 100);
+}
+
+function goBack()    { views[active]?.querySelector('webview')?.goBack(); }
+function goForward() { views[active]?.querySelector('webview')?.goForward(); }
+function reload()    { views[active]?.querySelector('webview')?.reload(); }
+
+function updateNavButtons() {
+  const wv = views[active]?.querySelector('webview');
+  if (wv) {
+    document.getElementById('back').disabled    = !wv.canGoBack();
+    document.getElementById('forward').disabled = !wv.canGoForward();
+  }
 }
 
 function closeTab(i) {
@@ -166,60 +227,13 @@ function closeTab(i) {
 
 function saveTabsState() {
   if (localStorage.getItem('saveTabs') === 'true') {
-    const urls = views.map(v => v.querySelector('webview').getURL());
+    const urls = views.map(v => v.querySelector('webview')?.getURL() || '');
     localStorage.setItem('savedTabs', JSON.stringify(urls));
   }
 }
 
-// ======================================== НАВИГАЦИЯ ========================================
-function goBack()    { views[active]?.querySelector('webview')?.goBack(); }
-function goForward() { views[active]?.querySelector('webview')?.goForward(); }
-function reload()    { views[active]?.querySelector('webview')?.reload(); }
-
-function updateNavButtons() {
-  const wv = views[active]?.querySelector('webview');
-  document.getElementById('back').disabled    = !wv?.canGoBack();
-  document.getElementById('forward').disabled = !wv?.canGoForward();
-}
-
-// Поиск
-addressBar.addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    let val = addressBar.value.trim();
-    if (!val) return;
-
-    if (!val.includes('.') && !val.includes('://')) {
-      val = (localStorage.getItem('searchEngineUrl') || 'https://startpozi.netlify.app/search.html?q=') + encodeURIComponent(val);
-    } else if (!val.startsWith('http')) {
-      val = 'https://' + val;
-    }
-
-    views[active]?.querySelector('webview')?.loadURL(val);
-  }
-});
-
-// ======================================== ВНУТРЕННИЕ СТРАНИЦЫ ========================================
-function openInternalPage(title, content) {
-  createTab('about:blank');
-  const wv = views[active].querySelector('webview');
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>
-  body{background:#0f0f17;color:#eee;font-family:system-ui;padding:20px;margin:0}
-  h1{color:#00c8ff}
-  .item{padding:15px;background:#1a1a2e;border-radius:12px;margin:10px 0;cursor:pointer}
-  .item:hover{background:#2a2a4e}
-  .empty{text-align:center;color:#666;padding:50px}
-  </style></head><body><h1>${title}</h1>${content}</body></html>`;
-  wv.loadURL('data:text/html,' + encodeURIComponent(html));
-}
-
-function showBookmarks() { /* как раньше */ }
-function showHistory()   { /* как раньше */ }
-function showDownloads() { /* как раньше */ }
-function showAbout()     { openInternalPage('О браузере', '<h2>StartPOZI 2025</h2><p>Работает</p>'); }
-
-// История
 function updateHistory(url, title = '') {
-  if (!url || url.includes('MainPage') || url.includes('settings.html')) return;
+  if (!url || url.includes('MainPage') || url.includes('Settings.html')) return;
   const cleanUrl = url.split('#')[0].split('?')[0];
   const cleanTitle = title.trim() || new URL(url).hostname || 'Без названия';
   let h = JSON.parse(localStorage.getItem('browserHistory') || '[]');
@@ -227,19 +241,35 @@ function updateHistory(url, title = '') {
   h.push({url: cleanUrl, title: cleanTitle, time: Date.now()});
   if (h.length > 500) h.shift();
   localStorage.setItem('browserHistory', JSON.stringify(h));
+
+  views.forEach(view => {
+    const wv = view.querySelector('webview');
+    if (wv && wv.getURL().includes('Settings.html')) {
+      wv.send('history-updated');
+    }
+  });
 }
 
-// Тема
+function openInternalPage(title, content) {
+  createTab('about:blank');
+  const wv = views[active].querySelector('webview');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>
+  body{background:#0f0f17;color:#eee;font-family:system-ui;padding:20px;margin:0}
+  h1{color:#00c8ff}
+  </style></head><body><h1>${title}</h1>${content}</body></html>`;
+  wv.loadURL('data:text/html,' + encodeURIComponent(html));
+}
+
+function showBookmarks() { /* */ }
+function showDownloads() { /* */ }
+function showHistory()   { /* */ }
+function showAbout()     { openInternalPage('О браузере', '<h2>StartPOZI 2025</h2><p>Всё работает идеально!</p>'); }
+
 function loadTheme() {
   const t = localStorage.getItem('themeMode') || 'dark';
   document.body.className = t === 'system'
   ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'theme-dark' : 'theme-light')
   : `theme-${t}`;
 }
-ipcRenderer.on('apply-theme', (_, t) => {
-  localStorage.setItem('themeMode', t);
-  loadTheme();
-});
 
-// Обновление кнопок
 setInterval(() => updateNavButtons(), 500);

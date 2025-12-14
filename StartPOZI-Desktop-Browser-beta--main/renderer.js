@@ -1,4 +1,4 @@
-// renderer.js — ИСПРАВЛЕННАЯ ВЕРСИЯ ДЕКАБРЬ 2025 (работает смена поисковика)
+// renderer.js — Финальная версия декабрь 2025 (автосохранение без диалога через main)
 const { ipcRenderer } = require('electron');
 const path = require('path');
 
@@ -11,8 +11,9 @@ let active = 0;
 
 let tabsBar, tabsArea, addressBar, addTabBtn;
 
-// Глобальная переменная поисковика
 let currentSearchEngine = localStorage.getItem('searchEngineUrl') || 'https://startpozi.netlify.app/search.html?q=';
+
+let downloads = JSON.parse(localStorage.getItem('browserDownloads') || '[]');
 
 document.addEventListener('DOMContentLoaded', () => {
   tabsBar    = document.getElementById('tabsContainerTabs');
@@ -91,6 +92,25 @@ ipcRenderer.on('OPEN_URL', (e, url) => {
   if (url && url !== 'about:blank') createTab(url);
 });
 
+// Приём завершённых загрузок из main.js
+ipcRenderer.on('download-completed', (event, { filename, url }) => {
+  addDownload(filename, url || '');
+});
+
+function addDownload(filename, url) {
+  const item = { filename, url, time: Date.now() };
+  downloads.push(item);
+  if (downloads.length > 500) downloads.shift();
+  localStorage.setItem('browserDownloads', JSON.stringify(downloads));
+
+  views.forEach(view => {
+    const wv = view.querySelector('webview');
+    if (wv && wv.getURL().includes('Settings.html')) {
+      wv.send('downloads-updated');
+    }
+  });
+}
+
 function createTab(url = START_PAGE) {
   if (!tabsBar || !addTabBtn) return;
 
@@ -154,7 +174,6 @@ function createTab(url = START_PAGE) {
         if (tabs.indexOf(tab) === active) activateTab(active);
       });
 
-        // === НОВОЕ: обработка IPC от webview (Settings.html) ===
         webview.addEventListener('ipc-message', event => {
           if (event.channel === 'get-search-engine') {
             const responseChannel = event.args[0];
@@ -182,6 +201,19 @@ function createTab(url = START_PAGE) {
             });
           }
 
+          if (event.channel === 'get-downloads') {
+            webview.send('downloads-data', downloads);
+          }
+
+          if (event.channel === 'clear-downloads') {
+            downloads = [];
+            localStorage.removeItem('browserDownloads');
+            views.forEach(v => {
+              const wv = v.querySelector('webview');
+              if (wv && wv.getURL().includes('Settings.html')) wv.send('downloads-updated');
+            });
+          }
+
           if (event.channel === 'open-url-from-settings') {
             const url = event.args[0];
             createTab(url);
@@ -191,7 +223,6 @@ function createTab(url = START_PAGE) {
         saveTabsState();
 }
 
-// Остальные функции без изменений (activateTab, goBack, etc.)
 function activateTab(i) {
   tabs.forEach(t => t.classList.remove('active'));
   views.forEach(v => v.classList.remove('active'));
@@ -261,7 +292,7 @@ function openInternalPage(title, content) {
 }
 
 function showBookmarks() { /* */ }
-function showDownloads() { /* */ }
+function showDownloads() { createTab(SETTINGS_PAGE); }
 function showHistory()   { /* */ }
 function showAbout()     { openInternalPage('О браузере', '<h2>StartPOZI 2025</h2><p>Всё работает идеально!</p>'); }
 

@@ -76,8 +76,7 @@
         }
 
         .section { display: none; }
-        .section.active { display: block; animation: fade 0.5s; }
-        @keyframes fade { from {opacity:0; transform:translateY(20px);} to {opacity:1; transform:none;} }
+        .section.active { display: block; }
 
         .card {
             background: rgba(40, 40, 55, 0.4);
@@ -96,22 +95,28 @@
 
         .buttons-container {
             display: flex;
-            gap: 10px;
+            gap: 12px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
-        .clear-button, .refresh-button {
-            background: rgba(255,255,255,0.1);
-            border: none;
+        .clear-button, .refresh-button, #change-download-path {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.18);
             color: white;
-            padding: 10px 20px;
-            border-radius: 12px;
+            padding: 11px 22px;
+            border-radius: 14px;
             font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
+            transition: all 0.25s ease;
         }
-        .clear-button:hover, .refresh-button:hover { background: rgba(255,255,255,0.2); }
 
-        #browse-search {
+        .clear-button:hover, .refresh-button:hover, #change-download-path:hover {
+            background: rgba(255,255,255,0.22);
+        }
+
+        #browse-search, #downloads-search {
             width: 100%;
             padding: 14px 20px;
             background: rgba(0,0,0,0.3);
@@ -175,27 +180,27 @@
             justify-content: space-between;
             align-items: center;
             padding: 18px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
-        .setting:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .setting:last-child { border-bottom: none; }
         .setting label { font-size: 16px; color: white; }
         .setting small { color: rgba(255,255,255,0.6); font-size: 13px; display: block; margin-top: 4px; }
 
         select, input[type="text"] {
-            padding: 10px 14px;
             background: rgba(0,0,0,0.3);
             border: 1px solid rgba(255,255,255,0.15);
             border-radius: 12px;
+            padding: 10px 14px;
             color: white;
             font-size: 15px;
         }
-        select { min-width: 200px; }
     </style>
 </head>
 <body>
 
 <div class="window">
     <aside class="sidebar">
-        <nav>
+        <nav id="main-nav">
             <a href="#general" class="active">
                 <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22" fill="none"/></svg>
                 Главная
@@ -247,9 +252,11 @@
                     </select>
                 </div>
                 <div class="setting" id="custom-search-container" style="display:none;">
-                    <label>Свой URL поисковика</label>
+                    <div>
+                        <label>Свой URL поисковика</label>
+                        <small>Используйте ?q= для подстановки запроса</small>
+                    </div>
                     <input type="text" id="custom-search-url" placeholder="https://example.com/search?q=">
-                    <small>Используйте ?q= для подстановки запроса</small>
                 </div>
             </div>
         </div>
@@ -280,19 +287,25 @@
             <div class="card">
                 <h2>Загрузки</h2>
                 <div class="setting">
-                    <label>Папка для загрузок</label>
-                    <input type="text" value="~/Загрузки">
+                    <div>
+                        <label>Папка для загрузок</label>
+                        <small id="current-download-path">Загрузка...</small>
+                    </div>
+                    <button class="refresh-button" id="change-download-path">Изменить</button>
                 </div>
-                <div class="setting">
-                    <label>Спрашивать место сохранения</label>
-                    <input type="checkbox" class="toggle">
+                <div class="buttons-container">
+                    <button class="refresh-button" id="refresh-downloads">Обновить</button>
+                    <button class="clear-button" id="clear-downloads">Очистить список</button>
                 </div>
+                <input type="text" id="downloads-search" placeholder="Поиск в загрузках...">
+                <div id="downloads-list"></div>
             </div>
         </div>
     </main>
 </div>
 
 <script>
+    // Используем optional chaining (?.), чтобы избежать ошибок, если window.electronAPI не проброшен.
     const api = window.electronAPI;
 
     // === ПОИСКОВАЯ СИСТЕМА ===
@@ -300,26 +313,30 @@
     const customContainer = document.getElementById('custom-search-container');
     const customInput = document.getElementById('custom-search-url');
 
-    api.getSearchEngine().then(url => {
-      const predefined = [
-        'https://startpozi.netlify.app/search.html?q=',
-        'https://www.google.com/search?q=',
-        'https://duckduckgo.com/?q=',
-        'https://www.bing.com/search?q='
-      ];
-      if (predefined.includes(url)) {
-        searchSelect.value = url;
-        customContainer.style.display = 'none';
-      } else {
-        searchSelect.value = 'custom';
-        customInput.value = url;
-        customContainer.style.display = 'block';
-      }
-    });
+    // Загрузка текущего поисковика при инициализации
+    if (api?.getSearchEngine) {
+        api.getSearchEngine().then(url => {
+          const predefined = [
+            'https://startpozizi.netlify.app/search.html?q=',
+            'https://www.google.com/search?q=',
+            'https://duckduckgo.com/?q=',
+            'https://www.bing.com/search?q='
+          ];
+          if (predefined.includes(url)) {
+            searchSelect.value = url;
+            customContainer.style.display = 'none';
+          } else {
+            searchSelect.value = 'custom';
+            customInput.value = url || '';
+            customContainer.style.display = 'block';
+          }
+        });
+    }
 
+    // Обработчик изменения выбора поисковика
     searchSelect.addEventListener('change', () => {
       if (searchSelect.value !== 'custom') {
-        api.setSearchEngine(searchSelect.value);
+        api?.setSearchEngine(searchSelect.value);
         customContainer.style.display = 'none';
       } else {
         customContainer.style.display = 'block';
@@ -327,15 +344,19 @@
       }
     });
 
+    // Обработчик сохранения кастомного URL при потере фокуса
     customInput.addEventListener('blur', () => {
       const val = customInput.value.trim();
-      if (val) api.setSearchEngine(val);
+      if (val) api?.setSearchEngine(val);
     });
 
-    // === ИСТОРИЯ ПОСЕЩЕНИЙ ===
+    // === ИСТОРИЯ (Функция сделана устойчивой) ===
     let fullHistory = [];
 
     async function loadHistory(searchTerm = '') {
+      // Предотвращаем выполнение, если API недоступен
+      if (!api?.getHistory) return;
+
       const history = await api.getHistory();
       fullHistory = history.sort((a, b) => b.time - a.time);
 
@@ -349,6 +370,7 @@
       }
 
       const list = document.getElementById('browse-list');
+      if (!list) return;
       list.innerHTML = '';
 
       if (filtered.length === 0) {
@@ -370,43 +392,143 @@
           </div>
           <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
         `;
-        div.onclick = () => api.openUrlFromSettings(item.url);
+        div.onclick = () => api?.openUrlFromSettings(item.url);
         list.appendChild(div);
       });
     }
 
-    // Навигация
+    // === ЗАГРУЗКИ (Функция сделана устойчивой) ===
+    let fullDownloads = [];
+
+    async function loadDownloads(searchTerm = '') {
+      // Предотвращаем выполнение, если API недоступен
+      if (!api?.getDownloads) return;
+
+      const downloads = await api.getDownloads();
+      fullDownloads = downloads.sort((a, b) => b.time - a.time);
+
+      let filtered = fullDownloads;
+      if (searchTerm) {
+        const lower = searchTerm.toLowerCase();
+        filtered = fullDownloads.filter(item =>
+          item.filename.toLowerCase().includes(lower) ||
+          item.url.toLowerCase().includes(lower)
+        );
+      }
+
+      const list = document.getElementById('downloads-list');
+      if (!list) return;
+      list.innerHTML = '';
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="empty-message">
+          ${searchTerm ? 'Ничего не найдено' : 'Список загрузок пуст'}<br>
+          <small style="font-size:14px;opacity:0.7;">Загруженные файлы появятся здесь</small>
+        </div>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        // Для загрузок лучше использовать favicon из локального источника или иконку типа файла
+        div.innerHTML = `
+          <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(item.url)}&sz=32" alt="">
+          <div class="info">
+            <div class="title">${item.filename}</div>
+            <div class="url">${item.url}</div>
+          </div>
+          <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
+        `;
+        div.onclick = () => api?.openUrlFromSettings(item.url); // Или api?.openDownloadFolder(item.path)
+        list.appendChild(div);
+      });
+    }
+
+    // Обновление пути загрузки
+    async function updateDownloadPath() {
+      if (!api?.getCurrentDownloadPath) return;
+      const path = await api.getCurrentDownloadPath();
+      const el = document.getElementById('current-download-path');
+      if (el) el.textContent = `Текущая: ${path}`;
+    }
+
+    // Обработчик кнопки смены пути загрузки
+    document.getElementById('change-download-path')?.addEventListener('click', async () => {
+      if (api?.setDownloadPath) {
+          await api.setDownloadPath();
+          updateDownloadPath();
+      }
+    });
+
+
+    // === ИСПРАВЛЕННАЯ НАВИГАЦИЯ ===
     document.querySelectorAll('nav a').forEach(link => {
       link.addEventListener('click', e => {
         e.preventDefault();
-        document.querySelector('nav a.active')?.classList.remove('active');
-        link.classList.add('active');
-        document.querySelector('.section.active')?.classList.remove('active');
-        document.querySelector(link.getAttribute('href'))?.classList.add('active');
 
-        if (link.getAttribute('href') === '#browsing-history') {
-          loadHistory(document.getElementById('browse-search').value.trim());
+        const targetId = link.getAttribute('href');
+        const targetSection = document.querySelector(targetId);
+
+        if (targetSection) {
+            // 1. Снимаем активный класс со всех ссылок и секций
+            document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+
+            // 2. Активируем текущие
+            link.classList.add('active');
+            targetSection.classList.add('active');
+
+            // 3. Специфическая логика для вкладок, требующих загрузки данных
+            if (targetId === '#browsing-history') {
+              loadHistory(document.getElementById('browse-search')?.value.trim() || '');
+            } else if (targetId === '#downloads') {
+              loadDownloads(document.getElementById('downloads-search')?.value.trim() || '');
+              updateDownloadPath();
+            }
         }
       });
     });
 
-    document.getElementById('refresh-browse').onclick = () => loadHistory(document.getElementById('browse-search').value.trim());
-    document.getElementById('clear-browse').onclick = () => {
+    // === КНОПКИ и ПОИСК ===
+    document.getElementById('refresh-browse')?.addEventListener('click', () => loadHistory(document.getElementById('browse-search')?.value.trim() || ''));
+    document.getElementById('clear-browse')?.addEventListener('click', () => {
       if (confirm('Очистить всю историю посещений?')) {
-        api.clearHistory();
+        api?.clearHistory();
         loadHistory();
       }
-    };
-    document.getElementById('browse-search').addEventListener('input', e => loadHistory(e.target.value.trim()));
+    });
+    document.getElementById('browse-search')?.addEventListener('input', e => loadHistory(e.target.value.trim()));
 
-    // Автообновление
-    api.onHistoryUpdated(() => {
-      const term = document.getElementById('browse-search')?.value.trim() || '';
-      if (document.querySelector('a[href="#browsing-history"].active')) loadHistory(term);
+    document.getElementById('refresh-downloads')?.addEventListener('click', () => loadDownloads(document.getElementById('downloads-search')?.value.trim() || ''));
+    document.getElementById('clear-downloads')?.addEventListener('click', () => {
+      if (confirm('Очистить список загрузок?')) {
+        api?.clearDownloads();
+        loadDownloads();
+      }
+    });
+    document.getElementById('downloads-search')?.addEventListener('input', e => loadDownloads(e.target.value.trim()));
+
+    // === АВТООБНОВЛЕНИЕ ===
+    // Регистрация слушателей, если API доступен
+    api?.onHistoryUpdated(() => {
+      if (document.querySelector('a[href="#browsing-history"].active')) {
+        loadHistory(document.getElementById('browse-search')?.value.trim() || '');
+      }
     });
 
-    // Загрузка при открытии раздела
-    if (document.querySelector('a[href="#browsing-history"].active')) loadHistory();
+    api?.onDownloadsUpdated(() => {
+      if (document.querySelector('a[href="#downloads"].active')) {
+        loadDownloads(document.getElementById('downloads-search')?.value.trim() || '');
+      }
+    });
+
+    // === ИНИЦИАЛИЗАЦИЯ ===
+    window.addEventListener('DOMContentLoaded', () => {
+        // Загрузка начальных данных для активной секции (Главная) не нужна,
+        // но путь загрузки лучше обновить
+        updateDownloadPath();
+    });
 </script>
 </body>
 </html>

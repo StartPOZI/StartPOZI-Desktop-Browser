@@ -1,7 +1,7 @@
-// webview-preload.js — ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ ДЕКАБРЬ 2025 (с IPC для Settings)
+// webview-preload.js — ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ ДЕКАБРЬ 2025 (с IPC для Settings + загрузки)
 const { contextBridge, ipcRenderer } = require('electron');
 
-// === Красивые модальные диалоги (alert, confirm, prompt) ===
+// === Красивые модальные диалоги ===
 (function () {
     const createDialog = ({ title = 'Сообщение', message = '', defaultValue = '', type = 'alert' }) => {
         return new Promise(resolve => {
@@ -80,14 +80,13 @@ const { contextBridge, ipcRenderer } = require('electron');
     window.prompt = (msg, def = '') => createDialog({ title: 'Ввод данных', message: msg, defaultValue: def, type: 'prompt' });
 })();
 
-// === Открытие ссылок в НОВОЙ ВКЛАДКЕ браузера ===
+// === Открытие ссылок в новой вкладке ===
 const openInNewTab = (url) => {
     if (!url) return;
     if (/^(javascript|about|mailto|tel|data):/.test(url)) return;
     ipcRenderer.send('OPEN_URL', url);
 };
 
-// Средняя кнопка
 document.addEventListener('auxclick', e => {
     if (e.button === 1) {
         const link = e.target.closest('a[href]');
@@ -98,7 +97,6 @@ document.addEventListener('auxclick', e => {
     }
 }, true);
 
-// Ctrl/Cmd + клик
 document.addEventListener('click', e => {
     if (e.ctrlKey || e.metaKey) {
         const link = e.target.closest('a[href]');
@@ -109,7 +107,6 @@ document.addEventListener('click', e => {
     }
 }, true);
 
-// target="_blank"
 document.addEventListener('click', e => {
     const link = e.target.closest('a[target="_blank"]');
     if (link?.href) {
@@ -118,7 +115,6 @@ document.addEventListener('click', e => {
     }
 }, true);
 
-// window.open()
 const originalWindowOpen = window.open;
 window.open = (url, target = '_blank', features) => {
     if (url) openInNewTab(url);
@@ -132,12 +128,15 @@ window.open = (url, target = '_blank', features) => {
     };
 };
 
-// === Безопасный API для внутренних страниц (Settings.html и др.) ===
+// === API для внутренних страниц ===
 contextBridge.exposeInMainWorld('electronAPI', {
-    // Открытие ссылки в новой вкладке
     openUrl: (url) => openInNewTab(url),
 
-                                // === ПОИСКОВИК ===
+                                // Функции для смены пути загрузок, которые были в начале файла
+                                getCurrentDownloadPath: () => ipcRenderer.invoke('get-current-download-path'),
+                                setDownloadPath: () => ipcRenderer.invoke('set-download-path'),
+
+                                // Поисковая система
                                 getSearchEngine: () => {
                                     return new Promise(resolve => {
                                         const responseChannel = `search-engine-response-${Date.now()}`;
@@ -149,7 +148,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                     ipcRenderer.sendToHost('set-search-engine', url);
                                 },
 
-                                // === ИСТОРИЯ ===
+                                // История
                                 getHistory: () => {
                                     return new Promise(resolve => {
                                         ipcRenderer.sendToHost('get-history');
@@ -163,7 +162,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                     ipcRenderer.on('history-updated', () => callback());
                                 },
 
-                                // Открытие URL из настроек (например, клик по элементу истории)
+                                // Загрузки
+                                getDownloads: () => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.sendToHost('get-downloads');
+                                        ipcRenderer.once('downloads-data', (_, downloads) => resolve(downloads));
+                                    });
+                                },
+                                clearDownloads: () => {
+                                    ipcRenderer.sendToHost('clear-downloads');
+                                },
+                                onDownloadsUpdated: (callback) => {
+                                    ipcRenderer.on('downloads-updated', () => callback());
+                                },
+
                                 openUrlFromSettings: (url) => {
                                     ipcRenderer.sendToHost('open-url-from-settings', url);
                                 }

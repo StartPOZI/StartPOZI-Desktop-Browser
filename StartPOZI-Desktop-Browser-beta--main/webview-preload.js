@@ -1,4 +1,4 @@
-// webview-preload.js — ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ ДЕКАБРЬ 2025 (с IPC для Settings + загрузки)
+// webview-preload.js — ФИНАЛЬНАЯ ВЕРСИЯ с поддержкой прогресса загрузок
 const { contextBridge, ipcRenderer } = require('electron');
 
 // === Красивые модальные диалоги ===
@@ -132,9 +132,20 @@ window.open = (url, target = '_blank', features) => {
 contextBridge.exposeInMainWorld('electronAPI', {
     openUrl: (url) => openInNewTab(url),
 
-                                // Функции для смены пути загрузок, которые были в начале файла
-                                getCurrentDownloadPath: () => ipcRenderer.invoke('get-current-download-path'),
-                                setDownloadPath: () => ipcRenderer.invoke('set-download-path'),
+                                // Функции для смены пути загрузок
+                                getCurrentDownloadPath: () => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.sendToHost('get-current-download-path');
+                                        ipcRenderer.once('current-download-path-data', (_, path) => resolve(path));
+                                    });
+                                },
+
+                                setDownloadPath: () => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.sendToHost('set-download-path');
+                                        ipcRenderer.once('download-path-updated', (_, newPath) => resolve(newPath));
+                                    });
+                                },
 
                                 // Поисковая система
                                 getSearchEngine: () => {
@@ -144,6 +155,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                         ipcRenderer.sendToHost('get-search-engine', responseChannel);
                                     });
                                 },
+
                                 setSearchEngine: (url) => {
                                     ipcRenderer.sendToHost('set-search-engine', url);
                                 },
@@ -155,9 +167,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                         ipcRenderer.once('history-data', (_, history) => resolve(history));
                                     });
                                 },
+
                                 clearHistory: () => {
                                     ipcRenderer.sendToHost('clear-history');
                                 },
+
                                 onHistoryUpdated: (callback) => {
                                     ipcRenderer.on('history-updated', () => callback());
                                 },
@@ -169,9 +183,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                         ipcRenderer.once('downloads-data', (_, downloads) => resolve(downloads));
                                     });
                                 },
+
                                 clearDownloads: () => {
                                     ipcRenderer.sendToHost('clear-downloads');
                                 },
+
                                 onDownloadsUpdated: (callback) => {
                                     ipcRenderer.on('downloads-updated', () => callback());
                                 },

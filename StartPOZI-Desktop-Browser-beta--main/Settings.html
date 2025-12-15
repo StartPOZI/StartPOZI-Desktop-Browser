@@ -305,19 +305,41 @@
 </div>
 
 <script>
-    // Используем optional chaining (?.), чтобы избежать ошибок, если window.electronAPI не проброшен.
+    // Подключаемся к API
     const api = window.electronAPI;
+
+    // === НАВИГАЦИЯ ПО ВКЛАДКАМ ===
+    document.querySelectorAll('nav a').forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+
+        // Переключаем active класс
+        document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        link.classList.add('active');
+
+        const targetId = link.getAttribute('href');
+        const targetSection = document.querySelector(targetId);
+        if(targetSection) targetSection.classList.add('active');
+
+        // Подгружаем данные, если вкладка требует этого
+        if (targetId === '#browsing-history') loadHistory(document.getElementById('browse-search')?.value.trim());
+        if (targetId === '#downloads') {
+            loadDownloads(document.getElementById('downloads-search')?.value.trim());
+            updateDownloadPath();
+        }
+      });
+    });
 
     // === ПОИСКОВАЯ СИСТЕМА ===
     const searchSelect = document.getElementById('search-engine-select');
     const customContainer = document.getElementById('custom-search-container');
     const customInput = document.getElementById('custom-search-url');
 
-    // Загрузка текущего поисковика при инициализации
     if (api?.getSearchEngine) {
         api.getSearchEngine().then(url => {
           const predefined = [
-            'https://startpozizi.netlify.app/search.html?q=',
+            'https://startpozi.netlify.app/search.html?q=',
             'https://www.google.com/search?q=',
             'https://duckduckgo.com/?q=',
             'https://www.bing.com/search?q='
@@ -333,7 +355,6 @@
         });
     }
 
-    // Обработчик изменения выбора поисковика
     searchSelect.addEventListener('change', () => {
       if (searchSelect.value !== 'custom') {
         api?.setSearchEngine(searchSelect.value);
@@ -344,40 +365,27 @@
       }
     });
 
-    // Обработчик сохранения кастомного URL при потере фокуса
     customInput.addEventListener('blur', () => {
       const val = customInput.value.trim();
       if (val) api?.setSearchEngine(val);
     });
 
-    // === ИСТОРИЯ (Функция сделана устойчивой) ===
-    let fullHistory = [];
-
+    // === ИСТОРИЯ ===
     async function loadHistory(searchTerm = '') {
-      // Предотвращаем выполнение, если API недоступен
       if (!api?.getHistory) return;
-
       const history = await api.getHistory();
-      fullHistory = history.sort((a, b) => b.time - a.time);
-
-      let filtered = fullHistory;
-      if (searchTerm) {
-        const lower = searchTerm.toLowerCase();
-        filtered = fullHistory.filter(item =>
-          (item.title || '').toLowerCase().includes(lower) ||
-          item.url.toLowerCase().includes(lower)
+      const filtered = history
+        .sort((a, b) => b.time - a.time)
+        .filter(item =>
+          (item.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.url.toLowerCase().includes(searchTerm.toLowerCase())
         );
-      }
 
       const list = document.getElementById('browse-list');
-      if (!list) return;
       list.innerHTML = '';
 
       if (filtered.length === 0) {
-        list.innerHTML = `<div class="empty-message">
-          ${searchTerm ? 'Ничего не найдено' : 'История посещений пуста'}<br>
-          <small style="font-size:14px;opacity:0.7;">Посещённые сайты появятся здесь автоматически</small>
-        </div>`;
+        list.innerHTML = `<div class="empty-message">${searchTerm ? 'Ничего не найдено' : 'История пуста'}</div>`;
         return;
       }
 
@@ -397,136 +405,80 @@
       });
     }
 
-    // === ЗАГРУЗКИ (Функция сделана устойчивой) ===
-    let fullDownloads = [];
-
+    // === ЗАГРУЗКИ (ЛОГИКА) ===
     async function loadDownloads(searchTerm = '') {
-      // Предотвращаем выполнение, если API недоступен
       if (!api?.getDownloads) return;
-
       const downloads = await api.getDownloads();
-      fullDownloads = downloads.sort((a, b) => b.time - a.time);
-
-      let filtered = fullDownloads;
-      if (searchTerm) {
-        const lower = searchTerm.toLowerCase();
-        filtered = fullDownloads.filter(item =>
-          item.filename.toLowerCase().includes(lower) ||
-          item.url.toLowerCase().includes(lower)
+      const filtered = downloads
+        .sort((a, b) => b.time - a.time)
+        .filter(item =>
+          item.filename.toLowerCase().includes(searchTerm.toLowerCase())
         );
-      }
 
       const list = document.getElementById('downloads-list');
-      if (!list) return;
       list.innerHTML = '';
 
       if (filtered.length === 0) {
-        list.innerHTML = `<div class="empty-message">
-          ${searchTerm ? 'Ничего не найдено' : 'Список загрузок пуст'}<br>
-          <small style="font-size:14px;opacity:0.7;">Загруженные файлы появятся здесь</small>
-        </div>`;
+        list.innerHTML = `<div class="empty-message">${searchTerm ? 'Ничего не найдено' : 'Список загрузок пуст'}</div>`;
         return;
       }
 
       filtered.forEach(item => {
         const div = document.createElement('div');
         div.className = 'history-item';
-        // Для загрузок лучше использовать favicon из локального источника или иконку типа файла
+        // Иконка файла
         div.innerHTML = `
-          <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(item.url)}&sz=32" alt="">
+          <div style="font-size:24px; margin-right:16px;">📄</div>
           <div class="info">
             <div class="title">${item.filename}</div>
-            <div class="url">${item.url}</div>
+            <div class="url">${item.fullPath || item.url}</div>
           </div>
           <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
         `;
-        div.onclick = () => api?.openUrlFromSettings(item.url); // Или api?.openDownloadFolder(item.path)
         list.appendChild(div);
       });
     }
 
-    // Обновление пути загрузки
     async function updateDownloadPath() {
       if (!api?.getCurrentDownloadPath) return;
       const path = await api.getCurrentDownloadPath();
-      const el = document.getElementById('current-download-path');
-      if (el) el.textContent = `Текущая: ${path}`;
+      document.getElementById('current-download-path').textContent = path || 'По умолчанию';
     }
 
-    // Обработчик кнопки смены пути загрузки
+    // Обработчики кнопок
     document.getElementById('change-download-path')?.addEventListener('click', async () => {
-      if (api?.setDownloadPath) {
-          await api.setDownloadPath();
-          updateDownloadPath();
-      }
+        await api?.setDownloadPath();
+        updateDownloadPath();
     });
 
-
-    // === ИСПРАВЛЕННАЯ НАВИГАЦИЯ ===
-    document.querySelectorAll('nav a').forEach(link => {
-      link.addEventListener('click', e => {
-        e.preventDefault();
-
-        const targetId = link.getAttribute('href');
-        const targetSection = document.querySelector(targetId);
-
-        if (targetSection) {
-            // 1. Снимаем активный класс со всех ссылок и секций
-            document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-
-            // 2. Активируем текущие
-            link.classList.add('active');
-            targetSection.classList.add('active');
-
-            // 3. Специфическая логика для вкладок, требующих загрузки данных
-            if (targetId === '#browsing-history') {
-              loadHistory(document.getElementById('browse-search')?.value.trim() || '');
-            } else if (targetId === '#downloads') {
-              loadDownloads(document.getElementById('downloads-search')?.value.trim() || '');
-              updateDownloadPath();
-            }
-        }
-      });
-    });
-
-    // === КНОПКИ и ПОИСК ===
-    document.getElementById('refresh-browse')?.addEventListener('click', () => loadHistory(document.getElementById('browse-search')?.value.trim() || ''));
+    document.getElementById('refresh-browse')?.addEventListener('click', () => loadHistory());
     document.getElementById('clear-browse')?.addEventListener('click', () => {
-      if (confirm('Очистить всю историю посещений?')) {
-        api?.clearHistory();
-        loadHistory();
-      }
+      if(confirm('Удалить историю?')) { api?.clearHistory(); loadHistory(); }
     });
     document.getElementById('browse-search')?.addEventListener('input', e => loadHistory(e.target.value.trim()));
 
-    document.getElementById('refresh-downloads')?.addEventListener('click', () => loadDownloads(document.getElementById('downloads-search')?.value.trim() || ''));
+    document.getElementById('refresh-downloads')?.addEventListener('click', () => loadDownloads());
     document.getElementById('clear-downloads')?.addEventListener('click', () => {
-      if (confirm('Очистить список загрузок?')) {
-        api?.clearDownloads();
-        loadDownloads();
-      }
+        if(confirm('Очистить список?')) { api?.clearDownloads(); loadDownloads(); }
     });
     document.getElementById('downloads-search')?.addEventListener('input', e => loadDownloads(e.target.value.trim()));
 
-    // === АВТООБНОВЛЕНИЕ ===
-    // Регистрация слушателей, если API доступен
+    // Автообновление
     api?.onHistoryUpdated(() => {
-      if (document.querySelector('a[href="#browsing-history"].active')) {
-        loadHistory(document.getElementById('browse-search')?.value.trim() || '');
-      }
+        if(document.querySelector('a[href="#browsing-history"]').classList.contains('active')) loadHistory();
     });
-
     api?.onDownloadsUpdated(() => {
-      if (document.querySelector('a[href="#downloads"].active')) {
-        loadDownloads(document.getElementById('downloads-search')?.value.trim() || '');
-      }
+        if(document.querySelector('a[href="#downloads"]').classList.contains('active')) loadDownloads();
     });
 
-    // === ИНИЦИАЛИЗАЦИЯ ===
+    // Старт
     window.addEventListener('DOMContentLoaded', () => {
-        // Загрузка начальных данных для активной секции (Главная) не нужна,
-        // но путь загрузки лучше обновить
+        // Проверка хэша для открытия нужной вкладки сразу
+        const hash = window.location.hash;
+        if (hash) {
+            const link = document.querySelector(`nav a[href="${hash}"]`);
+            if (link) link.click();
+        }
         updateDownloadPath();
     });
 </script>

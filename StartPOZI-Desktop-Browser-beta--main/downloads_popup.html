@@ -104,6 +104,7 @@
                     <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
                 </svg>
             </button>
+            <button id="close-btn" class="action-btn" title="Закрыть">×</button>
         </div>
     </div>
 
@@ -112,7 +113,7 @@
     </div>
 
     <script>
-        const api = window.browserAPI;
+        const { ipcRenderer } = require('electron');
 
         const formatBytes = (bytes) => {
             if (bytes === 0) return '0 Bytes';
@@ -126,12 +127,7 @@
             const list = document.getElementById('downloadsList');
             list.innerHTML = '';
 
-            if (!api || !api.getDownloads) {
-                list.innerHTML = '<div class="empty-message">Ошибка: API загрузок недоступен.</div>';
-                return;
-            }
-
-            const downloads = await api.getDownloads();
+            const downloads = await ipcRenderer.invoke('get-browser-downloads');
 
             if (!downloads || downloads.length === 0) {
                 list.innerHTML = '<div class="empty-message">Список загрузок пуст.</div>';
@@ -158,19 +154,16 @@
         }
 
         document.getElementById('refresh-btn')?.addEventListener('click', loadDownloads);
-        document.getElementById('clear-btn')?.addEventListener('click', () => {
-             // Используем нативный confirm, т.к. preload.js его не переопределяет в этом окне
-             if (confirm('Очистить список загрузок?')) {
-                api?.clearDownloads();
+        document.getElementById('clear-btn')?.addEventListener('click', async () => {
+            if (confirm('Очистить список загрузок?')) {
+                await ipcRenderer.invoke('clear-browser-downloads');
+                loadDownloads();
             }
         });
+        document.getElementById('close-btn')?.addEventListener('click', () => ipcRenderer.send('close-downloads-window'));
 
+        ipcRenderer.on('downloads-updated', loadDownloads);
         window.addEventListener('DOMContentLoaded', loadDownloads);
-
-        // Автообновление по сигналу от main
-        api?.onDownloadsUpdated(() => {
-            loadDownloads();
-        });
     </script>
 </body>
 </html>

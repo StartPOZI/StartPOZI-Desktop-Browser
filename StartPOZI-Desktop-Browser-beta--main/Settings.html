@@ -20,467 +20,268 @@
             inset: 0;
             background: rgba(20, 20, 30, 0.48);
             backdrop-filter: blur(60px) saturate(180%) brightness(1.7);
-            -webkit-backdrop-filter: blur(60px) saturate(180%) brightness(1.7);
             pointer-events: none;
             z-index: -1;
         }
 
-        .window {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            position: relative;
-            z-index: 1;
-        }
-
-        .sidebar {
-            width: 280px;
-            background: rgba(28, 28, 38, 0.65);
-            backdrop-filter: blur(40px);
-            border-right: 1px solid rgba(255,255,255,0.08);
-            padding: 100px 0 40px;
-        }
-
-        nav a {
-            display: flex;
-            align-items: center;
-            padding: 16px 28px;
-            color: rgba(255,255,255,0.75);
-            text-decoration: none;
-            font-size: 15px;
-            font-weight: 500;
-            transition: all 0.3s;
-        }
+        .window { width: 100vw; height: 100vh; display: flex; position: relative; z-index: 1; }
+        .sidebar { width: 280px; background: rgba(28, 28, 38, 0.65); backdrop-filter: blur(40px); border-right: 1px solid rgba(255,255,255,0.08); padding: 100px 0 40px; }
+        nav a { display: flex; align-items: center; padding: 16px 28px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 15px; font-weight: 500; transition: all 0.3s; }
         nav a:hover { background: rgba(255,255,255,0.1); color: white; }
-        nav a.active {
-            background: rgba(255,255,255,0.18);
-            color: white;
-            font-weight: 600;
-        }
-        nav a svg {
-            width: 22px;
-            height: 22px;
-            margin-right: 16px;
-            fill: none;
-            stroke: currentColor;
-            stroke-width: 2;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            opacity: 0.9;
-        }
+        nav a.active { background: rgba(255,255,255,0.18); color: white; font-weight: 600; }
+        nav a svg { width: 22px; height: 22px; margin-right: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; }
 
-        .content {
-            flex: 1;
-            padding: 100px 60px 60px;
-            overflow-y: auto;
-        }
-
+        .content { flex: 1; padding: 100px 60px 60px; overflow-y: auto; }
         .section { display: none; }
         .section.active { display: block; }
 
-        .card {
-            background: rgba(40, 40, 55, 0.4);
-            backdrop-filter: blur(30px);
-            border-radius: 20px;
-            padding: 32px;
-            margin-bottom: 30px;
-            border: 1px solid rgba(255,255,255,0.12);
-        }
-        .card h2 {
-            font-size: 26px;
-            font-weight: 600;
-            color: white;
-            margin-bottom: 28px;
-        }
+        .card { background: rgba(40, 40, 55, 0.4); backdrop-filter: blur(30px); border-radius: 20px; padding: 32px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.12); }
+        .card h2 { font-size: 26px; font-weight: 600; color: white; margin-bottom: 28px; }
 
-        .buttons-container {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
+        .buttons-container { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .clear-button, .refresh-button, #change-download-path { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); color: white; padding: 11px 22px; border-radius: 14px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.25s ease; }
+        .clear-button:hover, .refresh-button:hover, #change-download-path:hover { background: rgba(255,255,255,0.22); }
 
-        .clear-button, .refresh-button, #change-download-path {
-            background: rgba(255,255,255,0.12);
-            border: 1px solid rgba(255,255,255,0.18);
-            color: white;
-            padding: 11px 22px;
-            border-radius: 14px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
+        input[type="text"], select { width: 100%; padding: 14px 20px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; color: white; font-size: 15px; }
+        input[type="text"]::placeholder { color: rgba(255,255,255,0.6); }
 
-        .clear-button:hover, .refresh-button:hover, #change-download-path:hover {
-            background: rgba(255,255,255,0.22);
-        }
+        #current-download-path { color: white; font-size: 15px; margin-left: 8px; }
 
-        #browse-search, #downloads-search {
-            width: 100%;
-            padding: 14px 20px;
-            background: rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 14px;
-            color: white;
-            font-size: 15px;
-            margin-bottom: 24px;
-        }
-
-        .history-item {
-            display: flex;
-            align-items: center;
-            padding: 16px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+        .history-item { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer; transition: background 0.2s; }
         .history-item:hover { background: rgba(255,255,255,0.05); }
         .history-item:last-child { border-bottom: none; }
-        .history-item img {
-            width: 16px;
-            height: 16px;
-            border-radius: 4px;
-            margin-right: 16px;
-            flex-shrink: 0;
-        }
+        .history-item img { width: 16px; height: 16px; border-radius: 4px; margin-right: 16px; flex-shrink: 0; }
         .history-item .info { flex: 1; min-width: 0; }
-        .history-item .title {
-            color: white;
-            font-size: 15px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .history-item .url {
-            color: rgba(255,255,255,0.6);
-            font-size: 13px;
-            margin-top: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .history-item .time {
-            color: rgba(255,255,255,0.5);
-            font-size: 13px;
-            margin-left: 20px;
-            flex-shrink: 0;
-        }
+        .history-item .title { color: white; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item .url { color: rgba(255,255,255,0.6); font-size: 13px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item .time { color: rgba(255,255,255,0.5); font-size: 13px; margin-left: 20px; flex-shrink: 0; }
 
-        .empty-message {
-            color: rgba(255,255,255,0.6);
-            font-size: 17px;
-            text-align: center;
-            padding: 60px 20px;
-            line-height: 1.5;
-        }
+        .empty-message { color: rgba(255,255,255,0.6); font-size: 17px; text-align: center; padding: 60px 20px; line-height: 1.5; }
 
-        .setting {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 18px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        .setting:last-child { border-bottom: none; }
-        .setting label { font-size: 16px; color: white; }
-        .setting small { color: rgba(255,255,255,0.6); font-size: 13px; display: block; margin-top: 4px; }
+        .toggle-switch { display: flex; align-items: center; gap: 16px; margin: 24px 0; font-size: 16px; color: white; }
+        .toggle-switch input { appearance: none; width: 52px; height: 32px; background: rgba(255,255,255,0.15); border-radius: 32px; position: relative; cursor: pointer; transition: background 0.3s; }
+        .toggle-switch input::after { content: ''; position: absolute; width: 26px; height: 26px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.3s; }
+        .toggle-switch input:checked { background: #0a84ff; }
+        .toggle-switch input:checked::after { transform: translateX(20px); }
 
-        select, input[type="text"] {
-            background: rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 12px;
-            padding: 10px 14px;
-            color: white;
-            font-size: 15px;
-        }
+        .download-path-line { display: flex; align-items: center; margin-bottom: 24px; font-size: 15px; color: rgba(255,255,255,0.9); }
     </style>
 </head>
 <body>
+    <div class="window">
+        <div class="sidebar">
+            <nav>
+                <a href="#browsing-history" class="active">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    История просмотров
+                </a>
+                <a href="#downloads">
+                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Загрузки
+                </a>
+                <a href="#search-engine">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Поисковая система
+                </a>
+                <a href="#startup">
+                    <svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.06 4.94l-1.41 1.41A9 9 0 1 0 13 3z"/></svg>
+                    При запуске
+                </a>
+            </nav>
+        </div>
 
-<div class="window">
-    <aside class="sidebar">
-        <nav id="main-nav">
-            <a href="#general" class="active">
-                <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22" fill="none"/></svg>
-                Главная
-            </a>
-            <a href="#browsing-history">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                История посещений
-            </a>
-            <a href="#privacy">
-                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                Приватность
-            </a>
-            <a href="#downloads">
-                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Загрузки
-            </a>
-        </nav>
-    </aside>
-
-    <main class="content">
-        <div id="general" class="section active">
-            <div class="card">
-                <h2>При запуске браузера</h2>
-                <div class="setting">
-                    <div>
-                        <label>Открывать при старте</label>
-                        <small>Восстановить сессию · Новая вкладка</small>
+        <div class="content">
+            <!-- История просмотров -->
+            <div id="browsing-history" class="section active">
+                <div class="card">
+                    <h2>История просмотров</h2>
+                    <div class="buttons-container">
+                        <button class="refresh-button" id="refresh-browse">Обновить</button>
+                        <button class="clear-button" id="clear-browse">Очистить историю</button>
                     </div>
-                    <select>
-                        <option>Восстановить предыдущую сессию</option>
-                        <option>Новую вкладку</option>
-                    </select>
+                    <input type="text" id="browse-search" placeholder="Поиск в истории...">
+                    <div id="browse-list"></div>
                 </div>
             </div>
 
-            <div class="card">
-                <h2>Поисковая система</h2>
-                <div class="setting">
-                    <div>
-                        <label>Поисковик по умолчанию</label>
-                        <small>Используется при вводе запроса в адресной строке</small>
+            <!-- Загрузки -->
+            <div id="downloads" class="section">
+                <div class="card">
+                    <h2>Загрузки</h2>
+                    <div class="buttons-container">
+                        <button class="refresh-button" id="refresh-downloads">Обновить</button>
+                        <button class="clear-button" id="clear-downloads">Очистить список</button>
+                        <button id="change-download-path">Изменить папку</button>
                     </div>
-                    <select id="search-engine-select">
-                        <option value="https://startpozi.netlify.app/search.html?q=">StartPOZI</option>
+                    <div class="download-path-line">
+                        Текущая папка: <span id="current-download-path">Загрузка...</span>
+                    </div>
+                    <input type="text" id="downloads-search" placeholder="Поиск в загрузках...">
+                    <div id="downloads-list"></div>
+                </div>
+            </div>
+
+            <!-- Поисковая система -->
+            <div id="search-engine" class="section">
+                <div class="card">
+                    <h2>Поисковая система</h2>
+                    <select id="search-select">
+                        <option value="https://startpozi.netlify.app/search.html?q=">StartPOZI Search</option>
                         <option value="https://www.google.com/search?q=">Google</option>
                         <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
                         <option value="https://www.bing.com/search?q=">Bing</option>
-                        <option value="custom">Свой поисковик</option>
+                        <option value="custom">Своя...</option>
                     </select>
-                </div>
-                <div class="setting" id="custom-search-container" style="display:none;">
-                    <div>
-                        <label>Свой URL поисковика</label>
-                        <small>Используйте ?q= для подстановки запроса</small>
+                    <div id="custom-container" style="display:none; margin-top:16px;">
+                        <input type="text" id="custom-input" placeholder="Введите URL с параметром ?q= (например: https://yandex.ru/search/?text=)">
                     </div>
-                    <input type="text" id="custom-search-url" placeholder="https://example.com/search?q=">
                 </div>
             </div>
-        </div>
 
-        <div id="browsing-history" class="section">
-            <div class="card">
-                <h2>История посещений</h2>
-                <div class="buttons-container">
-                    <button class="refresh-button" id="refresh-browse">Обновить</button>
-                    <button class="clear-button" id="clear-browse">Очистить историю</button>
-                </div>
-                <input type="text" id="browse-search" placeholder="Поиск в истории...">
-                <div id="browse-list"></div>
-            </div>
-        </div>
-
-        <div id="privacy" class="section">
-            <div class="card">
-                <h2>Приватность</h2>
-                <div class="setting">
-                    <label>Блокировать сторонние куки</label>
-                    <input type="checkbox" class="toggle" checked>
-                </div>
-            </div>
-        </div>
-
-        <div id="downloads" class="section">
-            <div class="card">
-                <h2>Загрузки</h2>
-                <div class="setting">
-                    <div>
-                        <label>Папка для загрузок</label>
-                        <small id="current-download-path">Загрузка...</small>
+            <!-- При запуске -->
+            <div id="startup" class="section">
+                <div class="card">
+                    <h2>При запуске браузера</h2>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="startup-tabs-toggle">
+                        <label for="startup-tabs-toggle">Восстановить сессию при запуске</label>
                     </div>
-                    <button class="refresh-button" id="change-download-path">Изменить</button>
+                    <p style="color: rgba(255,255,255,0.7); font-size: 14px;">
+                        Браузер откроет все вкладки, которые были открыты при последнем закрытии.
+                    </p>
                 </div>
-                <div class="buttons-container">
-                    <button class="refresh-button" id="refresh-downloads">Обновить</button>
-                    <button class="clear-button" id="clear-downloads">Очистить список</button>
-                </div>
-                <input type="text" id="downloads-search" placeholder="Поиск в загрузках...">
-                <div id="downloads-list"></div>
             </div>
         </div>
-    </main>
-</div>
+    </div>
 
-<script>
-    // Подключаемся к API
-    const api = window.electronAPI;
+    <script>
+        const api = window.electronAPI;
 
-    // === НАВИГАЦИЯ ПО ВКЛАДКАМ ===
-    document.querySelectorAll('nav a').forEach(link => {
-      link.addEventListener('click', e => {
-        e.preventDefault();
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', e => {
+                e.preventDefault();
+                document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+                link.classList.add('active');
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.querySelector(link.getAttribute('href')).classList.add('active');
 
-        // Переключаем active класс
-        document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        link.classList.add('active');
-
-        const targetId = link.getAttribute('href');
-        const targetSection = document.querySelector(targetId);
-        if(targetSection) targetSection.classList.add('active');
-
-        // Подгружаем данные, если вкладка требует этого
-        if (targetId === '#browsing-history') loadHistory(document.getElementById('browse-search')?.value.trim());
-        if (targetId === '#downloads') {
-            loadDownloads(document.getElementById('downloads-search')?.value.trim());
-            updateDownloadPath();
-        }
-      });
-    });
-
-    // === ПОИСКОВАЯ СИСТЕМА ===
-    const searchSelect = document.getElementById('search-engine-select');
-    const customContainer = document.getElementById('custom-search-container');
-    const customInput = document.getElementById('custom-search-url');
-
-    if (api?.getSearchEngine) {
-        api.getSearchEngine().then(url => {
-          const predefined = [
-            'https://startpozi.netlify.app/search.html?q=',
-            'https://www.google.com/search?q=',
-            'https://duckduckgo.com/?q=',
-            'https://www.bing.com/search?q='
-          ];
-          if (predefined.includes(url)) {
-            searchSelect.value = url;
-            customContainer.style.display = 'none';
-          } else {
-            searchSelect.value = 'custom';
-            customInput.value = url || '';
-            customContainer.style.display = 'block';
-          }
+                if (link.getAttribute('href') === '#browsing-history') loadHistory();
+                if (link.getAttribute('href') === '#downloads') loadDownloads();
+            });
         });
-    }
 
-    searchSelect.addEventListener('change', () => {
-      if (searchSelect.value !== 'custom') {
-        api?.setSearchEngine(searchSelect.value);
-        customContainer.style.display = 'none';
-      } else {
-        customContainer.style.display = 'block';
-        customInput.focus();
-      }
-    });
+        const searchSelect = document.getElementById('search-select');
+        const customContainer = document.getElementById('custom-container');
+        const customInput = document.getElementById('custom-input');
 
-    customInput.addEventListener('blur', () => {
-      const val = customInput.value.trim();
-      if (val) api?.setSearchEngine(val);
-    });
+        api?.getSearchEngine().then(url => {
+            const predefined = ['https://startpozi.netlify.app/search.html?q=', 'https://www.google.com/search?q=', 'https://duckduckgo.com/?q=', 'https://www.bing.com/search?q='];
+            if (predefined.includes(url)) {
+                searchSelect.value = url;
+                customContainer.style.display = 'none';
+            } else {
+                searchSelect.value = 'custom';
+                customInput.value = url || '';
+                customContainer.style.display = 'block';
+            }
+        });
 
-    // === ИСТОРИЯ ===
-    async function loadHistory(searchTerm = '') {
-      if (!api?.getHistory) return;
-      const history = await api.getHistory();
-      const filtered = history
-        .sort((a, b) => b.time - a.time)
-        .filter(item =>
-          (item.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.url.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        searchSelect.addEventListener('change', () => {
+            if (searchSelect.value !== 'custom') {
+                api?.setSearchEngine(searchSelect.value);
+                customContainer.style.display = 'none';
+            } else {
+                customContainer.style.display = 'block';
+                customInput.focus();
+            }
+        });
 
-      const list = document.getElementById('browse-list');
-      list.innerHTML = '';
+        customInput.addEventListener('blur', () => {
+            const val = customInput.value.trim();
+            if (val) api?.setSearchEngine(val);
+        });
 
-      if (filtered.length === 0) {
-        list.innerHTML = `<div class="empty-message">${searchTerm ? 'Ничего не найдено' : 'История пуста'}</div>`;
-        return;
-      }
+        async function loadHistory(searchTerm = '') {
+            const history = await api.getHistory();
+            const filtered = history.sort((a, b) => b.time - a.time)
+                .filter(item => (item.title || '').toLowerCase().includes(searchTerm.toLowerCase()) || item.url.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      filtered.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'history-item';
-        div.innerHTML = `
-          <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(item.url)}&sz=32" alt="">
-          <div class="info">
-            <div class="title">${item.title || 'Без названия'}</div>
-            <div class="url">${item.url}</div>
-          </div>
-          <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
-        `;
-        div.onclick = () => api?.openUrlFromSettings(item.url);
-        list.appendChild(div);
-      });
-    }
+            const list = document.getElementById('browse-list');
+            list.innerHTML = filtered.length === 0 ? `<div class="empty-message">${searchTerm ? 'Ничего не найдено' : 'История пуста'}</div>` : '';
 
-    // === ЗАГРУЗКИ (ЛОГИКА) ===
-    async function loadDownloads(searchTerm = '') {
-      if (!api?.getDownloads) return;
-      const downloads = await api.getDownloads();
-      const filtered = downloads
-        .sort((a, b) => b.time - a.time)
-        .filter(item =>
-          item.filename.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-
-      const list = document.getElementById('downloads-list');
-      list.innerHTML = '';
-
-      if (filtered.length === 0) {
-        list.innerHTML = `<div class="empty-message">${searchTerm ? 'Ничего не найдено' : 'Список загрузок пуст'}</div>`;
-        return;
-      }
-
-      filtered.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'history-item';
-        // Иконка файла
-        div.innerHTML = `
-          <div style="font-size:24px; margin-right:16px;">📄</div>
-          <div class="info">
-            <div class="title">${item.filename}</div>
-            <div class="url">${item.fullPath || item.url}</div>
-          </div>
-          <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
-        `;
-        list.appendChild(div);
-      });
-    }
-
-    async function updateDownloadPath() {
-      if (!api?.getCurrentDownloadPath) return;
-      const path = await api.getCurrentDownloadPath();
-      document.getElementById('current-download-path').textContent = path || 'По умолчанию';
-    }
-
-    // Обработчики кнопок
-    document.getElementById('change-download-path')?.addEventListener('click', async () => {
-        await api?.setDownloadPath();
-        updateDownloadPath();
-    });
-
-    document.getElementById('refresh-browse')?.addEventListener('click', () => loadHistory());
-    document.getElementById('clear-browse')?.addEventListener('click', () => {
-      if(confirm('Удалить историю?')) { api?.clearHistory(); loadHistory(); }
-    });
-    document.getElementById('browse-search')?.addEventListener('input', e => loadHistory(e.target.value.trim()));
-
-    document.getElementById('refresh-downloads')?.addEventListener('click', () => loadDownloads());
-    document.getElementById('clear-downloads')?.addEventListener('click', () => {
-        if(confirm('Очистить список?')) { api?.clearDownloads(); loadDownloads(); }
-    });
-    document.getElementById('downloads-search')?.addEventListener('input', e => loadDownloads(e.target.value.trim()));
-
-    // Автообновление
-    api?.onHistoryUpdated(() => {
-        if(document.querySelector('a[href="#browsing-history"]').classList.contains('active')) loadHistory();
-    });
-    api?.onDownloadsUpdated(() => {
-        if(document.querySelector('a[href="#downloads"]').classList.contains('active')) loadDownloads();
-    });
-
-    // Старт
-    window.addEventListener('DOMContentLoaded', () => {
-        // Проверка хэша для открытия нужной вкладки сразу
-        const hash = window.location.hash;
-        if (hash) {
-            const link = document.querySelector(`nav a[href="${hash}"]`);
-            if (link) link.click();
+            filtered.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(item.url)}&sz=32" alt="">
+                    <div class="info">
+                        <div class="title">${item.title || 'Без названия'}</div>
+                        <div class="url">${item.url}</div>
+                    </div>
+                    <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
+                `;
+                div.onclick = () => api.openUrlFromSettings(item.url);
+                list.appendChild(div);
+            });
         }
-        updateDownloadPath();
-    });
-</script>
+
+        async function loadDownloads(searchTerm = '') {
+            const downloads = await api.getDownloads();
+            const filtered = downloads.sort((a, b) => b.time - a.time)
+                .filter(item => item.filename.toLowerCase().includes(searchTerm.toLowerCase()));
+
+            const list = document.getElementById('downloads-list');
+            list.innerHTML = filtered.length === 0 ? `<div class="empty-message">${searchTerm ? 'Ничего не найдено' : 'Список загрузок пуст'}</div>` : '';
+
+            filtered.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div style="font-size:24px; margin-right:16px;">📄</div>
+                    <div class="info">
+                        <div class="title">${item.filename}</div>
+                        <div class="url">${item.fullPath || item.url}</div>
+                    </div>
+                    <div class="time">${new Date(item.time).toLocaleString('ru-RU')}</div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function updateDownloadPath() {
+            const path = await api.getCurrentDownloadPath();
+            document.getElementById('current-download-path').textContent = path || 'По умолчанию';
+        }
+
+        const startupToggle = document.getElementById('startup-tabs-toggle');
+        startupToggle.checked = localStorage.getItem('saveTabs') === 'true';
+        startupToggle.addEventListener('change', () => localStorage.setItem('saveTabs', startupToggle.checked));
+
+        document.getElementById('change-download-path').addEventListener('click', async () => {
+            await api.setDownloadPath();
+            updateDownloadPath();
+        });
+
+        document.getElementById('refresh-browse').addEventListener('click', () => loadHistory());
+        document.getElementById('clear-browse').addEventListener('click', () => {
+            if (confirm('Удалить историю?')) { api.clearHistory(); loadHistory(); }
+        });
+        document.getElementById('browse-search').addEventListener('input', e => loadHistory(e.target.value.trim()));
+
+        document.getElementById('refresh-downloads').addEventListener('click', () => loadDownloads());
+        document.getElementById('clear-downloads').addEventListener('click', () => {
+            if (confirm('Очистить список?')) { api.clearDownloads(); loadDownloads(); }
+        });
+        document.getElementById('downloads-search').addEventListener('input', e => loadDownloads(e.target.value.trim()));
+
+        api?.onHistoryUpdated(() => document.querySelector('a[href="#browsing-history"]').classList.contains('active') && loadHistory());
+        api?.onDownloadsUpdated(() => document.querySelector('a[href="#downloads"]').classList.contains('active') && loadDownloads());
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash;
+            if (hash) document.querySelector(`nav a[href="${hash}"]`)?.click();
+            updateDownloadPath();
+        });
+    </script>
 </body>
 </html>

@@ -1,8 +1,7 @@
 // preload.js — для основного окна (renderer process)
-// contextIsolation: false, поэтому можно напрямую модифицировать window
 const { ipcRenderer } = require('electron');
 
-// Красивые диалоги для основного окна браузера
+// Красивые диалоги
 (function () {
     const createDialog = ({ title = 'Сообщение', message = '', defaultValue = '', type = 'alert' }) => {
         return new Promise(resolve => {
@@ -73,4 +72,4 @@ const { ipcRenderer } = require('electron');
     window.alert = msg => createDialog({ title: 'Сообщение', message: msg });
     window.confirm = msg => createDialog({ title: 'Подтверждение', message: msg, type: 'confirm' });
     window.prompt = (msg, def = '') => createDialog({ title: 'Ввод данных', message: msg, defaultValue: def, type: 'prompt' });
-})();})();
+})();

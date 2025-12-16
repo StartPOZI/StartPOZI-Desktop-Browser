@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Тест Безопасности</title>
+  <style>
+    body { background: #1e1e1e; color: #eee; font-family: -apple-system, system-ui, sans-serif; padding: 40px; margin: 0; line-height: 1.6; }
+    h1 { color: #0a84ff; margin-bottom: 10px; }
+    h2 { color: #00c8ff; margin-top: 40px; }
+    .test { background: #2d2d2d; padding: 20px; border-radius: 16px; margin: 20px 0; border: 1px solid #444; }
+    button { padding: 12px 24px; background: #0a84ff; color: white; border: none; border-radius: 12px; font-size: 16px; cursor: pointer; margin: 10px 10px 10px 0; }
+    button:hover { background: #0a70dd; }
+    .result { margin-top: 15px; padding: 15px; border-radius: 12px; font-family: monospace; font-size: 14px; }
+    .safe { background: #1e4020; color: #60ff60; border: 1px solid #0a5f0a; }
+    .danger { background: #4a1e1e; color: #ff6060; border: 1px solid #8f2020; }
+    .info { background: #2d2d40; color: #a0d0ff; }
+    pre { white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>Тест Безопасности и Приватности</h1>
+  <p>Проверяем защиту от утечек и опасного кода.</p>
+
+  <div class="test">
+    <h2>1. Доступ к Node.js</h2>
+    <button id="testNode">Проверить</button>
+    <div id="resultNode" class="result"></div>
+  </div>
+
+  <div class="test">
+    <h2>2. Доступ к ipcRenderer</h2>
+    <button id="testIpc">Проверить</button>
+    <div id="resultIpc" class="result"></div>
+  </div>
+
+  <div class="test">
+    <h2>3. Утечка IP через WebRTC</h2>
+    <button id="testWebrtc">Проверить</button>
+    <div id="resultWebrtc" class="result">Нажми кнопку для проверки...</div>
+  </div>
+
+  <div class="test">
+    <h2>4. Геолокация</h2>
+    <button id="testGeo">Проверить</button>
+    <div id="resultGeo" class="result"></div>
+  </div>
+
+  <div class="test">
+    <h2>5. Окружение браузера</h2>
+    <button id="testEnv">Показать</button>
+    <div id="resultEnv" class="result info"></div>
+  </div>
+
+  <script>
+    function setResult(id, text, type = 'info') {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'result ' + type;
+    }
+
+    document.getElementById('testNode').onclick = () => {
+      try {
+        if (typeof require !== 'undefined' || typeof process !== 'undefined') {
+          setResult('resultNode', 'ОШИБКА: Node.js доступен! Браузер уязвим.', 'danger');
+        } else {
+          setResult('resultNode', 'Node.js заблокирован — безопасно!', 'safe');
+        }
+      } catch (e) {
+        setResult('resultNode', 'Node.js полностью недоступен. Отлично!', 'safe');
+      }
+    };
+
+    document.getElementById('testIpc').onclick = () => {
+      try {
+        if (typeof ipcRenderer !== 'undefined') {
+          setResult('resultIpc', 'ОШИБКА: ipcRenderer доступен — критическая уязвимость!', 'danger');
+        } else {
+          setResult('resultIpc', 'ipcRenderer заблокирован — безопасно!', 'safe');
+        }
+      } catch (e) {
+        setResult('resultIpc', 'ipcRenderer недоступен. Отлично!', 'safe');
+      }
+    };
+
+    document.getElementById('testWebrtc').onclick = () => {
+      const el = document.getElementById('resultWebrtc');
+      el.textContent = 'Проверка...'; el.className = 'result info';
+
+      if (!window.RTCPeerConnection && !window.webkitRTCPeerConnection && !window.mozRTCPeerConnection) {
+        setResult('resultWebrtc', 'WebRTC полностью отключён — IP не утечёт!', 'safe');
+        return;
+      }
+
+      let ips = new Set();
+      let pc = new (window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection)(
+        { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+      );
+      pc.createDataChannel('');
+      pc.createOffer().then(o => pc.setLocalDescription(o));
+      pc.onicecandidate = ice => {
+        if (!ice || !ice.candidate || !ice.candidate.candidate) {
+          pc.close();
+          setResult('resultWebrtc', ips.size === 0 ? 'IP не обнаружен — защита работает!' : 'УТЕЧКА IP: ' + [...ips].join(', '), ips.size === 0 ? 'safe' : 'danger');
+          return;
+        }
+        let m = ice.candidate.candidate.match(/([0-9]{1,3}(\.[0-9]{1,3}){3})/);
+        if (m) ips.add(m[1]);
+      };
+
+      setTimeout(() => {
+        pc.close();
+        if (ips.size === 0) setResult('resultWebrtc', 'WebRTC заблокирован — безопасно!', 'safe');
+      }, 5000);
+    };
+
+    document.getElementById('testGeo').onclick = () => {
+      if (!navigator.geolocation) {
+        setResult('resultGeo', 'Геолокация недоступна — безопасно!', 'safe');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        () => setResult('resultGeo', 'ОШИБКА: Геолокация работает!', 'danger'),
+        () => setResult('resultGeo', 'Геолокация заблокирована — безопасно!', 'safe')
+      );
+    };
+
+    document.getElementById('testEnv').onclick = () => {
+      let info = `User Agent: ${navigator.userAgent}\nПлатформа: ${navigator.platform}\nWebRTC: ${!!window.RTCPeerConnection}\nNode.js: ${typeof require}\nElectron: ${typeof process !== 'undefined' ? process.versions.electron : 'недоступен'}`;
+      document.getElementById('resultEnv').innerHTML = '<pre>' + info + '</pre>';
+    };
+  </script>
+</body>
+</html>

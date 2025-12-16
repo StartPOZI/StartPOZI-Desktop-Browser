@@ -218,3 +218,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                     ipcRenderer.sendToHost('open-url-from-settings', url);
                                 }
 });
+
+// === ДОБАВЛЕНИЕ: Полная блокировка WebRTC (чтобы тест не висел бесконечно) ===
+window.addEventListener('DOMContentLoaded', () => {
+    // Удаляем RTCPeerConnection полностью
+    if (window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection) {
+        delete window.RTCPeerConnection;
+        delete window.webkitRTCPeerConnection;
+        delete window.mozRTCPeerConnection;
+    }
+
+    // Блокируем mediaDevices
+    if (navigator.mediaDevices) {
+        Object.defineProperty(navigator, 'mediaDevices', {
+            value: undefined,
+            writable: false
+        });
+    }
+
+    // Переопределяем getUserMedia на всех префиксах
+    const blockGetUserMedia = () => {
+        throw new Error('WebRTC is disabled for privacy');
+    };
+
+    if (navigator.getUserMedia) navigator.getUserMedia = blockGetUserMedia;
+    if (navigator.webkitGetUserMedia) navigator.webkitGetUserMedia = blockGetUserMedia;
+    if (navigator.mozGetUserMedia) navigator.mozGetUserMedia = blockGetUserMedia;
+});

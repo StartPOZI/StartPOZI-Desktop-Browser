@@ -1,13 +1,20 @@
-// main.js — ПОЛНЫЙ КОД (Логика загрузок + IPC)
+// main.js — ПОЛНЫЙ РАБОЧИЙ КОД (сессия сохраняется без ошибки)
 const { app, BrowserWindow, ipcMain, dialog, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let win;
+let downloadsWin = null;
 let downloadPath = app.getPath('downloads');
-let activeDownloadItems = new Map(); // id -> DownloadItem
+let activeDownloadItems = new Map();
 
-function createWindow() {
+async function createWindow() {
+  const isDev = (await import('electron-is-dev')).default;
+
+  if (isDev) {
+    app.setPath('userData', path.join(app.getPath('appData'), 'StartPOZI-Dev'));
+  }
+
   win = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -28,15 +35,8 @@ function createWindow() {
   win.once('ready-to-show', () => {
     win.maximize();
     win.show();
-    setTimeout(() => {
-      if (win && !win.isDestroyed()) {
-        const startUrl = `file://${path.join(__dirname, 'MainPage', 'index.html')}`;
-        win.webContents.send('OPEN_URL', startUrl);
-      }
-    }, 500);
   });
 
-  // Настройка webview
   win.webContents.on('will-attach-webview', (event, webPreferences) => {
     webPreferences.preload = path.join(__dirname, 'webview-preload.js');
     webPreferences.nodeIntegration = false;
@@ -44,7 +44,6 @@ function createWindow() {
     webPreferences.webSecurity = false;
   });
 
-  // Перехват popup окон
   win.webContents.on('did-attach-webview', (event, attachedWebContents) => {
     attachedWebContents.setWindowOpenHandler((details) => {
       win.webContents.send('OPEN_URL', details.url);
@@ -52,9 +51,39 @@ function createWindow() {
     });
   });
 
-  // === ОБРАБОТКА ЗАГРУЗОК ===
   win.webContents.session.on('will-download', handleDownload);
   session.fromPartition('persist:webview').on('will-download', handleDownload);
+}
+
+function createDownloadsWindow() {
+  if (downloadsWin) {
+    downloadsWin.focus();
+    return;
+  }
+
+  downloadsWin = new BrowserWindow({
+    width: 420,
+    height: 520,
+    frame: false,
+    resizable: false,
+    show: false,
+    parent: win,
+    modal: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+                                   nodeIntegration: true,
+                                   contextIsolation: false
+    },
+    backgroundColor: '#1e1e28'
+  });
+
+  downloadsWin.loadFile('downloads_popup.html');
+
+  downloadsWin.once('ready-to-show', () => downloadsWin.show());
+
+  downloadsWin.on('closed', () => {
+    downloadsWin = null;
+  });
 }
 
 function handleDownload(event, item) {
@@ -66,45 +95,26 @@ function handleDownload(event, item) {
   item.setSavePath(savePath);
   activeDownloadItems.set(id, item);
 
-  // Отправляем начало загрузки с информацией о размере
-  win.webContents.send('download-started', {
-    id,
-    filename,
-    totalBytes: item.getTotalBytes()
+  win.webContents.send('download-started', { id, filename, totalBytes: item.getTotalBytes() });
+
+  item.on('updated', () => {
+    win.webContents.send('download-progress', {
+      id,
+      receivedBytes: item.getReceivedBytes(),
+                         totalBytes: item.getTotalBytes()
+    });
   });
 
-  item.on('updated', (event, state) => {
-    win.webContents.send('download-state', { id, state });
-
-    if (state === 'progressing') {
-      const received = item.getReceivedBytes();
-      const total = item.getTotalBytes();
-
-      if (total > 0) {
-        const progress = Math.min(100, (received / total) * 100);
-        // Отправляем подробную информацию о прогрессе
-        win.webContents.send('download-progress', {
-          id,
-          progress,
-          receivedBytes: received,
-          totalBytes: total
-        });
-      }
-    }
-  });
-
-  item.on('done', (event, state) => {
+  item.on('done', (e, state) => {
     win.webContents.send('download-state', { id, state });
     activeDownloadItems.delete(id);
 
     if (state === 'completed') {
-      const currentUrl = item.getURLChain()[0] || '';
-
       win.webContents.send('download-completed', {
         id,
         filename,
-        url: currentUrl,
-        totalBytes: item.getTotalBytes(),
+        url: item.getURLChain()[0] || '',
+                           totalBytes: item.getTotalBytes(),
                            fullPath: savePath,
                            time: Date.now()
       });
@@ -112,75 +122,45 @@ function handleDownload(event, item) {
   });
 }
 
-// === IPC ОБРАБОТЧИКИ ===
-
 ipcMain.on('minimize', () => win?.minimize());
 ipcMain.on('maximize', () => win?.isMaximized() ? win.unmaximize() : win.maximize());
-ipcMain.on('close', () => win?.close());
-
-ipcMain.on('OPEN_URL', (event, url) => {
-  if (win && !win.isDestroyed()) win.webContents.send('OPEN_URL', url);
+ipcMain.on('close', () => {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('save-tabs');
+    win.close();
+  }
 });
 
-// Отмена загрузки
-ipcMain.on('cancel-download', (event, id) => {
+ipcMain.on('show-downloads-popup', () => createDownloadsWindow());
+ipcMain.on('close-downloads-window', () => downloadsWin?.close());
+
+ipcMain.on('OPEN_URL', (e, url) => win?.webContents.send('OPEN_URL', url));
+
+ipcMain.on('cancel-download', (e, id) => {
   const item = activeDownloadItems.get(id);
-  if (item) {
-    item.cancel();
-    activeDownloadItems.delete(id);
-  }
+  if (item) item.cancel();
 });
 
-// Открытие папки с загрузкой
-ipcMain.on('open-folder', (event, filePath) => {
-  if (fs.existsSync(filePath)) {
-    const folderPath = path.dirname(filePath);
-    shell.openPath(folderPath).catch(err => {
-      console.error('Ошибка при открытии папки:', err);
-    });
-  } else {
-    shell.openPath(downloadPath).catch(err => {
-      console.error('Ошибка при открытии папки загрузок:', err);
-    });
-  }
+ipcMain.on('open-folder', (e, filePath) => {
+  shell.openPath(fs.existsSync(filePath) ? path.dirname(filePath) : downloadPath);
 });
 
-// --- Работа с Историей ---
-ipcMain.handle('get-browser-history', async () => {
-  if (!win || win.isDestroyed()) return [];
-  return await win.webContents.executeJavaScript(`JSON.parse(localStorage.getItem('browserHistory') || '[]')`);
-});
-
+ipcMain.handle('get-browser-history', async () => JSON.parse(await win.webContents.executeJavaScript(`localStorage.getItem('browserHistory') || '[]'`)));
 ipcMain.handle('clear-browser-history', async () => {
-  if (!win || win.isDestroyed()) return;
   await win.webContents.executeJavaScript(`localStorage.removeItem('browserHistory')`);
   win.webContents.send('history-updated');
 });
 
-// --- Работа с Загрузками ---
-ipcMain.handle('get-browser-downloads', async () => {
-  if (!win || win.isDestroyed()) return [];
-  return await win.webContents.executeJavaScript(`JSON.parse(localStorage.getItem('browserDownloads') || '[]')`);
-});
-
+ipcMain.handle('get-browser-downloads', async () => JSON.parse(await win.webContents.executeJavaScript(`localStorage.getItem('browserDownloads') || '[]'`)));
 ipcMain.handle('clear-browser-downloads', async () => {
-  if (!win || win.isDestroyed()) return;
   await win.webContents.executeJavaScript(`localStorage.removeItem('browserDownloads')`);
   win.webContents.send('downloads-updated');
 });
 
-// --- Путь загрузки ---
 ipcMain.handle('get-current-download-path', () => downloadPath);
-
 ipcMain.handle('set-download-path', async () => {
-  const result = await dialog.showOpenDialog(win, {
-    properties: ['openDirectory'],
-    title: 'Выберите папку для загрузок',
-    defaultPath: downloadPath
-  });
-  if (!result.canceled && result.filePaths.length > 0) {
-    downloadPath = result.filePaths[0];
-  }
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, { properties: ['openDirectory'], defaultPath: downloadPath });
+  if (!canceled && filePaths[0]) downloadPath = filePaths[0];
   return downloadPath;
 });
 
@@ -192,4 +172,10 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+
+app.on('before-quit', () => {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('save-tabs');
+  }
 });

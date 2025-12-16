@@ -1,7 +1,8 @@
-// preload.js — МИНИМАЛЬНАЯ ВЕРСИЯ БЕЗ contextBridge (для contextIsolation: false)
+// preload.js — для основного окна (renderer process)
+// contextIsolation: false, поэтому можно напрямую модифицировать window
 const { ipcRenderer } = require('electron');
 
-// Красивые диалоги alert/confirm/prompt (твой код)
+// Красивые диалоги для основного окна браузера
 (function () {
     const createDialog = ({ title = 'Сообщение', message = '', defaultValue = '', type = 'alert' }) => {
         return new Promise(resolve => {
@@ -12,7 +13,8 @@ const { ipcRenderer } = require('electron');
             overlay.style.cssText = `
             position: fixed; inset: 0; background: rgba(0,0,0,0.75);
             backdrop-filter: blur(12px); display: flex; align-items: center;
-            justify-content: center; z-index: 999999; font-family: -apple-system, system-ui, sans-serif;
+            justify-content: center; z-index: 999999;
+            font-family: -apple-system, system-ui, sans-serif;
             `;
 
             overlay.innerHTML = `
@@ -68,7 +70,7 @@ const { ipcRenderer } = require('electron');
         });
     };
 
-    window.alert = (msg) => createDialog({ title: 'Сообщение', message: msg });
-    window.confirm = (msg) => createDialog({ title: 'Подтверждение', message: msg, type: 'confirm' });
+    window.alert = msg => createDialog({ title: 'Сообщение', message: msg });
+    window.confirm = msg => createDialog({ title: 'Подтверждение', message: msg, type: 'confirm' });
     window.prompt = (msg, def = '') => createDialog({ title: 'Ввод данных', message: msg, defaultValue: def, type: 'prompt' });
-})();
+})();})();

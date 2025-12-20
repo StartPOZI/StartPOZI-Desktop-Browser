@@ -53,6 +53,11 @@ async function createWindow() {
 
   win.webContents.session.on('will-download', handleDownload);
   session.fromPartition('persist:webview').on('will-download', handleDownload);
+
+  win.on('close', (e) => {
+    e.preventDefault();
+    win.webContents.send('save-tabs');
+  });
 }
 
 function createDownloadsWindow() {
@@ -127,7 +132,12 @@ ipcMain.on('maximize', () => win?.isMaximized() ? win.unmaximize() : win.maximiz
 ipcMain.on('close', () => {
   if (win && !win.isDestroyed()) {
     win.webContents.send('save-tabs');
-    win.close();
+  }
+});
+
+ipcMain.on('tabs-saved', () => {
+  if (win && !win.isDestroyed()) {
+    win.destroy();
   }
 });
 
@@ -163,6 +173,9 @@ ipcMain.handle('set-download-path', async () => {
   if (!canceled && filePaths[0]) downloadPath = filePaths[0];
   return downloadPath;
 });
+
+ipcMain.handle('get-save-tabs', async () => await win.webContents.executeJavaScript(`localStorage.getItem('saveTabs') === 'true'`));
+ipcMain.handle('set-save-tabs', async (e, isEnabled) => await win.webContents.executeJavaScript(`localStorage.setItem('saveTabs', ${isEnabled} ? 'true' : 'false')`));
 
 app.whenReady().then(createWindow);
 

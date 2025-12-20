@@ -1,4 +1,5 @@
-// renderer.js — Финальная версия декабрь 2025 (Firefox-style подсветка)
+// renderer.js — Финальная версия декабрь 2025 (suggest + фиксы)
+
 const { ipcRenderer } = require('electron');
 const path = require('path');
 
@@ -9,7 +10,6 @@ let tabs = [];
 let views = [];
 let active = 0;
 
-// Глобальные переменные для элементов UI
 let tabsBar, tabsArea, addressBar, addTabBtn, downloadsBtn, downloadsIcon;
 
 let currentSearchEngine = localStorage.getItem('searchEngineUrl') || 'https://startpozi.netlify.app/search.html?q=';
@@ -20,7 +20,7 @@ let ongoingDownloads = new Map();
 
 let activeDownloads = 0;
 let downloadUpdateInterval = null;
-let hasNewDownloads = false; // Флаг для отслеживания новых загрузок
+let hasNewDownloads = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   tabsBar    = document.getElementById('tabsContainerTabs');
@@ -61,18 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const a = item.dataset.action;
       if (a === 'settings') createTab(SETTINGS_PAGE);
       if (a === 'bookmarks') showBookmarks();
-      if (a === 'downloads') {
-        resetDownloadIcon();
-        showDownloads();
-      }
+      if (a === 'downloads') { resetDownloadIcon(); showDownloads(); }
       if (a === 'history')   showHistory();
       if (a === 'about')     showAbout();
     };
   });
 
-  // Downloads dropdown
   const downloadsDropdown = document.getElementById('downloadsDropdown');
-  const downloadsListDropdown = document.getElementById('downloadsListDropdown');
   const showAllDownloads = document.getElementById('showAllDownloads');
 
   downloadsBtn.onclick = (e) => {
@@ -95,7 +90,26 @@ document.addEventListener('DOMContentLoaded', () => {
     showDownloads();
   };
 
-  createTab();
+  if (localStorage.getItem('saveTabs') === null) localStorage.setItem('saveTabs', 'false');
+  if (localStorage.getItem('saveInternalPages') === null) localStorage.setItem('saveInternalPages', 'false');
+
+  const saveTabsEnabled = localStorage.getItem('saveTabs') === 'true';
+  const savedTabs = JSON.parse(localStorage.getItem('savedTabs') || '[]');
+
+  console.log('При запуске: saveTabsEnabled =', saveTabsEnabled, 'saveInternalPages =', localStorage.getItem('saveInternalPages'), 'savedTabs =', savedTabs);
+
+  if (saveTabsEnabled && savedTabs.length > 0) {
+    savedTabs.forEach((url, i) => {
+      setTimeout(() => {
+        createTab(url);
+        activateTab(tabs.length - 1);
+        console.log(`Вкладка ${i + 1} создана: ${url}`);
+      }, i * 600);
+    });
+  } else {
+    createTab();
+  }
+
   loadTheme();
 
   addressBar.focus();
@@ -104,6 +118,48 @@ document.addEventListener('DOMContentLoaded', () => {
   addressBar.addEventListener('click', () => {
     addressBar.focus();
     addressBar.select();
+  });
+
+  // SUGGEST (предугадывание от DuckDuckGo)
+  const suggestions = document.getElementById('suggestions');
+
+  addressBar.addEventListener('input', async () => {
+    const val = addressBar.value.trim();
+    if (!val) {
+      suggestions.innerHTML = '';
+      suggestions.style.display = 'none';
+      return;
+    }
+
+    try {
+      const resp = await fetch(`https://duckduckgo.com/ac/?q=${encodeURIComponent(val)}&type=list`);
+      const data = await resp.json();
+      const items = data[1] || [];
+
+      if (items.length === 0) {
+        suggestions.innerHTML = '<div class="suggest-item">Нет предложений</div>';
+      } else {
+        suggestions.innerHTML = items.map(item =>
+        `<div class="suggest-item" data-url="${currentSearchEngine + encodeURIComponent(item)}">
+        <span class="suggest-title">${item}</span>
+        </div>`
+        ).join('');
+      }
+
+      suggestions.style.display = 'block';
+
+      suggestions.querySelectorAll('.suggest-item').forEach(item => {
+        item.onclick = () => {
+          const url = item.dataset.url;
+          addressBar.value = item.querySelector('.suggest-title').textContent;
+          views[active]?.querySelector('webview')?.loadURL(url);
+          suggestions.style.display = 'none';
+        };
+      });
+    } catch (e) {
+      suggestions.innerHTML = '<div class="suggest-item">Ошибка</div>';
+      suggestions.style.display = 'block';
+    }
   });
 
   addressBar.addEventListener('keydown', e => {
@@ -121,34 +177,39 @@ document.addEventListener('DOMContentLoaded', () => {
         targetUrl = val;
       }
 
-      const currentWebview = views[active]?.querySelector('webview');
-      if (currentWebview) {
-        currentWebview.loadURL(targetUrl);
-        currentWebview.focus();
-      }
+      addressBar.value = targetUrl;
+      views[active]?.querySelector('webview')?.loadURL(targetUrl);
+      suggestions.style.display = 'none';
     }
   });
 
-  // Инициализация состояния иконки
+  document.addEventListener('click', e => {
+    if (suggestions && !addressBar.contains(e.target) && !suggestions.contains(e.target)) {
+      suggestions.style.display = 'none';
+    }
+  });
+
   updateDownloadIconState();
 
-  // Запускаем интервал для обновления прогресса
   if (!downloadUpdateInterval) {
     downloadUpdateInterval = setInterval(() => {
-      if (activeDownloads > 0) {
-        updateDownloadsProgress();
-      }
+      if (activeDownloads > 0) updateDownloadsProgress();
     }, 1000);
   }
+});
+
+ipcRenderer.on('save-tabs', () => {
+  saveTabsState();
+  ipcRenderer.send('tabs-saved');
 });
 
 ipcRenderer.on('OPEN_URL', (e, url) => {
   if (url && url !== 'about:blank') createTab(url);
 });
 
-// Обработчик для начала загрузки
 ipcRenderer.on('download-started', (e, { id, filename, totalBytes }) => {
   ongoingDownloads.set(id, {
+    id,
     filename,
     progress: 0,
     totalBytes: totalBytes || 0,
@@ -164,7 +225,6 @@ ipcRenderer.on('download-started', (e, { id, filename, totalBytes }) => {
   updateDownloadsDropdown();
 });
 
-// Обработчик прогресса
 ipcRenderer.on('download-progress', (e, { id, receivedBytes, totalBytes }) => {
   const download = ongoingDownloads.get(id);
   if (download) {
@@ -187,19 +247,16 @@ ipcRenderer.on('download-progress', (e, { id, receivedBytes, totalBytes }) => {
     download.lastUpdate = now;
     download.state = 'progressing';
   }
+  updateDownloadsDropdown();
 });
 
-// Обработчик состояния
 ipcRenderer.on('download-state', (e, { id, state }) => {
   const download = ongoingDownloads.get(id);
-  if (download) {
-    download.state = state;
-  }
+  if (download) download.state = state;
+
   if (state === 'completed' || state === 'cancelled' || state === 'interrupted') {
     activeDownloads = Math.max(0, activeDownloads - 1);
-    if (state === 'completed') {
-      hasNewDownloads = true;
-    }
+    if (state === 'completed') hasNewDownloads = true;
     updateDownloadIconState();
 
     if (state === 'completed') {
@@ -214,7 +271,6 @@ ipcRenderer.on('download-state', (e, { id, state }) => {
   updateDownloadsDropdown();
 });
 
-// Обработчик завершения
 ipcRenderer.on('download-completed', (event, { id, filename, url, totalBytes, fullPath, time }) => {
   const download = ongoingDownloads.get(id);
   if (download) {
@@ -225,7 +281,6 @@ ipcRenderer.on('download-completed', (event, { id, filename, url, totalBytes, fu
   updateDownloadsDropdown();
 });
 
-// Обработчик для обновления после очистки загрузок
 ipcRenderer.on('downloads-updated', () => {
   downloads = JSON.parse(localStorage.getItem('browserDownloads') || '[]');
   sessionDownloads = [];
@@ -243,26 +298,18 @@ ipcRenderer.on('downloads-updated', () => {
   });
 });
 
-// ФУНКЦИЯ ДЛЯ ОБНОВЛЕНИЯ СОСТОЯНИЯ ИКОНКИ (Firefox-style)
 function updateDownloadIconState() {
   if (!downloadsIcon) return;
-
   downloadsIcon.classList.remove('active-download', 'new-download');
-
-  if (activeDownloads > 0) {
-    downloadsIcon.classList.add('active-download');
-  } else if (hasNewDownloads) {
-    downloadsIcon.classList.add('new-download');
-  }
+  if (activeDownloads > 0) downloadsIcon.classList.add('active-download');
+  else if (hasNewDownloads) downloadsIcon.classList.add('new-download');
 }
 
-// Функция сброса состояния иконки
 function resetDownloadIcon() {
   hasNewDownloads = false;
   updateDownloadIconState();
 }
 
-// Форматирование байтов
 function formatBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -271,14 +318,12 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
 }
 
-// Форматирование времени
 function formatTime(seconds) {
   if (seconds < 60) return `${Math.round(seconds)} сек`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)} мин`;
   return `${Math.floor(seconds / 3600)} ч`;
 }
 
-// Обновление прогресса загрузок
 function updateDownloadsProgress() {
   ongoingDownloads.forEach((download, id) => {
     if (download.state === 'progressing' && download.speed > 0) {
@@ -290,9 +335,7 @@ function updateDownloadsProgress() {
 
         if (download.totalBytes > 0) {
           const remainingBytes = download.totalBytes - download.receivedBytes;
-          if (download.speed > 0) {
-            download.eta = remainingBytes / download.speed;
-          }
+          if (download.speed > 0) download.eta = remainingBytes / download.speed;
         }
       }
     }
@@ -300,16 +343,15 @@ function updateDownloadsProgress() {
   updateDownloadsDropdown();
 }
 
-// Обновление выпадающего меню загрузок
 function updateDownloadsDropdown() {
   const list = document.getElementById('downloadsListDropdown');
   if (!list) return;
 
   list.innerHTML = '';
 
-  const activeArray = Array.from(ongoingDownloads.values())
-  .filter(d => d.state === 'progressing' || d.state === 'started')
-  .sort((a, b) => a.time - b.time);
+  const activeArray = Array.from(ongoingDownloads.entries())
+  .filter(([_, d]) => d.state === 'progressing' || d.state === 'started')
+  .sort((a, b) => a[1].time - b[1].time);
 
   const recentArray = sessionDownloads
   .sort((a, b) => b.time - a.time)
@@ -320,8 +362,7 @@ function updateDownloadsDropdown() {
     return;
   }
 
-  // Активные загрузки
-  activeArray.forEach(item => {
+  activeArray.forEach(([id, item]) => {
     const div = document.createElement('div');
     div.className = 'download-item-dropdown active';
 
@@ -330,19 +371,13 @@ function updateDownloadsDropdown() {
 
     if (item.totalBytes > 0) {
       statusText = `${progress}% • ${formatBytes(item.receivedBytes)} / ${formatBytes(item.totalBytes)}`;
-
       if (item.speed > 0) {
         statusText += ` • ${formatBytes(item.speed)}/сек`;
-
-        if (item.eta > 0 && item.eta < 3600) {
-          statusText += ` • ~${formatTime(item.eta)}`;
-        }
+        if (item.eta > 0 && item.eta < 3600) statusText += ` • ~${formatTime(item.eta)}`;
       }
     } else {
       statusText = `${progress}% • ${formatBytes(item.receivedBytes)}`;
-      if (item.speed > 0) {
-        statusText += ` • ${formatBytes(item.speed)}/сек`;
-      }
+      if (item.speed > 0) statusText += ` • ${formatBytes(item.speed)}/сек`;
     }
 
     div.innerHTML = `
@@ -356,7 +391,7 @@ function updateDownloadsDropdown() {
     <div class="download-details">
     <span class="progress-text">${statusText}</span>
     <div class="download-actions">
-    <button class="cancel-btn" data-id="${item.id}" title="Отменить">✕</button>
+    <button class="cancel-btn" data-id="${id}" title="Отменить">✕</button>
     </div>
     </div>
     `;
@@ -370,7 +405,6 @@ function updateDownloadsDropdown() {
     list.appendChild(separator);
   }
 
-  // Завершенные загрузки
   recentArray.forEach(item => {
     const div = document.createElement('div');
     div.className = 'download-item-dropdown completed';
@@ -393,7 +427,6 @@ function updateDownloadsDropdown() {
     list.appendChild(div);
   });
 
-  // Обработчики кнопок
   list.querySelectorAll('.cancel-btn').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -411,7 +444,6 @@ function updateDownloadsDropdown() {
   });
 }
 
-// Вспомогательные функции
 function getStateText(state) {
   const states = {
     'progressing': 'Загружается',
@@ -490,9 +522,9 @@ function createTab(url = START_PAGE) {
         updateHistory(u, webview.getTitle());
       }
       updateNavButtons();
+      saveTabsState();
     };
 
-    webview.addEventListener('did-start-loading', updateAddressAndHistory);
     webview.addEventListener('did-navigate', updateAddressAndHistory);
     webview.addEventListener('did-navigate-in-page', updateAddressAndHistory);
     webview.addEventListener('dom-ready', updateAddressAndHistory);
@@ -511,6 +543,33 @@ function createTab(url = START_PAGE) {
       });
 
         webview.addEventListener('ipc-message', event => {
+          if (event.channel === 'set-save-tabs') {
+            const isEnabled = event.args[0];
+            localStorage.setItem('saveTabs', isEnabled ? 'true' : 'false');
+            if (!isEnabled) {
+              localStorage.removeItem('savedTabs');
+            } else {
+              saveTabsState();
+            }
+          }
+
+          if (event.channel === 'get-save-tabs') {
+            const responseChannel = event.args[0];
+            const isEnabled = localStorage.getItem('saveTabs') === 'true';
+            webview.send(responseChannel, isEnabled);
+          }
+
+          if (event.channel === 'set-save-internal-pages') {
+            const isEnabled = event.args[0];
+            localStorage.setItem('saveInternalPages', isEnabled ? 'true' : 'false');
+          }
+
+          if (event.channel === 'get-save-internal-pages') {
+            const responseChannel = event.args[0];
+            const isEnabled = localStorage.getItem('saveInternalPages') === 'true';
+            webview.send(responseChannel, isEnabled);
+          }
+
           if (event.channel === 'get-search-engine') {
             const responseChannel = event.args[0];
             const url = localStorage.getItem('searchEngineUrl') || 'https://startpozi.netlify.app/search.html?q=';
@@ -583,6 +642,12 @@ function activateTab(i) {
   views[i].classList.add('active');
   active = i;
   const wv = views[i].querySelector('webview');
+  if (wv) {
+    const u = wv.getURL();
+    addressBar.value = u?.includes('MainPage') || u?.includes('Settings.html') ? '' : u;
+    updateNavButtons();
+  }
+
   if (wv) setTimeout(() => wv.focus(), 100);
 }
 
@@ -610,9 +675,25 @@ function closeTab(i) {
 }
 
 function saveTabsState() {
-  if (localStorage.getItem('saveTabs') === 'true') {
-    const urls = views.map(v => v.querySelector('webview')?.getURL() || '');
+  const isEnabled = localStorage.getItem('saveTabs') === 'true';
+  if (isEnabled) {
+    const saveInternal = localStorage.getItem('saveInternalPages') === 'true';
+
+    const urls = views.map(v => {
+      const u = v.querySelector('webview')?.getURL() || '';
+      if (u === 'about:blank') return null;
+
+      if (!saveInternal && (u.includes('MainPage') || u.includes('Settings.html'))) {
+        return null;
+      }
+
+      return u;
+    }).filter(Boolean);
+
     localStorage.setItem('savedTabs', JSON.stringify(urls));
+    console.log('saveTabsState: сохранено', urls);
+  } else {
+    localStorage.removeItem('savedTabs');
   }
 }
 
@@ -644,7 +725,7 @@ function openInternalPage(title, content) {
   wv.loadURL('data:text/html,' + encodeURIComponent(html));
 }
 
-function showBookmarks() { /* */ }
+function showBookmarks() { /* Заглушка */ }
 function showDownloads() { createTab(SETTINGS_PAGE); }
 function showHistory()   { createTab(SETTINGS_PAGE); }
 function showAbout()     { openInternalPage('О браузере', '<h2>StartPOZI 2025</h2><p>Всё работает идеально!</p>'); }

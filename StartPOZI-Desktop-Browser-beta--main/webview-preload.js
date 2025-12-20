@@ -181,6 +181,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                     ipcRenderer.sendToHost('set-search-engine', url);
                                 },
 
+                                // saveTabs
+                                getSaveTabs: () => {
+                                    return new Promise(resolve => {
+                                        const responseChannel = `save-tabs-response-${Date.now()}`;
+                                        ipcRenderer.once(responseChannel, (_, val) => resolve(val));
+                                        ipcRenderer.sendToHost('get-save-tabs', responseChannel);
+                                    });
+                                },
+
+                                setSaveTabs: (isEnabled) => {
+                                    ipcRenderer.sendToHost('set-save-tabs', isEnabled);
+                                },
+
+                                // saveInternalPages
+                                getSaveInternalPages: () => {
+                                    return new Promise(resolve => {
+                                        const responseChannel = `save-internal-pages-response-${Date.now()}`;
+                                        ipcRenderer.once(responseChannel, (_, val) => resolve(val));
+                                        ipcRenderer.sendToHost('get-save-internal-pages', responseChannel);
+                                    });
+                                },
+
+                                setSaveInternalPages: (isEnabled) => {
+                                    ipcRenderer.sendToHost('set-save-internal-pages', isEnabled);
+                                },
+
                                 // История
                                 getHistory: () => {
                                     return new Promise(resolve => {

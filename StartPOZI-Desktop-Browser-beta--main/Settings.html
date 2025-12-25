@@ -10,54 +10,611 @@
         * { margin:0; padding:0; box-sizing:border-box; }
         html, body { height: 100%; overflow: hidden; font-family: 'SF Pro Display', -apple-system, sans-serif; }
 
+        /* Тёмная тема */
+        body.theme-dark {
+            --body-bg-image: url('https://images.unsplash.com/photo-1614850715649-1d0106293bd1?w=2560&q=95');
+            --overlay-bg: rgba(20,20,30,0.48);
+            --overlay-filter: blur(60px) saturate(180%) brightness(1.7);
+            --sidebar-bg: rgba(28,28,38,0.65);
+            --sidebar-border: rgba(255,255,255,0.08);
+            --link-color: rgba(255,255,255,0.75);
+            --link-hover-bg: rgba(255,255,255,0.1);
+            --link-hover-color: white;
+            --link-active-bg: rgba(255,255,255,0.18);
+            --link-active-color: white;
+            --card-bg: rgba(40,40,55,0.4);
+            --card-filter: blur(30px);
+            --card-border: rgba(255,255,255,0.12);
+            --h2-color: white;
+            --btn-bg: rgba(255,255,255,0.12);
+            --btn-border: 1px solid rgba(255,255,255,0.18);
+            --btn-color: white;
+            --btn-hover-bg: rgba(255,255,255,0.22);
+            --input-bg: rgba(0,0,0,0.3);
+            --input-border: 1px solid rgba(255,255,255,0.15);
+            --input-color: white;
+            --placeholder-color: rgba(255,255,255,0.6);
+            --option-bg: #282837;
+            --option-color: white;
+            --history-border: rgba(255,255,255,0.08);
+            --history-hover-bg: rgba(255,255,255,0.05);
+            --title-color: white;
+            --url-color: rgba(255,255,255,0.6);
+            --time-color: rgba(255,255,255,0.5);
+            --empty-color: rgba(255,255,255,0.6);
+            --text-color: white;
+            --secondary-text: rgba(255,255,255,0.6);
+            --svg-stroke: white;
+            --plugin-card-bg: rgba(50,50,65,0.5);
+            --plugin-enabled-bg: rgba(76,175,80,0.15);
+            --plugin-enabled-border: rgba(76,175,80,0.3);
+            --plugin-disabled-bg: rgba(244,67,54,0.15);
+            --plugin-disabled-border: rgba(244,67,54,0.3);
+            --switch-on-bg: #4CAF50;
+            --switch-off-bg: #757575;
+            --switch-thumb: white;
+            --settings-btn-bg: rgba(33,150,243,0.1);
+            --settings-btn-hover: rgba(33,150,243,0.2);
+            --popup-btn-bg: rgba(156,39,176,0.1);
+            --popup-btn-hover: rgba(156,39,176,0.2);
+            --restart-btn-bg: linear-gradient(90deg, #FF6B6B, #FF8E53);
+            --restart-btn-hover: linear-gradient(90deg, #FF5252, #FF7B47);
+        }
+
+        /* Светлая тема */
+        body.theme-light {
+            --body-bg-image: url('https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=2560&q=95');
+            --overlay-bg: rgba(255,255,255,0.48);
+            --overlay-filter: blur(60px) saturate(120%) brightness(1.0);
+            --sidebar-bg: rgba(255,255,255,0.65);
+            --sidebar-border: rgba(0,0,0,0.08);
+            --link-color: rgba(0,0,0,0.75);
+            --link-hover-bg: rgba(0,0,0,0.1);
+            --link-hover-color: black;
+            --link-active-bg: rgba(0,0,0,0.18);
+            --link-active-color: black;
+            --card-bg: rgba(255,255,255,0.4);
+            --card-filter: blur(30px);
+            --card-border: rgba(0,0,0,0.12);
+            --h2-color: black;
+            --btn-bg: rgba(0,0,0,0.12);
+            --btn-border: 1px solid rgba(0,0,0,0.18);
+            --btn-color: black;
+            --btn-hover-bg: rgba(0,0,0,0.22);
+            --input-bg: rgba(255,255,255,0.3);
+            --input-border: 1px solid rgba(0,0,0,0.15);
+            --input-color: black;
+            --placeholder-color: rgba(0,0,0,0.6);
+            --option-bg: #f0f0f0;
+            --option-color: black;
+            --history-border: rgba(0,0,0,0.08);
+            --history-hover-bg: rgba(0,0,0,0.05);
+            --title-color: black;
+            --url-color: rgba(0,0,0,0.6);
+            --time-color: rgba(0,0,0,0.5);
+            --empty-color: rgba(0,0,0,0.6);
+            --text-color: black;
+            --secondary-text: rgba(0,0,0,0.6);
+            --svg-stroke: black;
+            --plugin-card-bg: rgba(240,240,245,0.5);
+            --plugin-enabled-bg: rgba(76,175,80,0.1);
+            --plugin-enabled-border: rgba(76,175,80,0.4);
+            --plugin-disabled-bg: rgba(244,67,54,0.1);
+            --plugin-disabled-border: rgba(244,67,54,0.4);
+            --switch-on-bg: #4CAF50;
+            --switch-off-bg: #BDBDBD;
+            --switch-thumb: white;
+            --settings-btn-bg: rgba(33,150,243,0.1);
+            --settings-btn-hover: rgba(33,150,243,0.2);
+            --popup-btn-bg: rgba(156,39,176,0.1);
+            --popup-btn-hover: rgba(156,39,176,0.2);
+            --restart-btn-bg: linear-gradient(90deg, #FF6B6B, #FF8E53);
+            --restart-btn-hover: linear-gradient(90deg, #FF5252, #FF7B47);
+        }
+
         body {
-            background: url('https://images.unsplash.com/photo-1614850715649-1d0106293bd1?w=2560&q=95') center/cover no-repeat fixed;
+            background: var(--body-bg-image) center/cover no-repeat fixed;
             position: relative;
         }
         body::before {
             content: '';
             position: absolute;
             inset: 0;
-            background: rgba(20, 20, 30, 0.48);
-            backdrop-filter: blur(60px) saturate(180%) brightness(1.7);
+            background: var(--overlay-bg);
+            backdrop-filter: var(--overlay-filter);
             pointer-events: none;
             z-index: -1;
         }
 
         .window { width: 100vw; height: 100vh; display: flex; position: relative; z-index: 1; }
-        .sidebar { width: 280px; background: rgba(28, 28, 38, 0.65); backdrop-filter: blur(40px); border-right: 1px solid rgba(255,255,255,0.08); padding: 100px 0 40px; }
-        nav a { display: flex; align-items: center; padding: 16px 28px; color: rgba(255,255,255,0.75); text-decoration: none; font-size: 15px; font-weight: 500; transition: all 0.3s; }
-        nav a:hover { background: rgba(255,255,255,0.1); color: white; }
-        nav a.active { background: rgba(255,255,255,0.18); color: white; font-weight: 600; }
-        nav a svg { width: 22px; height: 22px; margin-right: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; }
+        .sidebar { width: 280px; background: var(--sidebar-bg); backdrop-filter: blur(40px); border-right: 1px solid var(--sidebar-border); padding: 100px 0 40px; }
+        nav a { display: flex; align-items: center; padding: 16px 28px; color: var(--link-color); text-decoration: none; font-size: 15px; font-weight: 500; transition: all 0.3s; }
+        nav a:hover { background: var(--link-hover-bg); color: var(--link-hover-color); }
+        nav a.active { background: var(--link-active-bg); color: var(--link-active-color); font-weight: 600; }
+        nav a svg { width: 22px; height: 22px; margin-right: 16px; fill: none; stroke: var(--svg-stroke); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; }
 
         .content { flex: 1; padding: 100px 60px 60px; overflow-y: auto; }
         .section { display: none; }
         .section.active { display: block; }
 
-        .card { background: rgba(40, 40, 55, 0.4); backdrop-filter: blur(30px); border-radius: 20px; padding: 32px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.12); }
-        .card h2 { font-size: 26px; font-weight: 600; color: white; margin-bottom: 28px; }
+        .card { background: var(--card-bg); backdrop-filter: var(--card-filter); border-radius: 20px; padding: 32px; margin-bottom: 30px; border: 1px solid var(--card-border); }
+        .card h2 { font-size: 26px; font-weight: 600; color: var(--h2-color); margin-bottom: 28px; }
 
         .buttons-container { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-        .clear-button, .refresh-button, #change-download-path { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18); color: white; padding: 11px 22px; border-radius: 14px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.25s ease; }
-        .clear-button:hover, .refresh-button:hover, #change-download-path:hover { background: rgba(255,255,255,0.22); }
+        .clear-button, .refresh-button, #change-download-path, #add-plugin, #open-plugins-folder {
+            background: var(--btn-bg);
+            border: var(--btn-border);
+            color: var(--btn-color);
+            padding: 11px 22px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .clear-button:hover, .refresh-button:hover, #change-download-path:hover, #add-plugin:hover, #open-plugins-folder:hover { background: var(--btn-hover-bg); }
 
-        input[type="text"], select { width: 100%; padding: 14px 20px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 14px; color: white; font-size: 15px; outline: none; }
-        select option { background: #282837; color: white; }
+        input[type="text"], select { width: 100%; padding: 14px 20px; background: var(--input-bg); border: var(--input-border); border-radius: 14px; color: var(--input-color); font-size: 15px; outline: none; }
+        input[type="text"]::placeholder { color: var(--placeholder-color); }
+        select option { background: var(--option-bg); color: var(--option-color); }
 
-        .history-item { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer; transition: background 0.2s; }
-        .history-item:hover { background: rgba(255,255,255,0.05); }
+        .history-item { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--history-border); cursor: pointer; transition: background 0.2s; }
+        .history-item:hover { background: var(--history-hover-bg); }
         .history-item:last-child { border-bottom: none; }
         .history-item img { width: 16px; height: 16px; border-radius: 4px; margin-right: 16px; }
         .history-item .info { flex: 1; min-width: 0; }
-        .history-item .title { color: white; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .history-item .url { color: rgba(255,255,255,0.6); font-size: 13px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .history-item .time { color: rgba(255,255,255,0.5); font-size: 13px; margin-left: 20px; }
+        .history-item .title { color: var(--title-color); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item .url { color: var(--url-color); font-size: 13px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item .time { color: var(--time-color); font-size: 13px; margin-left: 20px; }
 
-        .empty-message { color: rgba(255,255,255,0.6); font-size: 17px; text-align: center; padding: 60px 20px; }
+        .empty-message { color: var(--empty-color); font-size: 17px; text-align: center; padding: 60px 20px; }
+
+        /* Стили для раздела плагинов */
+        .plugins-container { display: grid; gap: 16px; margin-top: 20px; }
+
+        .plugin-card {
+            background: var(--plugin-card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--card-border);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .plugin-card.enabled {
+            border-color: var(--plugin-enabled-border);
+            background: var(--plugin-enabled-bg);
+        }
+
+        .plugin-card.disabled {
+            border-color: var(--plugin-disabled-border);
+            background: var(--plugin-disabled-bg);
+            opacity: 0.7;
+        }
+
+        .plugin-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            background: rgba(255,255,255,0.1);
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .plugin-icon:hover {
+            transform: scale(1.05);
+            background: rgba(255,255,255,0.15);
+        }
+
+        .plugin-icon.has-popup::after {
+            content: '▶';
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            background: #9c27b0;
+            color: white;
+            font-size: 10px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .plugin-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .plugin-name {
+            color: var(--title-color);
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .plugin-name .has-popup-badge {
+            background: #9c27b0;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .plugin-description {
+            color: var(--secondary-text);
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+
+        .plugin-version {
+            color: var(--url-color);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Переключатель */
+        .plugin-switch {
+            position: relative;
+            width: 52px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+
+        .plugin-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--switch-off-bg);
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: var(--switch-thumb);
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--switch-on-bg);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+
+        .plugin-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .remove-plugin {
+            color: var(--secondary-text);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .remove-plugin:hover {
+            background: rgba(244,67,54,0.15);
+            color: #f44336;
+        }
+
+        .plugin-settings-btn {
+            color: var(--secondary-text);
+            background: var(--settings-btn-bg);
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+
+        .plugin-settings-btn:hover {
+            background: var(--settings-btn-hover);
+            color: #2196f3;
+        }
+
+        .plugin-popup-btn {
+            color: var(--secondary-text);
+            background: var(--popup-btn-bg);
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+
+        .plugin-popup-btn:hover {
+            background: var(--popup-btn-hover);
+            color: #9c27b0;
+        }
+
+        .plugin-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--secondary-text);
+            font-size: 16px;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .search-container input {
+            padding-right: 40px;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--secondary-text);
+        }
+
+        /* Стили для уведомлений */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--card-bg);
+            backdrop-filter: var(--card-filter);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 16px 24px;
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 300px;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Стили для системных плагинов */
+        .system-plugin {
+            opacity: 0.8;
+        }
+
+        .system-plugin .plugin-name::after {
+            content: " (системный)";
+            color: var(--secondary-text);
+            font-size: 12px;
+            font-weight: normal;
+        }
+
+        /* Модальное окно настроек плагина */
+        .plugin-settings-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(12px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .plugin-settings-content {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 32px;
+            width: 500px;
+            max-width: 90vw;
+            border: 1px solid var(--card-border);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .plugin-settings-content h3 {
+            color: var(--text-color);
+            font-size: 22px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .plugin-settings-content .close-btn {
+            background: none;
+            border: none;
+            color: var(--secondary-text);
+            cursor: pointer;
+            font-size: 24px;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+
+        .plugin-settings-content .close-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .settings-group {
+            margin-bottom: 24px;
+        }
+
+        .settings-group label {
+            display: block;
+            color: var(--text-color);
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .settings-group input[type="text"],
+        .settings-group input[type="number"],
+        .settings-group select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--input-bg);
+            border: var(--input-border);
+            border-radius: 10px;
+            color: var(--input-color);
+            font-size: 14px;
+        }
+
+        .settings-group .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .settings-group .checkbox input {
+            width: 18px;
+            height: 18px;
+        }
+
+        .settings-group .checkbox span {
+            color: var(--text-color);
+            font-size: 14px;
+        }
+
+        .settings-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .settings-actions button {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .settings-actions .save-btn {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .settings-actions .save-btn:hover {
+            background: #45a049;
+        }
+
+        .settings-actions .cancel-btn {
+            background: var(--btn-bg);
+            color: var(--btn-color);
+            border: var(--btn-border);
+        }
+
+        .settings-actions .cancel-btn:hover {
+            background: var(--btn-hover-bg);
+        }
+
+        /* Кнопка перезапуска */
+        #restart-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--restart-btn-bg);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 15px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 99999;
+            box-shadow: 0 4px 12px rgba(255,107,107,0.3);
+            transition: all 0.3s ease;
+        }
+
+        #restart-button:hover {
+            background: var(--restart-btn-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(255,107,107,0.4);
+        }
+
+        /* Стиль для отключенных кнопок */
+        .plugin-popup-btn:disabled,
+        .plugin-icon:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        /* Индикатор перезапуска */
+        .restart-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,107,107,0.2);
+            color: #FF6B6B;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
     </style>
 </head>
-<body>
+<body class="theme-dark">
     <div class="window">
         <div class="sidebar">
             <nav>
@@ -76,6 +633,16 @@
                 <a href="#startup">
                     <svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l4 4 4-4H6a7 7 0 1 1 2.06 4.94l-1.41 1.41A9 9 0 1 0 13 3z"/></svg>
                     При запуске
+                </a>
+                <a href="#plugins">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/>
+                    </svg>
+                    Плагины
+                </a>
+                <a href="#customization">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    Кастомизация
                 </a>
             </nav>
         </div>
@@ -101,7 +668,7 @@
                         <button class="clear-button" id="clear-downloads">Очистить список</button>
                         <button id="change-download-path">Изменить папку</button>
                     </div>
-                    <div style="margin-bottom: 24px; color: white; font-size: 15px;">
+                    <div style="margin-bottom: 24px; color: var(--text-color); font-size: 15px;">
                         Текущая папка: <span id="current-download-path" style="opacity: 0.7;">Загрузка...</span>
                     </div>
                     <input type="text" id="downloads-search" placeholder="Поиск в загрузках...">
@@ -128,163 +695,716 @@
             <div id="startup" class="section">
                 <div class="card">
                     <h2>При запуске браузера</h2>
-                    <div style="margin-bottom: 12px; color: white; font-size: 15px;">Восстанавливать сессию?</div>
+                    <div style="margin-bottom: 12px; color: var(--text-color); font-size: 15px;">Восстанавливать сессию?</div>
                     <select id="startup-select">
                         <option value="true">Да, восстанавливать вкладки</option>
                         <option value="false">Нет, начинать с чистого листа</option>
                     </select>
-                    <div style="margin-bottom: 12px; color: white; font-size: 15px; margin-top: 24px;">Восстанавливать внутренние страницы?</div>
+                    <div style="margin-bottom: 12px; color: var(--text-color); font-size: 15px; margin-top: 24px;">Восстанавливать внутренние страницы?</div>
                     <select id="internal-select">
                         <option value="true">Да</option>
                         <option value="false">Нет</option>
                     </select>
-                    <p style="color: rgba(255,255,255,0.6); font-size: 14px; margin-top: 24px; line-height: 1.5;">
+                    <p style="color: var(--secondary-text); font-size: 14px; margin-top: 24px; line-height: 1.5;">
                         Если выбрано «Да», браузер при запуске автоматически откроет все вкладки, которые были открыты в прошлый раз, включая внутренние страницы (настройки, история и т.д.).
+                    </p>
+                </div>
+            </div>
+
+            <div id="plugins" class="section">
+                <div class="card">
+                    <h2>Плагины (Firefox Extensions)</h2>
+                    <div class="buttons-container">
+                        <button id="add-plugin">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Добавить плагин
+                        </button>
+                        <button id="open-plugins-folder">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                            </svg>
+                            Открыть папку
+                        </button>
+                        <button class="refresh-button" id="refresh-plugins">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M1 20v-6h6"></path>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                            Обновить
+                        </button>
+                    </div>
+
+                    <div class="search-container">
+                        <input type="text" id="plugins-search" placeholder="Поиск плагинов...">
+                        <div class="search-icon">🔍</div>
+                    </div>
+
+                    <div id="plugins-list" class="plugins-container">
+                        <!-- Плагины будут загружены здесь -->
+                    </div>
+
+                    <p style="color: var(--secondary-text); font-size: 14px; margin-top: 24px; line-height: 1.5;">
+                        Плагины (расширения Firefox) добавляют дополнительные функции в браузер.
+                        Вы можете включать/выключать их, а также удалять ненужные расширения.
+                        Для расширений с меню (как Dark Reader) нажмите на иконку плагина для открытия меню.
+                    </p>
+                </div>
+            </div>
+
+            <div id="customization" class="section">
+                <div class="card">
+                    <h2>Кастомизация</h2>
+                    <div style="margin-bottom: 12px; color: var(--text-color); font-size: 15px;">Выберите тему:</div>
+                    <select id="theme-select">
+                        <option value="dark">Тёмная тема</option>
+                        <option value="light">Светлая тема</option>
+                        <option value="system">Системная тема</option>
+                    </select>
+                    <p style="color: var(--secondary-text); font-size: 14px; margin-top: 24px; line-height: 1.5;">
+                        Выберите тему для интерфейса браузера. Изменения применятся после перезапуска.
                     </p>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        const api = window.electronAPI;
+    <!-- Модальное окно настроек плагина -->
+    <div id="plugin-settings-modal" class="plugin-settings-modal">
+        <div class="plugin-settings-content">
+            <h3 id="plugin-settings-title">
+                Настройки плагина
+                <button class="close-btn" id="close-plugin-settings">×</button>
+            </h3>
+            <div id="plugin-settings-form">
+                <!-- Форма настроек будет загружена динамически -->
+            </div>
+            <div class="settings-actions">
+                <button class="cancel-btn" id="cancel-plugin-settings">Отмена</button>
+                <button class="save-btn" id="save-plugin-settings">Сохранить</button>
+            </div>
+        </div>
+    </div>
 
-        // Навигация
-        document.querySelectorAll('nav a').forEach(link => {
-            link.addEventListener('click', e => {
-                e.preventDefault();
-                document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
-                link.classList.add('active');
-                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-                const target = document.querySelector(link.getAttribute('href'));
-                if (target) target.classList.add('active');
+    <!-- Кнопка перезапуска (скрыта по умолчанию) -->
+    <button id="restart-button" style="display: none;">
+        🔄 Перезапустить браузер
+    </button>
 
-                if (link.getAttribute('href') === '#browsing-history') loadHistory();
-                if (link.getAttribute('href') === '#downloads') loadDownloads();
-            });
-        });
+    <!-- Toast уведомление -->
+    <div id="toast" class="toast"></div>
 
-        // --- ЛОГИКА ПОИСКОВОЙ СИСТЕМЫ ---
-        const searchSelect = document.getElementById('search-select');
-        const customContainer = document.getElementById('custom-container');
-        const customInput = document.getElementById('custom-input');
+<script>
+const api = window.electronAPI;
 
-        api?.getSearchEngine().then(url => {
-            const predefined = [
-                'https://startpozi.netlify.app/search.html?q=',
-                'https://www.google.com/search?q=',
-                'https://duckduckgo.com/?q=',
-                'https://www.bing.com/search?q='
-            ];
-            if (predefined.includes(url)) {
-                searchSelect.value = url;
-            } else {
-                searchSelect.value = 'custom';
-                customInput.value = url || '';
-                customContainer.style.display = 'block';
-            }
-        });
+// Функция для показа toast уведомлений
+function showToast(message, duration = 3000) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
 
-        searchSelect.addEventListener('change', () => {
-            if (searchSelect.value !== 'custom') {
-                api?.setSearchEngine(searchSelect.value);
-                customContainer.style.display = 'none';
-            } else {
-                customContainer.style.display = 'block';
-                customInput.focus();
-            }
-        });
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, duration);
+}
 
-        customInput.addEventListener('blur', () => {
-            const val = customInput.value.trim();
-            if (val && searchSelect.value === 'custom') api?.setSearchEngine(val);
-        });
+// Функция для перезапуска браузера
+async function restartBrowser() {
+    try {
+        const result = await api.restartBrowser();
+        if (result.success) {
+            showToast('Браузер перезапускается...');
+        } else {
+            showToast('Ошибка: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Ошибка перезапуска браузера:', error);
+        showToast('Ошибка при перезапуске браузера');
+    }
+}
 
-        // --- ЛОГИКА ПРИ ЗАПУСКЕ (saveTabs) ---
-        const startupSelect = document.getElementById('startup-select');
+// Показать кнопку перезапуска
+function showRestartButton(message = null) {
+    const restartBtn = document.getElementById('restart-button');
+    if (restartBtn) {
+        restartBtn.style.display = 'block';
+        if (message) {
+            showToast(message, 5000);
+        }
+    }
+}
 
-        api?.getSaveTabs().then(val => {
-            startupSelect.value = val ? "true" : "false";
-        });
+// Скрыть кнопку перезапуска
+function hideRestartButton() {
+    const restartBtn = document.getElementById('restart-button');
+    if (restartBtn) {
+        restartBtn.style.display = 'none';
+    }
+}
 
-        startupSelect.addEventListener('change', () => {
-            const isEnabled = (startupSelect.value === "true");
-            api?.setSaveTabs(isEnabled);
-        });
+// Применение темы
+function applyTheme(theme) {
+    let className;
+    if (theme === 'system') {
+        className = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'theme-dark' : 'theme-light';
+    } else {
+        className = `theme-${theme}`;
+    }
+    document.body.classList.remove('theme-dark', 'theme-light');
+    document.body.classList.add(className);
+}
 
-        // --- ЛОГИКА ДЛЯ saveInternalPages ---
-        const internalSelect = document.getElementById('internal-select');
+// Загружаем тему при старте
+api.getTheme().then(applyTheme);
 
-        api?.getSaveInternalPages().then(val => {
-            internalSelect.value = val ? "true" : "false";
-        });
+// Слушаем изменения темы
+api.onThemeUpdated(applyTheme);
 
-        internalSelect.addEventListener('change', () => {
-            const isEnabled = (internalSelect.value === "true");
-            api?.setSaveInternalPages(isEnabled);
-        });
+// Навигация
+document.querySelectorAll('nav a').forEach(link => {
+    link.addEventListener('click', e => {
+        e.preventDefault();
+        document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+        link.classList.add('active');
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const target = document.querySelector(link.getAttribute('href'));
+        if (target) target.classList.add('active');
 
-        // --- ИСТОРИЯ И ЗАГРУЗКИ ---
-        async function loadHistory(searchTerm = '') {
-            const history = await api.getHistory();
-            const filtered = history.sort((a, b) => b.time - a.time)
-                .filter(item => (item.title || '').toLowerCase().includes(searchTerm.toLowerCase()) || item.url.toLowerCase().includes(searchTerm.toLowerCase()));
+        if (link.getAttribute('href') === '#browsing-history') loadHistory();
+        if (link.getAttribute('href') === '#downloads') loadDownloads();
+        if (link.getAttribute('href') === '#plugins') loadPlugins();
+    });
+});
 
-            const list = document.getElementById('browse-list');
-            list.innerHTML = filtered.length === 0 ? '<div class="empty-message">История пуста</div>' : '';
+// Логика поисковой системы
+const searchSelect = document.getElementById('search-select');
+const customContainer = document.getElementById('custom-container');
+const customInput = document.getElementById('custom-input');
 
-            filtered.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'history-item';
-                div.innerHTML = `
-                    <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(item.url)}&sz=32">
-                    <div class="info">
-                        <div class="title">${item.title || 'Без названия'}</div>
-                        <div class="url">${item.url}</div>
+api.getSearchEngine().then(url => {
+    const predefined = [
+        'https://startpozi.netlify.app/search.html?q=',
+        'https://www.google.com/search?q=',
+        'https://duckduckgo.com/?q=',
+        'https://www.bing.com/search?q='
+    ];
+    if (predefined.includes(url)) {
+        searchSelect.value = url;
+    } else {
+        searchSelect.value = 'custom';
+        customInput.value = url || '';
+        customContainer.style.display = 'block';
+    }
+});
+
+searchSelect.addEventListener('change', () => {
+    if (searchSelect.value !== 'custom') {
+        api.setSearchEngine(searchSelect.value);
+        customContainer.style.display = 'none';
+    } else {
+        customContainer.style.display = 'block';
+        customInput.focus();
+    }
+});
+
+customInput.addEventListener('blur', () => {
+    const val = customInput.value.trim();
+    if (val && searchSelect.value === 'custom') api.setSearchEngine(val);
+});
+
+// Логика при запуске
+const startupSelect = document.getElementById('startup-select');
+
+api.getSaveTabs().then(val => {
+    startupSelect.value = val ? "true" : "false";
+});
+
+startupSelect.addEventListener('change', () => {
+    api.setSaveTabs(startupSelect.value === "true");
+});
+
+const internalSelect = document.getElementById('internal-select');
+
+api.getSaveInternalPages().then(val => {
+    internalSelect.value = val ? "true" : "false";
+});
+
+internalSelect.addEventListener('change', () => {
+    api.setSaveInternalPages(internalSelect.value === "true");
+});
+
+// Кастомизация темы
+const themeSelect = document.getElementById('theme-select');
+
+api.getTheme().then(val => {
+    themeSelect.value = val || 'system';
+});
+
+themeSelect.addEventListener('change', () => {
+    const newTheme = themeSelect.value;
+    api.setTheme(newTheme);
+    applyTheme(newTheme);
+});
+
+// История и загрузки
+async function loadHistory(searchTerm = '') {
+    const history = await api.getHistory();
+    const filtered = history.sort((a, b) => b.time - a.time)
+        .filter(item => (item.title || '').toLowerCase().includes(searchTerm.toLowerCase()) || item.url.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const list = document.getElementById('browse-list');
+    list.innerHTML = filtered.length === 0 ? '<div class="empty-message">История пуста</div>' : '';
+
+    filtered.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = `
+            <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(item.url)}&sz=32">
+            <div class="info">
+                <div class="title">${item.title || 'Без названия'}</div>
+                <div class="url">${item.url}</div>
+            </div>
+            <div class="time">${new Date(item.time).toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'})}</div>
+        `;
+        div.onclick = () => api.openUrlFromSettings(item.url);
+        list.appendChild(div);
+    });
+}
+
+async function loadDownloads(searchTerm = '') {
+    const downloads = await api.getDownloads();
+    const list = document.getElementById('downloads-list');
+    const filtered = downloads.filter(d => d.filename.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    list.innerHTML = filtered.length === 0 ? '<div class="empty-message">Загрузок нет</div>' : '';
+    filtered.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = `<div style="font-size:20px;margin-right:16px">📄</div><div class="info"><div class="title">${d.filename}</div></div>`;
+        list.appendChild(div);
+    });
+}
+
+async function updateDownloadPath() {
+    const path = await api.getCurrentDownloadPath();
+    document.getElementById('current-download-path').textContent = path || 'По умолчанию';
+}
+
+document.getElementById('change-download-path').onclick = async () => {
+    await api.setDownloadPath();
+    updateDownloadPath();
+};
+
+document.getElementById('refresh-browse').onclick = () => loadHistory();
+document.getElementById('clear-browse').onclick = async () => {
+    if (confirm('Очистить историю?')) { await api.clearHistory(); loadHistory(); }
+};
+
+api.onHistoryUpdated(() => loadHistory());
+
+// Функции для работы с плагинами
+let currentPluginSettings = null;
+let currentPluginsList = [];
+
+async function loadPlugins(searchTerm = '') {
+    try {
+        const plugins = await api.getPlugins();
+        currentPluginsList = plugins; // Сохраняем список для использования
+        const list = document.getElementById('plugins-list');
+
+        if (!plugins || plugins.length === 0) {
+            list.innerHTML = '<div class="plugin-message">Плагины не найдены. Нажмите "Добавить плагин" для установки расширений Firefox.</div>';
+            return;
+        }
+
+        const filtered = plugins.filter(plugin =>
+            plugin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            plugin.description.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (filtered.length === 0) {
+            list.innerHTML = '<div class="plugin-message">Плагины не найдены по вашему запросу.</div>';
+            return;
+        }
+
+        list.innerHTML = '';
+
+        filtered.forEach(plugin => {
+            const card = document.createElement('div');
+            card.className = `plugin-card ${plugin.enabled ? 'enabled' : 'disabled'} ${plugin.type === 'system' ? 'system-plugin' : ''}`;
+
+            // Иконка плагина
+            const firstLetter = plugin.name.charAt(0).toUpperCase();
+            const iconEmoji = plugin.enabled ? '🔌' : '🔌';
+
+            card.innerHTML = `
+                <div class="plugin-icon ${plugin.hasPopup ? 'has-popup' : ''} ${!plugin.enabled ? 'disabled-icon' : ''}"
+                     data-id="${plugin.id}"
+                     data-has-popup="${plugin.hasPopup ? 'true' : 'false'}"
+                     title="${plugin.hasPopup ? 'Нажмите для открытия меню расширения' : ''}"
+                     ${!plugin.enabled ? 'style="cursor: not-allowed; opacity: 0.5;"' : ''}>
+                    ${iconEmoji}
+                </div>
+                <div class="plugin-info">
+                    <div class="plugin-name">
+                        ${plugin.name}
+                        ${plugin.hasPopup ? '<span class="has-popup-badge">меню</span>' : ''}
+                        ${!plugin.enabled ? '<span class="restart-indicator">выключен</span>' : ''}
                     </div>
-                    <div class="time">${new Date(item.time).toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'})}</div>
-                `;
-                div.onclick = () => api.openUrlFromSettings(item.url);
-                list.appendChild(div);
-            });
-        }
+                    <div class="plugin-description">${plugin.description || 'Без описания'}</div>
+                    <div class="plugin-version">Версия ${plugin.version || '1.0'} • ${plugin.author || 'Неизвестный автор'}</div>
+                </div>
+                <div class="plugin-actions">
+                    ${plugin.hasOptionsPage ? `
+                        <button class="plugin-settings-btn" data-id="${plugin.id}" title="Настройки плагина">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                        </button>
+                    ` : ''}
+                    ${plugin.hasPopup ? `
+                        <button class="plugin-popup-btn" data-id="${plugin.id}" title="Открыть меню расширения" ${!plugin.enabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="9" y1="3" x2="9" y2="21"></line>
+                            </svg>
+                        </button>
+                    ` : ''}
+                    <label class="plugin-switch">
+                        <input type="checkbox" ${plugin.enabled ? 'checked' : ''} data-id="${plugin.id}" ${plugin.type === 'system' ? 'disabled' : ''}>
+                        <span class="slider"></span>
+                    </label>
+                    <button class="remove-plugin" data-id="${plugin.id}" ${plugin.type === 'system' ? 'disabled style="opacity:0.5;"' : ''} title="${plugin.type === 'system' ? 'Системные плагины нельзя удалить' : 'Удалить плагин'}">Удалить</button>
+                </div>
+            `;
 
-        async function loadDownloads(searchTerm = '') {
-            const downloads = await api.getDownloads();
-            const list = document.getElementById('downloads-list');
-            const filtered = downloads.filter(d => d.filename.toLowerCase().includes(searchTerm.toLowerCase()));
-
-            list.innerHTML = filtered.length === 0 ? '<div class="empty-message">Загрузок нет</div>' : '';
-            filtered.forEach(d => {
-                const div = document.createElement('div');
-                div.className = 'history-item';
-                div.innerHTML = `<div style="font-size:20px;margin-right:16px">📄</div><div class="info"><div class="title">${d.filename}</div></div>`;
-                list.appendChild(div);
-            });
-        }
-
-        async function updateDownloadPath() {
-            const path = await api.getCurrentDownloadPath();
-            document.getElementById('current-download-path').textContent = path || 'По умолчанию';
-        }
-
-        document.getElementById('change-download-path').onclick = async () => {
-            await api.setDownloadPath();
-            updateDownloadPath();
-        };
-
-        document.getElementById('refresh-browse').onclick = () => loadHistory();
-        document.getElementById('clear-browse').onclick = async () => {
-            if (confirm('Очистить историю?')) { await api.clearHistory(); loadHistory(); }
-        };
-
-        api?.onHistoryUpdated(() => loadHistory());
-
-        window.addEventListener('DOMContentLoaded', () => {
-            const hash = window.location.hash || '#browsing-history';
-            document.querySelector(`nav a[href="${hash}"]`)?.click();
-            updateDownloadPath();
+            list.appendChild(card);
         });
-    </script>
+
+        // Добавляем обработчики для переключателей с ПЕРЕЗАПУСКОМ
+        document.querySelectorAll('.plugin-switch input:not(:disabled)').forEach(toggle => {
+            toggle.addEventListener('change', async (e) => {
+                const pluginId = e.target.dataset.id;
+                const enabled = e.target.checked;
+                const plugin = plugins.find(p => p.id === pluginId);
+
+                // Сохраняем оригинальное состояние для отката
+                const originalState = !enabled;
+
+                try {
+                    const result = await api.togglePlugin(pluginId, enabled);
+                    if (result.success) {
+                        showToast(result.message);
+
+                        // Если требуется перезапуск
+                        if (result.requiresRestart) {
+                            showRestartButton(result.message);
+                        } else {
+                            // Если не требуется перезапуск, просто обновляем список
+                            loadPlugins(document.getElementById('plugins-search').value);
+                        }
+                    } else {
+                        showToast('Ошибка: ' + result.message);
+                        e.target.checked = originalState;
+                    }
+                } catch (error) {
+                    console.error('Ошибка переключения плагина:', error);
+                    showToast('Ошибка при переключении плагина');
+                    e.target.checked = originalState;
+                }
+            });
+        });
+
+        // Добавляем обработчики для кнопок удаления
+        document.querySelectorAll('.remove-plugin:not(:disabled)').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const pluginId = e.target.dataset.id;
+                const plugin = plugins.find(p => p.id === pluginId);
+                const pluginName = plugin?.name || 'этот плагин';
+
+                if (confirm(`Вы уверены, что хотите удалить "${pluginName}"?`)) {
+                    try {
+                        const result = await api.removePlugin(pluginId);
+                        if (result.success) {
+                            showToast(result.message);
+
+                            // Если требуется перезапуск
+                            if (result.requiresRestart) {
+                                showRestartButton(result.message);
+                            } else {
+                                // Обновляем список плагинов
+                                loadPlugins(document.getElementById('plugins-search').value);
+                            }
+                        } else {
+                            showToast('Ошибка: ' + result.message);
+                        }
+                    } catch (error) {
+                        console.error('Ошибка удаления плагина:', error);
+                        showToast('Ошибка при удалении плагина');
+                    }
+                }
+            });
+        });
+
+        // Добавляем обработчики для кнопок настроек
+        document.querySelectorAll('.plugin-settings-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const pluginId = e.target.closest('button').dataset.id;
+                const plugin = plugins.find(p => p.id === pluginId);
+
+                if (plugin) {
+                    if (plugin.hasOptionsPage) {
+                        try {
+                            const result = await api.openPluginSettings(pluginId);
+                            if (result.success) {
+                                showToast('Настройки плагина открыты в новой вкладке');
+                            } else {
+                                showToast(result.message);
+                            }
+                        } catch (error) {
+                            console.error('Ошибка открытия настроек плагина:', error);
+                            showToast('Ошибка при открытии настроек');
+                        }
+                    } else {
+                        showPluginSettingsForm(plugin);
+                    }
+                }
+            });
+        });
+
+        // Обработчики для кнопок меню расширений
+        document.querySelectorAll('.plugin-popup-btn:not(:disabled)').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const pluginId = e.target.closest('button').dataset.id;
+                const plugin = plugins.find(p => p.id === pluginId);
+
+                // Проверяем, включен ли плагин
+                if (!plugin.enabled) {
+                    showToast('Расширение отключено. Включите его, чтобы использовать меню.');
+                    return;
+                }
+
+                console.log('Клик по кнопке меню плагина:', pluginId);
+
+                try {
+                    const result = await api.openPluginPopup(pluginId);
+                    console.log('Результат открытия меню:', result);
+                    if (result.success) {
+                        // Отправляем данные в renderer.js для отображения popup
+                        api.sendToHost('show-extension-popup', result);
+                    } else {
+                        showToast(result.message || 'Не удалось открыть меню расширения');
+                    }
+                } catch (error) {
+                    console.error('Ошибка открытия меню расширения:', error);
+                    showToast('Ошибка при открытии меню расширения');
+                }
+            });
+        });
+
+        // Обработчики для клика по иконке плагина
+        document.querySelectorAll('.plugin-icon[data-has-popup="true"]:not(.disabled-icon)').forEach(icon => {
+            icon.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const pluginId = icon.dataset.id;
+                const plugin = plugins.find(p => p.id === pluginId);
+
+                // Проверяем, включен ли плагин
+                if (!plugin.enabled) {
+                    showToast('Расширение отключено. Включите его, чтобы использовать меню.');
+                    return;
+                }
+
+                console.log('Клик по иконке плагина с меню:', pluginId);
+
+                try {
+                    const result = await api.openPluginPopup(pluginId);
+                    console.log('Результат открытия меню через иконку:', result);
+                    if (result.success) {
+                        // Отправляем данные в renderer.js для отображения popup
+                        api.sendToHost('show-extension-popup', result);
+                    } else {
+                        showToast(result.message || 'Не удалось открыть меню расширения');
+                    }
+                } catch (error) {
+                    console.error('Ошибка открытия меню расширения:', error);
+                    showToast('Ошибка при открытии меню расширения');
+                }
+            });
+        });
+
+    } catch (error) {
+        console.error('Ошибка загрузки плагинов:', error);
+        document.getElementById('plugins-list').innerHTML =
+            '<div class="plugin-message">Ошибка загрузки плагинов. Пожалуйста, попробуйте позже.</div>';
+    }
+}
+
+// Показать форму настроек плагина
+async function showPluginSettingsForm(plugin) {
+    currentPluginSettings = plugin;
+
+    const modal = document.getElementById('plugin-settings-modal');
+    const title = document.getElementById('plugin-settings-title');
+    const form = document.getElementById('plugin-settings-form');
+
+    title.innerHTML = `Настройки: ${plugin.name} <button class="close-btn" id="close-plugin-settings">×</button>`;
+
+    // Загружаем текущие настройки плагина
+    try {
+        const result = await api.getPluginSettings(plugin.id);
+        const settings = result.success ? result.settings : {};
+
+        // Создаем простую форму настроек
+        form.innerHTML = `
+            <div class="settings-group">
+                <label>Состояние плагина</label>
+                <div class="checkbox">
+                    <input type="checkbox" id="plugin-enabled" ${settings.enabled !== false ? 'checked' : ''}>
+                    <span>Включен</span>
+                </div>
+            </div>
+            <div class="settings-group">
+                <label>Дополнительные параметры</label>
+                <div class="checkbox">
+                    <input type="checkbox" id="plugin-auto-update" ${settings.autoUpdate === true ? 'checked' : ''}>
+                    <span>Автоматическое обновление</span>
+                </div>
+            </div>
+            ${plugin.manifest.permissions && plugin.manifest.permissions.length > 0 ? `
+                <div class="settings-group">
+                    <label>Разрешения плагина:</label>
+                    <div style="color: var(--secondary-text); font-size: 13px; margin-top: 8px;">
+                        ${plugin.manifest.permissions.map(p => `<div>• ${p}</div>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+
+        modal.style.display = 'flex';
+
+        // Обработчики для модального окна
+        document.getElementById('close-plugin-settings').onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        document.getElementById('cancel-plugin-settings').onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        document.getElementById('save-plugin-settings').onclick = async () => {
+            try {
+                const newSettings = {
+                    enabled: document.getElementById('plugin-enabled').checked,
+                    autoUpdate: document.getElementById('plugin-auto-update').checked,
+                    ...settings
+                };
+
+                const result = await api.savePluginSettings(plugin.id, newSettings);
+                if (result.success) {
+                    showToast('Настройки сохранены');
+                    modal.style.display = 'none';
+                    loadPlugins(document.getElementById('plugins-search').value);
+                } else {
+                    showToast('Ошибка: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Ошибка сохранения настроек:', error);
+                showToast('Ошибка при сохранении настроек');
+            }
+        };
+
+        // Закрытие по клику вне окна
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+
+    } catch (error) {
+        console.error('Ошибка загрузки настроек плагина:', error);
+        showToast('Ошибка загрузки настроек плагина');
+    }
+}
+
+// Обработчики для раздела плагинов
+document.getElementById('add-plugin').addEventListener('click', async () => {
+    try {
+        const result = await api.addPlugin();
+        if (result.success) {
+            showToast(result.message || 'Плагин успешно добавлен');
+            if (result.requiresRestart) {
+                showRestartButton('Плагин установлен. Перезапустите браузер для применения изменений.');
+            } else {
+                loadPlugins();
+            }
+        } else {
+            showToast(result.message || 'Не удалось добавить плагин');
+        }
+    } catch (error) {
+        console.error('Ошибка добавления плагина:', error);
+        showToast('Ошибка при добавлении плагина');
+    }
+});
+
+document.getElementById('open-plugins-folder').addEventListener('click', async () => {
+    try {
+        const result = await api.openPluginsFolder();
+        if (result.success) {
+            showToast(result.message || 'Папка плагинов открыта');
+        } else {
+            showToast(result.message || 'Ошибка при открытии папки');
+        }
+    } catch (error) {
+        console.error('Ошибка открытия папки плагинов:', error);
+        showToast('Ошибка при открытии папки плагинов');
+    }
+});
+
+document.getElementById('refresh-plugins').addEventListener('click', () => {
+    loadPlugins();
+    hideRestartButton();
+    showToast('Список плагинов обновлен');
+});
+
+// Поиск плагинов
+document.getElementById('plugins-search').addEventListener('input', (e) => {
+    loadPlugins(e.target.value);
+});
+
+// Обработчик для кнопки перезапуска
+document.getElementById('restart-button').addEventListener('click', () => {
+    if (confirm('Для применения изменений необходимо перезапустить браузер. Перезапустить сейчас?')) {
+        restartBrowser();
+    }
+});
+
+// Слушаем события обновления плагинов
+api.onPluginSettingsUpdated((data) => {
+    if (currentPluginSettings && currentPluginSettings.id === data.pluginId) {
+        showToast('Настройки плагина обновлены');
+        loadPlugins(document.getElementById('plugins-search').value);
+    }
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+    const hash = window.location.hash || '#browsing-history';
+    document.querySelector(`nav a[href="${hash}"]`)?.click();
+    updateDownloadPath();
+
+    // Если открыт раздел плагинов, загружаем их
+    if (hash === '#plugins') {
+        loadPlugins();
+    }
+});
+</script>
 </body>
 </html>

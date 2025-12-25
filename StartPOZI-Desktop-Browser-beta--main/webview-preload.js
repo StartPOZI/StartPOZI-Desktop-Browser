@@ -1,10 +1,7 @@
-// webview-preload.js — Полный рабочий код (декабрь 2025)
-// Поддержка красивых диалогов alert/confirm/prompt на ЛЮБЫХ сайтах внутри <webview>
-// contextIsolation: true → используем contextBridge + инъекцию скрипта
-
+// webview-preload.js — с API для управления настройками плагинов
 const { contextBridge, ipcRenderer } = require('electron');
 
-// === Красивые модальные диалоги (тот же дизайн, что и в preload.js) ===
+// === Красивые модальные диалоги ===
 const createDialog = ({ title = 'Сообщение', message = '', defaultValue = '', type = 'alert' }) => {
     return new Promise(resolve => {
         const isPrompt = type === 'prompt';
@@ -74,15 +71,14 @@ const createDialog = ({ title = 'Сообщение', message = '', defaultValue
     });
 };
 
-// Экспонируем кастомные диалоги через contextBridge
+// Экспонируем кастомные диалоги
 contextBridge.exposeInMainWorld('customDialogs', {
     alert: (msg) => createDialog({ title: 'Сообщение', message: msg }),
                                 confirm: (msg) => createDialog({ title: 'Подтверждение', message: msg, type: 'confirm' }),
                                 prompt: (msg, def = '') => createDialog({ title: 'Ввод данных', message: msg, defaultValue: def, type: 'prompt' })
 });
 
-// === Инъекция скрипта: заменяем стандартные alert/confirm/prompt на наши красивые ===
-// Работает на любом внешнем сайте внутри <webview>
+// === Инъекция скрипта ===
 window.addEventListener('DOMContentLoaded', () => {
     const script = document.createElement('script');
     script.textContent = `
@@ -97,7 +93,7 @@ window.addEventListener('DOMContentLoaded', () => {
     (document.head || document.documentElement).appendChild(script);
 });
 
-// === Открытие ссылок в новой вкладке (вместо popup) ===
+// === Открытие ссылок в новой вкладке ===
 const openInNewTab = (url) => {
     if (!url) return;
     if (/^(javascript|about|mailto|tel|data):/.test(url)) return;
@@ -106,7 +102,7 @@ const openInNewTab = (url) => {
 
 // Средняя кнопка мыши
 document.addEventListener('auxclick', e => {
-    if (e.button === 1) { // средняя кнопка
+    if (e.button === 1) {
         const link = e.target.closest('a[href]');
         if (link?.href) {
             e.preventDefault();
@@ -242,10 +238,152 @@ contextBridge.exposeInMainWorld('electronAPI', {
                                 // Открытие URL из настроек
                                 openUrlFromSettings: (url) => {
                                     ipcRenderer.sendToHost('open-url-from-settings', url);
+                                },
+
+                                // Тема
+                                getTheme: () => {
+                                    return new Promise(resolve => {
+                                        const responseChannel = `theme-response-${Date.now()}`;
+                                        ipcRenderer.once(responseChannel, (_, val) => resolve(val));
+                                        ipcRenderer.sendToHost('get-theme', responseChannel);
+                                    });
+                                },
+
+                                setTheme: (val) => {
+                                    ipcRenderer.sendToHost('set-theme', val);
+                                },
+
+                                onThemeUpdated: (callback) => {
+                                    ipcRenderer.on('theme-updated', (_, theme) => callback(theme));
+                                },
+
+                                // =============== API для плагинов ===============
+                                getPlugins: () => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('get-plugins').then(plugins => {
+                                            resolve(plugins);
+                                        }).catch(error => {
+                                            console.error('Ошибка получения плагинов:', error);
+                                            resolve([]);
+                                        });
+                                    });
+                                },
+
+                                addPlugin: () => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('add-plugin').then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка добавления плагина:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                togglePlugin: (pluginId, enabled) => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('toggle-plugin', pluginId, enabled).then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка переключения плагина:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                removePlugin: (pluginId) => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('remove-plugin', pluginId).then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка удаления плагина:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                openPluginsFolder: () => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('open-plugins-folder').then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка открытия папки плагинов:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                // Настройки плагинов
+                                openPluginSettings: (pluginId) => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('open-plugin-settings', pluginId).then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка открытия настроек плагина:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                getPluginSettings: (pluginId) => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('get-plugin-settings', pluginId).then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка получения настроек плагина:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                savePluginSettings: (pluginId, settings) => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('save-plugin-settings', pluginId, settings).then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка сохранения настроек плагина:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                onPluginSettingsUpdated: (callback) => {
+                                    ipcRenderer.on('plugin-settings-updated', (_, data) => callback(data));
+                                },
+
+                                // ОТКРЫТЬ МЕНЮ РАСШИРЕНИЯ (POPUP)
+                                openPluginPopup: (pluginId) => {
+                                    return new Promise(resolve => {
+                                        ipcRenderer.invoke('open-plugin-popup', pluginId).then(result => {
+                                            resolve(result);
+                                        }).catch(error => {
+                                            console.error('Ошибка открытия меню расширения:', error);
+                                            resolve({ success: false, message: error.message });
+                                        });
+                                    });
+                                },
+
+                                // ОТПРАВИТЬ СООБЩЕНИЕ В РОДИТЕЛЬСКОЕ ОКНО (renderer.js)
+                                sendToHost: (channel, data) => {
+                                    ipcRenderer.sendToHost(channel, data);
+                                },
+
+                                // ПОЛУЧИТЬ ИНФОРМАЦИЮ О ТЕКУЩЕЙ СТРАНИЦЕ
+                                getCurrentPageInfo: () => {
+                                    return {
+                                        url: window.location.href,
+                                        title: document.title,
+                                        referrer: document.referrer
+                                    };
+                                },
+
+                                // ПЕРЕЗАГРУЗИТЬ СТРАНИЦУ
+                                reloadPage: () => {
+                                    window.location.reload();
                                 }
 });
 
-// === ДОБАВЛЕНИЕ: Полная блокировка WebRTC (чтобы тест не висел бесконечно) ===
+// === ДОБАВЛЕНИЕ: Полная блокировка WebRTC ===
 window.addEventListener('DOMContentLoaded', () => {
     // Удаляем RTCPeerConnection полностью
     if (window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection) {
@@ -271,3 +409,159 @@ window.addEventListener('DOMContentLoaded', () => {
     if (navigator.webkitGetUserMedia) navigator.webkitGetUserMedia = blockGetUserMedia;
     if (navigator.mozGetUserMedia) navigator.mozGetUserMedia = blockGetUserMedia;
 });
+
+// === ДОБАВЛЕНИЕ: Поддержка расширений в webview ===
+window.addEventListener('DOMContentLoaded', () => {
+    // Создаем контейнер для иконок расширений
+    const extensionIconsContainer = document.createElement('div');
+    extensionIconsContainer.id = 'extension-icons-container';
+    extensionIconsContainer.style.cssText = `
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    `;
+
+    document.body.appendChild(extensionIconsContainer);
+
+    // Функция для добавления иконки расширения
+    function addExtensionIcon(pluginId, iconUrl, pluginName, hasPopup) {
+        const icon = document.createElement('div');
+        icon.className = 'extension-icon';
+        icon.dataset.id = pluginId;
+        icon.title = pluginName;
+        icon.style.cssText = `
+        width: 32px;
+        height: 32px;
+        background-image: url('${iconUrl}');
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: all 0.2s;
+        `;
+
+        icon.onmouseover = () => {
+            icon.style.transform = 'scale(1.1)';
+            icon.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+        };
+
+        icon.onmouseout = () => {
+            icon.style.transform = 'scale(1)';
+            icon.style.boxShadow = 'none';
+        };
+
+        icon.onclick = async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (hasPopup) {
+                try {
+                    const result = await window.electronAPI.openPluginPopup(pluginId);
+                    if (result.success) {
+                        // Отправляем данные в родительское окно для отображения popup
+                        window.electronAPI.sendToHost('show-extension-popup', result);
+                    }
+                } catch (error) {
+                    console.error('Ошибка открытия меню расширения:', error);
+                }
+            }
+        };
+
+        extensionIconsContainer.appendChild(icon);
+    }
+
+    // Загружаем расширения и добавляем их иконки
+    setTimeout(async () => {
+        try {
+            if (window.electronAPI && window.electronAPI.getPlugins) {
+                const plugins = await window.electronAPI.getPlugins();
+
+                plugins.forEach(plugin => {
+                    if (plugin.enabled) {
+                        // Ищем иконку расширения
+                        let iconUrl = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%230a84ff" stroke-width="2"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>';
+
+                        // Проверяем наличие иконки в манифесте
+                        if (plugin.manifest) {
+                            if (plugin.manifest.browser_action && plugin.manifest.browser_action.default_icon) {
+                                const iconPath = typeof plugin.manifest.browser_action.default_icon === 'string'
+                                ? plugin.manifest.browser_action.default_icon
+                                : plugin.manifest.browser_action.default_icon['32'] ||
+                                plugin.manifest.browser_action.default_icon['16'] ||
+                                Object.values(plugin.manifest.browser_action.default_icon)[0];
+
+                                if (iconPath) {
+                                    const fullPath = plugin.path + '/' + iconPath;
+                                    iconUrl = `file://${fullPath.replace(/\\/g, '/')}`;
+                                }
+                            } else if (plugin.manifest.icons) {
+                                const iconPath = plugin.manifest.icons['32'] ||
+                                plugin.manifest.icons['16'] ||
+                                Object.values(plugin.manifest.icons)[0];
+
+                                if (iconPath) {
+                                    const fullPath = plugin.path + '/' + iconPath;
+                                    iconUrl = `file://${fullPath.replace(/\\/g, '/')}`;
+                                }
+                            }
+                        }
+
+                        // Добавляем иконку в интерфейс
+                        addExtensionIcon(plugin.id, iconUrl, plugin.name, plugin.hasPopup);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки расширений:', error);
+        }
+    }, 1000);
+});
+
+// === ДОБАВЛЕНИЕ: CSS для иконок расширений ===
+const style = document.createElement('style');
+style.textContent = `
+.extension-icon {
+    position: relative;
+}
+
+.extension-icon.has-popup::after {
+    content: '▶';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    background: #9c27b0;
+    color: white;
+    font-size: 8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.extension-icon:hover::before {
+    content: attr(title);
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 10000;
+}
+`;
+document.head.appendChild(style);

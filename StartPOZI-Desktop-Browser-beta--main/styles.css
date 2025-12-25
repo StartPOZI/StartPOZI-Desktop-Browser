@@ -1,9 +1,104 @@
-/* StartPOZI Browser — Основные стили 2025 */
+/* StartPOZI Browser — Основные стили 2025 (с полной поддержкой тем) */
+
+/* Глобальные переменные для тёмной темы (по умолчанию) */
+:root {
+  --titlebar-bg: #1a1a1a;           /* верхняя панель (кнопки мин/макс/закр) */
+  --toolbar-bg: #1a1a1a;
+  --toolbar-border: #252525;
+  --tab-bg: #1a1a1a;
+  --tab-active-bg: rgba(255,255,255,0.12);
+  --tab-hover-bg: rgba(255,255,255,0.08);
+  --btn-bg: rgba(255,255,255,0.06);
+  --btn-hover: rgba(255,255,255,0.14);
+  --search-bg: rgba(255,255,255,0.08);
+  --search-border: rgba(255,255,255,0.12);
+  --text-color: white;
+  --placeholder-color: rgba(255,255,255,0.45);
+  --right-btn-bg: rgba(255,255,255,0.07);
+  --right-btn-hover: rgba(255,255,255,0.16);
+  --dropdown-bg: rgba(20,20,20,0.98);
+  --dropdown-border: rgba(255,255,255,0.1);
+  --menu-text: #ddd;
+  --menu-hover: rgba(255,255,255,0.08);
+  --separator-bg: rgba(255,255,255,0.1);
+  --download-dropdown-bg: rgba(20,20,20,0.98);
+  --download-dropdown-border: rgba(255,255,255,0.1);
+  --download-item-border: rgba(255,255,255,0.1);
+  --download-item-hover: rgba(255,255,255,0.05);
+  --download-active-bg: linear-gradient(90deg, rgba(32,144,255,0.05), transparent);
+  --download-active-border: #2090FF;
+  --filename-color: white;
+  --status-bg-completed: rgba(76,217,100,0.2);
+  --status-color-completed: #4CD964;
+  --progress-bg: rgba(255,255,255,0.1);
+  --progress-bar-bg: linear-gradient(90deg, #2090FF, #00C8FF);
+  --progress-text-color: #aaa;
+  --action-btn-bg: rgba(255,255,255,0.1);
+  --action-btn-color: #ddd;
+  --action-btn-hover: rgba(255,255,255,0.2);
+  --no-downloads-color: #888;
+  --svg-stroke: white;
+  --suggestions-bg: rgba(20,20,20,0.98);
+  --suggestions-border: rgba(255,255,255,0.12);
+  --suggest-text: #ddd;
+  --suggest-hover: rgba(255,255,255,0.08);
+  --suggest-url-color: #888;
+  --shadow: 0 10px 40px rgba(0,0,0,0.5);
+  --backdrop-filter: blur(20px);
+}
+
+/* Светлая тема */
+body.theme-light {
+  --titlebar-bg: #ffffff !important; /* ← БЕЛАЯ верхняя панель */
+  --toolbar-bg: #f8f9fa;
+  --toolbar-border: #dee2e6;
+  --tab-bg: #f8f9fa;
+  --tab-active-bg: rgba(0,0,0,0.12);
+  --tab-hover-bg: rgba(0,0,0,0.08);
+  --btn-bg: rgba(0,0,0,0.05);
+  --btn-hover: rgba(0,0,0,0.10);
+  --search-bg: #ffffff;
+  --search-border: #ced4da;
+  --text-color: #212529;
+  --placeholder-color: #6c757d;
+  --right-btn-bg: rgba(0,0,0,0.05);
+  --right-btn-hover: rgba(0,0,0,0.10);
+  --dropdown-bg: rgba(255,255,255,0.98);
+  --dropdown-border: rgba(0,0,0,0.10);
+  --menu-text: #212529;
+  --menu-hover: rgba(0,0,0,0.05);
+  --separator-bg: rgba(0,0,0,0.10);
+  --download-dropdown-bg: rgba(255,255,255,0.98);
+  --download-dropdown-border: rgba(0,0,0,0.10);
+  --download-item-border: rgba(0,0,0,0.10);
+  --download-item-hover: rgba(0,0,0,0.05);
+  --download-active-bg: linear-gradient(90deg, rgba(32,144,255,0.10), transparent);
+  --download-active-border: #2090FF;
+  --filename-color: #212529;
+  --status-bg-completed: rgba(76,217,100,0.15);
+  --status-color-completed: #4CD964;
+  --progress-bg: rgba(0,0,0,0.10);
+  --progress-bar-bg: linear-gradient(90deg, #2090FF, #00C8FF);
+  --progress-text-color: #6c757d;
+  --action-btn-bg: rgba(0,0,0,0.08);
+  --action-btn-color: #212529;
+  --action-btn-hover: rgba(0,0,0,0.12);
+  --no-downloads-color: #6c757d;
+  --svg-stroke: #212529;
+  --suggestions-bg: rgba(255,255,255,0.98);
+  --suggestions-border: rgba(0,0,0,0.10);
+  --suggest-text: #212529;
+  --suggest-hover: rgba(0,0,0,0.05);
+  --suggest-url-color: #6c757d;
+  --shadow: 0 10px 40px rgba(0,0,0,0.12);
+  --backdrop-filter: blur(20px);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   background-color: #1a1a1a;
-  color: #fff;
+  color: var(--text-color);
   user-select: none;
   height: 100vh;
   overflow: hidden;
@@ -13,19 +108,19 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
+  background: var(--toolbar-bg);
 }
 
 /* Тайтлбар macOS */
 .custom-titlebar.macos {
   height: 30px;
-  background: linear-gradient(to bottom, #333 0%, #2a2a2a 100%);
+  background: var(--titlebar-bg); /* ← здесь точно меняется цвет */
   display: flex;
   align-items: center;
   justify-content: flex-end;
   -webkit-app-region: drag;
   padding: 0 12px;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--toolbar-border);
 }
 
 .window-controls button {
@@ -50,11 +145,11 @@ body {
 /* Панель вкладок */
 .tabs {
   height: 40px;
-  background: #2a2a2a;
+  background: var(--tab-bg);
   display: flex;
   align-items: center;
   padding: 5px 10px 0;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--toolbar-border);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -66,7 +161,7 @@ body {
   display: flex;
   align-items: center;
   padding: 6px 12px;
-  background: #333;
+  background: var(--tab-bg);
   margin-right: 6px;
   cursor: pointer;
   border-radius: 10px 10px 0 0;
@@ -74,11 +169,12 @@ body {
   max-width: 220px;
   transition: all 0.2s;
   font-size: 13.5px;
+  color: var(--text-color);
 }
 
-.tab:hover { background: #3a3a3a; }
+.tab:hover { background: var(--tab-hover-bg); }
 .tab.active {
-  background: #444;
+  background: var(--tab-active-bg);
   font-weight: 600;
   box-shadow: 0 -2px 0 #00c8ff inset;
 }
@@ -94,7 +190,7 @@ body {
 .tab .close {
   background: none;
   border: none;
-  color: #999;
+  color: var(--text-color);
   cursor: pointer;
   font-size: 16px;
   width: 20px;
@@ -116,7 +212,7 @@ body {
 width: 36px;
 height: 36px;
 border-radius: 10px;
-background: rgba(255,255,255,0.07);
+background: var(--btn-bg);
 border: none;
 display: flex;
 align-items: center;
@@ -127,24 +223,25 @@ margin-left: 8px;
 }
 
 #addTab:hover {
-background: rgba(0,200,255,0.3);
+background: var(--btn-hover);
 transform: scale(1.08);
 }
 
 #addTab svg {
 width: 16px;
 height: 16px;
+stroke: var(--svg-stroke);
 stroke-width: 3;
 }
 
 /* Панель инструментов */
 .toolbar {
   height: 56px;
-  background: #2a2a2a;
+  background: var(--toolbar-bg);
   display: flex;
   align-items: center;
   padding: 0 12px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--toolbar-border);
   gap: 12px;
 }
 
@@ -153,7 +250,7 @@ stroke-width: 3;
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.06);
+  background: var(--btn-bg);
   border: none;
   display: flex;
   align-items: center;
@@ -162,12 +259,13 @@ stroke-width: 3;
   transition: 0.2s;
 }
 
-.nav-btn:hover { background: rgba(0,200,255,0.2); }
+.nav-btn:hover { background: var(--btn-hover); }
 .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .nav-icon {
   width: 18px;
   height: 18px;
+  stroke: var(--svg-stroke);
   stroke-width: 2.2;
 }
 
@@ -182,10 +280,10 @@ stroke-width: 3;
 width: 100%;
 height: 40px;
 padding: 0 48px 0 16px;
-background: rgba(255,255,255,0.08);
-border: 1px solid rgba(255,255,255,0.12);
+background: var(--search-bg);
+border: 1px solid var(--search-border);
 border-radius: 12px;
-color: white;
+color: var(--text-color);
 font-size: 15px;
 outline: none;
 transition: 0.2s;
@@ -197,7 +295,7 @@ box-shadow: 0 0 0 3px rgba(0,200,255,0.2);
 }
 
 #searchInput::placeholder {
-color: rgba(255,255,255,0.5);
+color: var(--placeholder-color);
 }
 
 #searchBtn {
@@ -206,7 +304,7 @@ right: 4px;
 top: 4px;
 width: 32px;
 height: 32px;
-background: rgba(0,200,255,0.2);
+background: var(--btn-bg);
 border: none;
 border-radius: 10px;
 display: flex;
@@ -216,11 +314,12 @@ cursor: pointer;
 transition: 0.2s;
 }
 
-#searchBtn:hover { background: rgba(0,200,255,0.4); }
+#searchBtn:hover { background: var(--btn-hover); }
 
 #searchBtn svg {
 width: 18px;
 height: 18px;
+stroke: var(--svg-stroke);
 stroke-width: 2.4;
 }
 
@@ -232,7 +331,7 @@ stroke-width: 2.4;
 #menuBtn {
 width: 40px;
 height: 40px;
-background: rgba(255,255,255,0.06);
+background: var(--btn-bg);
 border: none;
 border-radius: 10px;
 cursor: pointer;
@@ -242,20 +341,19 @@ justify-content: center;
 transition: 0.2s;
 }
 
-#menuBtn:hover { background: rgba(0,200,255,0.2); }
+#menuBtn:hover { background: var(--btn-hover); }
 
 .dropdown {
   position: absolute;
   top: 50px;
   right: 12px;
-  background: rgba(30,30,30,0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--dropdown-bg);
+  backdrop-filter: var(--backdrop-filter);
+  border: 1px solid var(--dropdown-border);
   border-radius: 14px;
   overflow: hidden;
   display: none;
   z-index: 10000;
-  ;
   width: 260px;
 }
 
@@ -277,22 +375,24 @@ transition: 0.2s;
   font-size: 14.5px;
   transition: background 0.2s;
   cursor: pointer;
+  color: var(--menu-text);
 }
 
 .menu-item:hover {
-  background: rgba(0,200,255,0.12);
+  background: var(--menu-hover);
 }
 
 .menu-item svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+  stroke: var(--svg-stroke);
   stroke-width: 2;
 }
 
 .separator {
   height: 1px;
-  background: rgba(255,255,255,0.08);
+  background: var(--separator-bg);
   margin: 8px 16px;
 }
 
@@ -323,7 +423,7 @@ webview {
   border: none;
 }
 
-/* Скроллбары (на всякий случай) */
+/* Скроллбары */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -366,12 +466,12 @@ webview {
 }
 
 .dialogBox {
-  background: #252525;
+  background: var(--card-bg);
   border-radius: 16px;
   width: 440px;
   max-width: 92vw;
   box-shadow: 0 30px 80px rgba(0,0,0,0.8);
-  border: 1px solid #444;
+  border: 1px solid var(--card-border);
   animation: pop 0.35s ease-out;
 }
 
@@ -379,14 +479,14 @@ webview {
 text-align: center;
 font-size: 20px;
 font-weight: 600;
-color: white;
+color: var(--text-color);
 margin: 30px 40px 10px;
 }
 
 #dialogMessage {
 text-align: center;
 font-size: 15px;
-color: #ccc;
+color: var(--secondary-text);
 margin: 0 40px 24px;
 line-height: 1.5;
 }
@@ -394,10 +494,10 @@ line-height: 1.5;
 #dialogInput {
 margin: 0 40px 24px;
 padding: 14px 18px;
-background: #1a1a1a;
-border: 1px solid #555;
+background: var(--input-bg);
+border: var(--input-border);
 border-radius: 12px;
-color: white;
+color: var(--input-color);
 font-size: 16px;
 width: calc(100% - 80px);
 }
@@ -407,7 +507,7 @@ width: calc(100% - 80px);
   justify-content: flex-end;
   gap: 16px;
   padding: 20px 40px 34px;
-  background: #2a2a2a;
+  background: var(--card-bg);
 }
 
 .dialogButtons button {
@@ -421,12 +521,12 @@ width: calc(100% - 80px);
 }
 
 .dialogButtons button {
-  background: #404040;
-  color: #ddd;
+  background: var(--btn-bg);
+  color: var(--btn-color);
 }
 
 .dialogButtons button:hover {
-  background: #505050;
+  background: var(--btn-hover);
 }
 
 .dialogButtons button.primary {

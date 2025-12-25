@@ -1,15 +1,16 @@
 {
   "name": "startpozi-browser",
   "version": "1.0.0",
-  "description": "A custom browser for StartPOZI search engine",
+  "description": "A custom browser for StartPOZI search engine with plugins support",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron . --enable-logging"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "deasync": "^0.1.31",
     "electron": "^28.1.1",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^2.7.0"
   },
   "keywords": [],
   "author": "",

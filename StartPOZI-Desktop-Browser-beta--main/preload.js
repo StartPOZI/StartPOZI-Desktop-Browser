@@ -1,75 +1,47 @@
-// preload.js — для основного окна (renderer process)
-const { ipcRenderer } = require('electron');
+// preload.js
+const { contextBridge, ipcRenderer } = require('electron');
 
-// Красивые диалоги
-(function () {
-    const createDialog = ({ title = 'Сообщение', message = '', defaultValue = '', type = 'alert' }) => {
-        return new Promise(resolve => {
-            const isPrompt = type === 'prompt';
-            const isConfirm = type === 'confirm';
+// Полный API для Settings.html
+contextBridge.exposeInMainWorld('electronAPI', {
+    // История
+    getHistory: () => ipcRenderer.invoke('get-browser-history'),
+                                clearHistory: () => ipcRenderer.invoke('clear-browser-history'),
+                                onHistoryUpdated: (callback) => ipcRenderer.on('history-updated', callback),
 
-            const overlay = document.createElement('div');
-            overlay.style.cssText = `
-            position: fixed; inset: 0; background: rgba(0,0,0,0.75);
-            backdrop-filter: blur(12px); display: flex; align-items: center;
-            justify-content: center; z-index: 999999;
-            font-family: -apple-system, system-ui, sans-serif;
-            `;
+                                // Загрузки
+                                getDownloads: () => ipcRenderer.invoke('get-browser-downloads'),
+                                clearDownloads: () => ipcRenderer.invoke('clear-browser-downloads'),
+                                getCurrentDownloadPath: () => ipcRenderer.invoke('get-current-download-path'),
+                                setDownloadPath: () => ipcRenderer.invoke('set-download-path'),
+                                onDownloadsUpdated: (callback) => ipcRenderer.on('downloads-updated', callback),
 
-            overlay.innerHTML = `
-            <div style="background:#1e1e1e; border-radius:16px; width:460px; max-width:92vw;
-            box-shadow:0 20px 60px rgba(0,0,0,0.8); border:1px solid #333; overflow:hidden;">
-            <div style="padding:24px 32px 16px;">
-            <h3 style="margin:0 0 12px; color:white; font-size:18px; font-weight:600;">${title}</h3>
-            <p style="margin:0 0 20px; color:#ccc; font-size:15px; line-height:1.5;">${message}</p>
-            ${isPrompt ? `<input id="dialog-input" type="text" value="${defaultValue}"
-            style="width:100%; padding:12px 16px; background:#2d2d2d; border:1px solid #444;
-            border-radius:12px; color:white; font-size:15px;">` : ''}
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap:12px; padding:0 32px 28px;">
-            ${isConfirm || isPrompt ? `
-                <button id="dialog-cancel" style="min-width:100px; padding:10px 20px; background:#404040;
-                color:#ddd; border:none; border-radius:12px; font-size:14px;">Отмена</button>` : ''}
-                <button id="dialog-ok" style="min-width:100px; padding:10px 20px; background:#0a84ff;
-                color:white; border:none; border-radius:12px; font-size:14px;">ОК</button>
-                </div>
-                </div>
-                `;
+                                // Настройки
+                                getSearchEngine: () => ipcRenderer.invoke('get-search-engine'),
+                                setSearchEngine: (url) => ipcRenderer.send('set-search-engine', url),
+                                getSaveTabs: () => ipcRenderer.invoke('get-save-tabs'),
+                                setSaveTabs: (isEnabled) => ipcRenderer.send('set-save-tabs', isEnabled),
+                                getSaveInternalPages: () => ipcRenderer.invoke('get-save-internal-pages'),
+                                setSaveInternalPages: (isEnabled) => ipcRenderer.send('set-save-internal-pages', isEnabled),
 
-                document.body.appendChild(overlay);
+                                // Плагины
+                                getPlugins: () => ipcRenderer.invoke('get-plugins'),
+                                addPlugin: () => ipcRenderer.invoke('add-plugin'),
+                                togglePlugin: (pluginId, enabled) => ipcRenderer.invoke('toggle-plugin', pluginId, enabled),
+                                removePlugin: (pluginId) => ipcRenderer.invoke('remove-plugin', pluginId),
+                                openPluginsFolder: () => ipcRenderer.invoke('open-plugins-folder'),
+                                openPluginSettings: (pluginId) => ipcRenderer.invoke('open-plugin-settings', pluginId),
+                                savePluginSettings: (pluginId, settings) => ipcRenderer.invoke('save-plugin-settings', pluginId, settings),
+                                getPluginSettings: (pluginId) => ipcRenderer.invoke('get-plugin-settings', pluginId),
+                                onPluginSettingsUpdated: (callback) => ipcRenderer.on('plugin-settings-updated', callback),
 
-                const input = overlay.querySelector('#dialog-input');
-                const cancelBtn = overlay.querySelector('#dialog-cancel');
-                const okBtn = overlay.querySelector('#dialog-ok');
+                                // ОЧЕНЬ ВАЖНО: Метод для открытия меню плагина
+                                openPluginPopup: (pluginId) => ipcRenderer.invoke('open-plugin-popup', pluginId),
 
-                const close = (value) => {
-                    overlay.remove();
-                    resolve(value);
-                };
+                                // Тема
+                                getTheme: () => ipcRenderer.invoke('get-theme'),
+                                setTheme: (theme) => ipcRenderer.send('set-theme', theme),
+                                onThemeUpdated: (callback) => ipcRenderer.on('theme-updated', callback),
 
-                cancelBtn?.addEventListener('click', () => close(false));
-                okBtn.addEventListener('click', () => {
-                    if (isPrompt) close(input?.value.trim() || null);
-                    else close(true);
-                });
-
-                    overlay.addEventListener('click', e => e.target === overlay && close(false));
-
-                    document.addEventListener('keydown', e => {
-                        if (e.key === 'Escape') close(false);
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (isPrompt) close(input?.value.trim() || null);
-                            else close(true);
-                        }
-                    }, { once: true });
-
-                    (input || okBtn).focus();
-                    if (input) input.select();
-        });
-    };
-
-    window.alert = msg => createDialog({ title: 'Сообщение', message: msg });
-    window.confirm = msg => createDialog({ title: 'Подтверждение', message: msg, type: 'confirm' });
-    window.prompt = (msg, def = '') => createDialog({ title: 'Ввод данных', message: msg, defaultValue: def, type: 'prompt' });
-})();
+                                // Открыть URL
+                                openUrlFromSettings: (url) => ipcRenderer.send('OPEN_URL', url)
+});

@@ -234,6 +234,190 @@ stroke: var(--svg-stroke);
 stroke-width: 3;
 }
 
+/* Стили для меню расширений */
+.extensions-section-header {
+  padding: 8px 15px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 5px;
+}
+
+.extension-item-dropdown {
+  padding: 12px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: background 0.2s;
+}
+
+.extension-item-dropdown:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.extension-item-dropdown.enabled {
+  opacity: 1;
+}
+
+.extension-item-dropdown.disabled {
+  opacity: 0.7;
+}
+
+.extension-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.extension-icon-small {
+  width: 20px;
+  height: 20px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 4px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.extension-name {
+  flex-grow: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.extension-version {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+}
+
+.extension-status {
+  margin-bottom: 10px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.enabled {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.status-badge.disabled {
+  background: rgba(244, 67, 54, 0.2);
+  color: #F44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.extension-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.extension-action-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.extension-action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.toggle-btn {
+  background: linear-gradient(90deg, #0a84ff, #0060df);
+  color: white;
+}
+
+.remove-btn {
+  background: linear-gradient(90deg, #ff3b30, #ff9500);
+  color: white;
+}
+
+.popup-btn {
+  background: linear-gradient(90deg, #34c759, #30d158);
+  color: white;
+}
+
+.no-extensions {
+  padding: 20px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+/* Контекстное меню */
+.context-menu {
+  --context-menu-bg: #2d2d2d;
+  --context-menu-border: #444;
+  --context-menu-color: #fff;
+  --context-menu-hover: #3d3d3d;
+}
+
+.theme-light .context-menu {
+  --context-menu-bg: #ffffff;
+  --context-menu-border: #ddd;
+  --context-menu-color: #333;
+  --context-menu-hover: #f0f0f0;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.2s;
+  min-height: 32px;
+}
+
+.context-menu-item:hover {
+  background: var(--context-menu-hover);
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: var(--context-menu-border);
+  margin: 6px 0;
+}
+
+/* Анимация появления контекстного меню */
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.context-menu {
+  animation: contextMenuFadeIn 0.15s ease;
+}
+
 /* Панель инструментов */
 .toolbar {
   height: 56px;
@@ -536,4 +720,42 @@ width: calc(100% - 80px);
 
 .dialogButtons button.primary:hover {
   background: #006dcf;
+}
+
+/* Закреплённая вкладка */
+.tab.pinned {
+  background: rgba(255, 215, 0, 0.1);
+  border-bottom: 2px solid gold;
+}
+.tab.pinned .title::before {
+  content: '📌 ';
+  font-size: 12px;
+}
+
+/* Менеджер вкладок */
+.tab-manager-overlay {
+  backdrop-filter: blur(10px);
+}
+.tab-thumbnail {
+  width: 220px;
+  padding: 10px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  text-align: center;
+}
+.tab-thumbnail:hover {
+  transform: scale(1.05);
+  background: rgba(255,255,255,0.2);
+}
+.tab-thumbnail img {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Группы вкладок (просто визуально) */
+.tab-group {
+  border-left: 3px solid #0a84ff;
+  margin-left: 4px;
 }

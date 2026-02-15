@@ -1,22 +1,257 @@
 {
   "name": "startpozi-browser",
   "version": "1.0.0",
-  "description": "A custom browser for StartPOZI search engine with plugins support",
+  "description": "StartPOZI Browser - быстрый и приватный браузер с поддержкой расширений",
   "main": "main.js",
   "scripts": {
-    "start": "electron . --enable-logging"
+    "start": "electron . --enable-logging",
+    "dev": "NODE_ENV=development electron . --enable-logging",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:win:portable": "electron-builder --win portable",
+    "build:linux": "electron-builder --linux",
+    "build:linux:appimage": "electron-builder --linux AppImage",
+    "build:linux:deb": "electron-builder --linux deb",
+    "build:mac": "electron-builder --mac",
+    "pack": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps",
+    "clean": "rm -rf dist && rm -rf node_modules && npm install",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
     "deasync": "^0.1.31",
     "electron": "^28.1.1",
-    "node-fetch": "^2.7.0"
+    "electron-store": "^8.2.0",
+    "nanoid": "^3.3.6",
+    "node-fetch": "^2.7.0",
+    "uuid": "^13.0.0"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "browser",
+    "web-browser",
+    "startpozi",
+    "privacy",
+    "electron",
+    "extensions",
+    "cross-platform"
+  ],
+  "author": "StartPOZI Team",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "electron-builder": "^24.6.4",
     "electron-is-dev": "^3.0.1"
-  }
+  },
+  "build": {
+    "appId": "com.startpozi.browser",
+    "productName": "StartPOZI Browser",
+    "copyright": "Copyright © 2026 StartPOZI",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity}",
+      "!dist/**/*",
+      "!build/installer.nsh"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "legalTrademarks": "StartPOZI",
+      "publisherName": "StartPOZI",
+      "asarUnpack": [
+        "**/*.node",
+        "**/webextensions.js",
+        "**/preload-*.js"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "StartPOZI Browser",
+      "include": "build/installer.nsh",
+      "license": "LICENSE",
+      "uninstallDisplayName": "StartPOZI Browser",
+      "menuCategory": "StartPOZI Browser",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "StartPOZI-Browser-Portable.exe",
+      "requestExecutionLevel": "user",
+      "unpackDirName": "StartPOZI-Browser-Portable"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm",
+        "pacman",
+        "tar.gz"
+      ],
+      "icon": "build/icons",
+      "category": "Network;WebBrowser",
+      "maintainer": "StartPOZI Team <support@startpozi.com>",
+      "synopsis": "A fast and private web browser",
+      "description": "StartPOZI Browser is a fast, secure and privacy-focused web browser with built-in ad blocking and extension support.",
+      "desktop": {
+        "Name": "StartPOZI Browser",
+        "Comment": "A fast and private web browser",
+        "StartupWMClass": "StartPOZI Browser",
+        "MimeType": "text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;"
+      },
+      "asarUnpack": [
+        "**/*.node",
+        "**/webextensions.js",
+        "**/preload-*.js"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.utilities",
+      "type": "distribution",
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "asarUnpack": [
+        "**/*.node",
+        "**/webextensions.js",
+        "**/preload-*.js"
+      ]
+    },
+    "fileAssociations": [
+      {
+        "ext": "html",
+        "name": "HTML Document",
+        "description": "StartPOZI Browser HTML Document",
+        "role": "Viewer",
+        "mimeType": "text/html"
+      },
+      {
+        "ext": "htm",
+        "name": "HTML Document",
+        "description": "StartPOZI Browser HTML Document",
+        "role": "Viewer",
+        "mimeType": "text/html"
+      },
+      {
+        "ext": "mhtml",
+        "name": "MHTML Document",
+        "description": "StartPOZI Browser MHTML Document",
+        "role": "Viewer",
+        "mimeType": "application/x-mimearchive"
+      },
+      {
+        "ext": "mht",
+        "name": "MHTML Document",
+        "description": "StartPOZI Browser MHTML Document",
+        "role": "Viewer",
+        "mimeType": "application/x-mimearchive"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "StartPOZI Browser",
+        "schemes": [
+          "http",
+          "https"
+        ],
+        "role": "Viewer"
+      },
+      {
+        "name": "StartPOZI Browser File",
+        "schemes": [
+          "file"
+        ],
+        "role": "Viewer"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "build/icons",
+        "to": "icons",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "publish": {
+      "provider": "generic",
+      "url": "https://downloads.startpozi.com/browser/"
+    },
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
+    },
+    "afterSign": "scripts/notarize.js",
+    "asar": true,
+    "extraMetadata": {
+      "main": "main.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/startpozi/browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/startpozi/browser/issues"
+  },
+  "homepage": "https://startpozi.com/browser",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=7.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "ia32",
+    "arm64"
+  ]
 }

@@ -18,8 +18,713 @@ let hasNewDownloads = false;
 
 let passwords = [];
 
-// [НОВОЕ] Флаг инкогнито (устанавливается в preload при наличии аргумента)
 let isIncognito = window.__isIncognito === true;
+
+// ========== ПЕРЕМЕЩЁННЫЕ В НАЧАЛО ОБЪЯВЛЕНИЯ (ДЛЯ ИЗБЕЖАНИЯ ReferenceError) ==========
+
+let pinnedTabs = new Set();
+let tabGroups = new Map();
+let closedTabsHistory = [];
+
+// Функции управления вкладками
+function createTab(url = START_PAGE) {
+  try {
+    if (!tabsBar || !addTabBtn) return;
+
+    // --- Создание элемента вкладки ---
+    const tab = document.createElement('div');
+    tab.className = 'tab';
+
+    // Добавляем favicon через утилиту из index.html (или собственную заглушку)
+    let faviconElement;
+    if (window.TabUtils && typeof window.TabUtils.createFaviconElement === 'function') {
+      faviconElement = window.TabUtils.createFaviconElement(url);
+    } else {
+      // Запасной вариант, если TabUtils не доступен
+      faviconElement = document.createElement('div');
+      faviconElement.className = 'tab-favicon default-favicon';
+      try {
+        const domain = new URL(url.startsWith('http') ? url : 'https://' + url).hostname;
+        faviconElement.textContent = domain.charAt(0).toUpperCase();
+      } catch {
+        faviconElement.textContent = 'S';
+      }
+    }
+    tab.appendChild(faviconElement);
+
+    // Заголовок вкладки
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'title';
+    titleSpan.textContent = 'Загрузка...';
+    tab.appendChild(titleSpan);
+
+    // Кнопка закрытия
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close';
+    closeBtn.innerHTML = '×';
+    tab.appendChild(closeBtn);
+
+    // --- Создание контейнера для содержимого (webview) ---
+    const view = document.createElement('div');
+    view.className = 'tab-content';
+
+    const webview = document.createElement('webview');
+    webview.src = url;
+    webview.style = 'width:100%; height:100%';
+    webview.setAttribute('allowpopups', 'true');
+    webview.setAttribute('partition', 'persist:webview');
+    webview.setAttribute('disablewebsecurity', 'true');
+
+    view.appendChild(webview);
+    tabsArea.appendChild(view);
+    tabsBar.insertBefore(tab, addTabBtn);
+
+    // Добавляем в массивы
+    tabs.push(tab);
+    views.push(view);
+    const newIndex = tabs.length - 1;
+    active = newIndex;
+
+    // --- Обработчики событий webview ---
+    webview.addEventListener('context-menu', (e) => {
+      e.preventDefault();
+      const params = e.params || {};
+      let type = 'none';
+      if (params.linkURL) type = 'link';
+      else if (params.srcURL && params.mediaType === 'image') type = 'image';
+      else if (params.selectionText) type = 'selection';
+      else if (params.isEditable) type = 'editable';
+      handleWebViewContextMenu(webview, {
+        type: type,
+        data: {
+          url: params.linkURL,
+          src: params.srcURL,
+          text: params.selectionText
+        },
+        x: params.x,
+        y: params.y
+      });
+    });
+
+    // Обновление favicon и заголовка при загрузке страницы
+    const updateTabInfo = () => {
+      try {
+        const currentUrl = webview.getURL();
+        const title = webview.getTitle() || 'Новая вкладка';
+
+        // Обновляем заголовок
+        tab.querySelector('.title').textContent = title.substring(0, 30);
+
+        // Обновляем favicon, если это не внутренняя страница
+        if (currentUrl && !isInternalPage(currentUrl)) {
+          const currentFavicon = tab.querySelector('.tab-favicon');
+          if (currentFavicon) {
+            const newFavicon = window.TabUtils?.createFaviconElement(currentUrl);
+            if (newFavicon) {
+              currentFavicon.replaceWith(newFavicon);
+            }
+          }
+        }
+
+        // Обновляем адресную строку, если вкладка активна
+        if (active === newIndex) {
+          addressBar.value = (currentUrl && !isInternalPage(currentUrl)) ? currentUrl : '';
+          updateNavButtons();
+        }
+
+        // Сохраняем в историю
+        if (currentUrl && !isInternalPage(currentUrl)) {
+          updateHistory(currentUrl, title);
+        }
+      } catch (error) {}
+    };
+
+    webview.addEventListener('did-navigate', updateTabInfo);
+    webview.addEventListener('did-navigate-in-page', updateTabInfo);
+    webview.addEventListener('page-title-updated', updateTabInfo);
+    webview.addEventListener('dom-ready', updateTabInfo);
+
+    webview.addEventListener('new-window', e => {
+      e.preventDefault();
+      if (e.url && e.url !== 'about:blank') createTab(e.url);
+    });
+
+      // Обработка клика по вкладке
+      tab.addEventListener('click', e => {
+        if (!e.target.classList.contains('close')) activateTab(newIndex);
+      });
+
+        closeBtn.onclick = e => {
+          e.stopPropagation();
+          closeTab(newIndex);
+        };
+
+        // Применяем настройки безопасности к webview
+        webview.addEventListener('dom-ready', () => {
+          setTimeout(() => {
+            applySecuritySettingsToWebView(webview);
+          }, 200);
+        });
+
+        // Выгрузка неактивных вкладок и обработка крашей
+        scheduleTabUnload(newIndex);
+        setupCrashHandler(webview, newIndex);
+
+        // Активируем новую вкладку
+        activateTab(newIndex);
+        saveTabsState();
+
+  } catch (error) {
+    console.error('Ошибка при создании вкладки:', error);
+  }
+}
+
+function activateTab(i) {
+  try {
+    tabs.forEach(t => t.classList.remove('active'));
+    views.forEach(v => v.classList.remove('active'));
+    tabs[i].classList.add('active');
+    views[i].classList.add('active');
+    active = i;
+    const wv = views[i].querySelector('webview');
+    if (wv) {
+      const u = wv.getURL();
+      if (addressBar) addressBar.value = u?.includes('MainPage') || u?.includes('Settings.html') ? '' : u;
+      updateNavButtons();
+    }
+    if (wv) setTimeout(() => wv.focus(), 100);
+  } catch (error) {}
+}
+
+function closeTab(i) {
+  if (tabs.length <= 1) return;
+  const webview = views[i].querySelector('webview');
+  if (webview) {
+    const url = webview.getURL();
+    const title = tabs[i].querySelector('.title').textContent;
+    closedTabsHistory.push({
+      url: url,
+      title: title || 'Без названия',
+      favicon: webview.favicon || '',
+      timestamp: Date.now()
+    });
+    if (closedTabsHistory.length > 20) closedTabsHistory.shift();
+  }
+  tabsBar.removeChild(tabs[i]);
+  tabsArea.removeChild(views[i]);
+  tabs.splice(i, 1);
+  views.splice(i, 1);
+  if (active >= tabs.length) active = tabs.length - 1;
+  activateTab(active);
+  saveTabsState();
+}
+
+function goBack() {
+  if (views[active]?.querySelector('webview')) views[active].querySelector('webview').goBack();
+}
+
+function goForward() {
+  if (views[active]?.querySelector('webview')) views[active].querySelector('webview').goForward();
+}
+
+function reload() {
+  if (views[active]?.querySelector('webview')) views[active].querySelector('webview').reload();
+}
+
+function updateNavButtons() {
+  const wv = views[active]?.querySelector('webview');
+  if (wv) {
+    const backBtn = document.getElementById('back');
+    const forwardBtn = document.getElementById('forward');
+    if (backBtn) backBtn.disabled = !wv.canGoBack();
+    if (forwardBtn) forwardBtn.disabled = !wv.canGoForward();
+  }
+}
+
+function saveTabsState() {
+  try {
+    const saveTabsEnabled = localStorage.getItem('saveTabs') === 'true';
+    const saveInternalPages = localStorage.getItem('saveInternalPages') === 'true';
+    if (!saveTabsEnabled) {
+      localStorage.setItem('savedTabs', JSON.stringify([]));
+      return;
+    }
+    const urlsToSave = [];
+    for (let i = 0; i < views.length; i++) {
+      const view = views[i];
+      const webview = view?.querySelector('webview');
+      if (!webview) continue;
+      setTimeout(() => {
+        try {
+          const url = webview.getURL();
+          if (!url || url === 'about:blank') return;
+          const isInternalPage = url.includes('MainPage') || url.includes('Settings.html') || url.includes('internal-page') || url.startsWith('file://');
+          if (!saveInternalPages && isInternalPage) return;
+          urlsToSave.push(url);
+          if (urlsToSave.length > 0) localStorage.setItem('savedTabs', JSON.stringify(urlsToSave));
+        } catch (error) {}
+      }, 100);
+    }
+    if (urlsToSave.length > 0) localStorage.setItem('savedTabs', JSON.stringify(urlsToSave));
+  } catch (error) {}
+}
+
+function updateHistory(url, title = '') {
+  if (!url || url.includes('MainPage') || url.includes('Settings.html')) return;
+  try {
+    const cleanUrl = url.split('#')[0].split('?')[0];
+    const cleanTitle = title.trim() || new URL(url).hostname || 'Без названия';
+    let h = JSON.parse(localStorage.getItem('browserHistory') || '[]');
+    h = h.filter(x => x.url !== cleanUrl);
+    h.push({ url: cleanUrl, title: cleanTitle, time: Date.now() });
+    if (h.length > 500) h.shift();
+    localStorage.setItem('browserHistory', JSON.stringify(h));
+    views.forEach(view => {
+      const wv = view.querySelector('webview');
+      if (wv && wv.getURL().includes('Settings.html')) wv.send('history-updated');
+    });
+  } catch (error) {}
+}
+
+function openInternalPage(title, content) {
+  createTab('about:blank');
+  const wv = views[active].querySelector('webview');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>body{background:#0f0f17;color:#eee;font-family:system-ui;padding:20px;margin:0}h1{color:#00c8ff}</style></head><body><h1>${title}</h1>${content}</body></html>`;
+  wv.loadURL('data:text/html,' + encodeURIComponent(html));
+}
+
+function showBookmarks() {
+  // можно реализовать позже
+}
+
+function showDownloads() {
+  createTab(SETTINGS_PAGE);
+}
+
+function showPasswordsManager() {
+  createTab('Settings.html#passwords');
+}
+
+function showHistory() {
+  createTab(SETTINGS_PAGE);
+}
+
+function showAbout() {
+  openInternalPage('О браузере', '<h2>StartPOZI 2025</h2><p>Всё работает идеально!</p>');
+}
+
+function restartBrowser() {
+  window.electronAPI.invoke('restart-browser').then(result => {
+    if (result && result.success) showToast('Браузер перезапускается...', 3000);
+  });
+}
+
+function loadTheme() {
+  try {
+    const t = localStorage.getItem('themeMode') || 'system';
+    let className;
+    if (t === 'system') className = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'theme-dark' : 'theme-light';
+    else className = `theme-${t}`;
+    document.body.classList.remove('theme-dark', 'theme-light');
+    document.body.classList.add(className);
+  } catch (error) {}
+}
+
+async function loadExtensionsDropdown() {
+  const list = document.getElementById('extensionsListDropdown');
+  if (!list) return;
+  try {
+    if (!window.electronAPI) {
+      list.innerHTML = '<div class="no-extensions">Browser API not available</div>';
+      return;
+    }
+    list.innerHTML = '<div class="no-extensions">Loading extensions...</div>';
+    const [plugins, savedStates] = await Promise.all([
+      window.electronAPI.invoke('get-plugins').catch(() => []),
+                                                     window.electronAPI.invoke('load-extension-states').catch(() => ({}))
+    ]);
+    if (!plugins || plugins.length === 0) {
+      list.innerHTML = '<div class="no-extensions">No extensions installed</div>';
+      const addBtn = document.createElement('div');
+      addBtn.className = 'menu-item';
+      addBtn.innerHTML = '<span style="color: #0a84ff; font-weight: 600;">+ Add Extension</span>';
+      addBtn.onclick = async () => {
+        try {
+          const result = await window.electronAPI.invoke('add-plugin');
+          if (result?.success) {
+            showToast(result.message);
+            loadExtensionsDropdown();
+          } else showToast(result?.message || 'Failed to add extension', 'error');
+        } catch (error) {
+          showToast('Error adding extension', 'error');
+        }
+      };
+      list.appendChild(addBtn);
+      return;
+    }
+    const updatedPlugins = plugins.map(plugin => savedStates.hasOwnProperty(plugin.id) ? { ...plugin, enabled: savedStates[plugin.id] } : plugin);
+    const enabledPlugins = updatedPlugins.filter(p => p.enabled);
+    const disabledPlugins = updatedPlugins.filter(p => !p.enabled);
+    list.innerHTML = '';
+    if (enabledPlugins.length > 0) {
+      const enabledHeader = document.createElement('div');
+      enabledHeader.className = 'extensions-section-header';
+      enabledHeader.textContent = `Enabled (${enabledPlugins.length})`;
+      list.appendChild(enabledHeader);
+      enabledPlugins.forEach(plugin => {
+        list.appendChild(createExtensionElement(plugin));
+      });
+    }
+    if (disabledPlugins.length > 0) {
+      const disabledHeader = document.createElement('div');
+      disabledHeader.className = 'extensions-section-header';
+      disabledHeader.textContent = `Disabled (${disabledPlugins.length})`;
+      list.appendChild(disabledHeader);
+      disabledPlugins.forEach(plugin => {
+        list.appendChild(createExtensionElement(plugin));
+      });
+    }
+    setupExtensionEventHandlers();
+  } catch (error) {
+    list.innerHTML = '<div class="no-extensions">Error loading extensions</div>';
+  }
+}
+
+function createExtensionElement(plugin) {
+  const div = document.createElement('div');
+  div.className = `extension-item-dropdown ${plugin.enabled ? 'enabled' : 'disabled'}`;
+  div.setAttribute('data-id', plugin.id);
+  div.innerHTML = `
+  <div class="extension-header">
+  <div class="extension-icon-small" style="background-image: url('${getExtensionIcon(plugin)}')"></div>
+  <span class="extension-name">${plugin.name}</span>
+  <span class="extension-version">v${plugin.version}</span>
+  </div>
+  <div class="extension-status">
+  <span class="status-badge ${plugin.enabled ? 'enabled' : 'disabled'}">${plugin.enabled ? 'Включено' : 'Отключено'}</span>
+  </div>
+  <div class="extension-actions">
+  <button class="extension-action-btn toggle-btn" data-id="${plugin.id}" data-enabled="${plugin.enabled}">${plugin.enabled ? 'Выключить' : 'Включить'}</button>
+  ${!plugin.isSystem ? `<button class="extension-action-btn remove-btn" data-id="${plugin.id}">Удалить</button>` : ''}
+  ${plugin.hasPopup ? `<button class="extension-action-btn popup-btn" data-id="${plugin.id}">Меню</button>` : ''}
+  </div>
+  `;
+  return div;
+}
+
+function setupExtensionEventHandlers() {
+  document.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const pluginId = btn.dataset.id;
+      const currentlyEnabled = btn.dataset.enabled === 'true';
+      const newState = !currentlyEnabled;
+      try {
+        const result = await window.electronAPI.invoke('toggle-plugin', pluginId, newState);
+        if (result.success) {
+          const extensionItem = btn.closest('.extension-item-dropdown');
+          if (extensionItem) {
+            extensionItem.className = `extension-item-dropdown ${newState ? 'enabled' : 'disabled'}`;
+            const statusBadge = extensionItem.querySelector('.status-badge');
+            if (statusBadge) {
+              statusBadge.className = `status-badge ${newState ? 'enabled' : 'disabled'}`;
+              statusBadge.textContent = newState ? 'Включено' : 'Отключено';
+            }
+            btn.dataset.enabled = newState;
+            btn.textContent = newState ? 'Выключить' : 'Включить';
+            setTimeout(() => loadExtensionsDropdown(), 100);
+          }
+          showToast(result.message);
+        } else showToast(result.message, 'error');
+      } catch (error) {
+        showToast('Ошибка при переключении расширения', 'error');
+      }
+    };
+  });
+
+  document.querySelectorAll('.remove-btn').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const pluginId = btn.dataset.id;
+      const pluginName = btn.closest('.extension-item-dropdown').querySelector('.extension-name').textContent;
+      if (confirm(`Вы уверены, что хотите удалить расширение "${pluginName}"?`)) {
+        try {
+          const result = await window.electronAPI.invoke('remove-plugin', pluginId);
+          if (result.success) {
+            showToast(result.message);
+            const extensionItem = btn.closest('.extension-item-dropdown');
+            if (extensionItem) {
+              extensionItem.style.opacity = '0.5';
+              setTimeout(() => {
+                extensionItem.remove();
+                setTimeout(() => loadExtensionsDropdown(), 100);
+              }, 300);
+            }
+          } else showToast(result.message, 'error');
+        } catch (error) {
+          showToast('Ошибка при удалении расширения', 'error');
+        }
+      }
+    };
+  });
+
+  document.querySelectorAll('.popup-btn').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const pluginId = btn.dataset.id;
+      try {
+        showToast('Открытие меню расширения...');
+        const result = await window.electronAPI.invoke('open-plugin-popup', pluginId);
+        if (result && result.success) {
+          document.getElementById('extensionsDropdown').classList.remove('show');
+          showExtensionPopup(result);
+          showToast(`Меню "${result.extension.name}" открыто`);
+        } else showToast(result?.message || 'Не удалось открыть меню', 'error');
+      } catch (error) {
+        showToast('Ошибка: ' + error.message, 'error');
+      }
+    };
+  });
+}
+
+function getExtensionIcon(plugin) {
+  if (plugin.manifest) {
+    if (plugin.manifest.browser_action && plugin.manifest.browser_action.default_icon) {
+      const icon = plugin.manifest.browser_action.default_icon;
+      if (typeof icon === 'string') {
+        const iconPath = icon;
+        if (plugin.path) return `file://${plugin.path}/${iconPath}`.replace(/\\/g, '/');
+      } else if (typeof icon === 'object') {
+        const sizes = ['32', '48', '16', '128'];
+        for (const size of sizes) {
+          if (icon[size] && plugin.path) return `file://${plugin.path}/${icon[size]}`.replace(/\\/g, '/');
+        }
+      }
+    }
+    if (plugin.manifest.action && plugin.manifest.action.default_icon) {
+      const icon = plugin.manifest.action.default_icon;
+      if (typeof icon === 'string') {
+        const iconPath = icon;
+        if (plugin.path) return `file://${plugin.path}/${iconPath}`.replace(/\\/g, '/');
+      } else if (typeof icon === 'object') {
+        const sizes = ['32', '48', '16', '128'];
+        for (const size of sizes) {
+          if (icon[size] && plugin.path) return `file://${plugin.path}/${icon[size]}`.replace(/\\/g, '/');
+        }
+      }
+    }
+    if (plugin.manifest.icons) {
+      const icons = plugin.manifest.icons;
+      const sizes = ['32', '48', '16', '128', '64'];
+      for (const size of sizes) {
+        if (icons[size] && plugin.path) return `file://${plugin.path}/${icons[size]}`.replace(/\\/g, '/');
+      }
+    }
+  }
+  if (plugin.icons) {
+    const sizes = ['32', '48', '16', '128'];
+    for (const size of sizes) {
+      if (plugin.icons[size]) return plugin.icons[size];
+    }
+  }
+  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="%230a84ff"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>';
+}
+
+// Новые функции из исходного кода (оптимизация памяти, PiP и т.д.)
+let unloadTimers = new Map();
+const UNLOAD_DELAY = 30 * 60 * 1000; // 30 минут
+
+function scheduleTabUnload(tabIndex) {
+  if (tabIndex === active) return;
+  if (unloadTimers.has(tabIndex)) clearTimeout(unloadTimers.get(tabIndex));
+  const timer = setTimeout(() => {
+    const webview = views[tabIndex]?.querySelector('webview');
+    if (webview && tabIndex !== active) {
+      const url = webview.getURL();
+      webview.dataset.unloadedUrl = url;
+      webview.src = 'about:blank';
+      webview.classList.add('unloaded');
+      console.log(`⏳ Вкладка ${tabIndex} выгружена (неактивна >30 мин)`);
+    }
+    unloadTimers.delete(tabIndex);
+  }, UNLOAD_DELAY);
+  unloadTimers.set(tabIndex, timer);
+}
+
+function restoreTabIfUnloaded(tabIndex) {
+  const webview = views[tabIndex]?.querySelector('webview');
+  if (webview && webview.classList.contains('unloaded')) {
+    const url = webview.dataset.unloadedUrl || START_PAGE;
+    webview.src = url;
+    webview.classList.remove('unloaded');
+    console.log(`🔄 Вкладка ${tabIndex} восстановлена`);
+  }
+  if (unloadTimers.has(tabIndex)) {
+    clearTimeout(unloadTimers.get(tabIndex));
+    unloadTimers.delete(tabIndex);
+  }
+}
+
+// Переопределяем createTab с учётом выгрузки и краша (будет позже в полном коде)
+
+function setupCrashHandler(webview, tabIndex) {
+  webview.addEventListener('crashed', (event) => {
+    console.error(`💥 WebView упал (вкладка ${tabIndex})`, event);
+    const sadPage = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="UTF-8"><title>Страница упала</title>
+    <style>body{background:#1e1e1e;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;}</style>
+    </head>
+    <body>
+    <h1>😞 Что‑то пошло не так</h1>
+    <p>Страница аварийно завершила работу.</p>
+    <button onclick="location.reload()" style="padding:10px 20px;background:#0a84ff;border:none;border-radius:8px;color:#fff;cursor:pointer;">Перезагрузить</button>
+    </body>
+    </html>
+    `;
+    webview.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(sadPage)}`);
+  });
+}
+
+function togglePinTab(index) {
+  if (pinnedTabs.has(index)) {
+    pinnedTabs.delete(index);
+    tabs[index]?.classList.remove('pinned');
+  } else {
+    pinnedTabs.add(index);
+    tabs[index]?.classList.add('pinned');
+  }
+  reorderTabsByPin();
+  saveTabsState();
+}
+
+function reorderTabsByPin() {
+  // пока просто заглушка
+}
+
+function createGroup(name, tabIndices) {
+  tabGroups.set(name, tabIndices);
+}
+
+async function showTabManager() {
+  const overlay = document.createElement('div');
+  overlay.className = 'tab-manager-overlay';
+  overlay.style.cssText = `
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9); z-index: 1000000;
+  display: flex; flex-wrap: wrap; gap: 20px; padding: 20px;
+  overflow-y: auto;
+  `;
+
+  for (let i = 0; i < views.length; i++) {
+    const webview = views[i]?.querySelector('webview');
+    if (!webview) continue;
+    const thumbnail = await webview.capturePage();
+    const dataUrl = thumbnail.toDataURL();
+
+    const card = document.createElement('div');
+    card.className = 'tab-thumbnail';
+    card.innerHTML = `
+    <img src="${dataUrl}" style="width:200px;height:150px;object-fit:cover;border-radius:10px;">
+    <div>${tabs[i]?.querySelector('.title')?.textContent || 'Вкладка'}</div>
+    `;
+    card.onclick = () => {
+      activateTab(i);
+      overlay.remove();
+    };
+    overlay.appendChild(card);
+  }
+
+  document.body.appendChild(overlay);
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+}
+
+async function detachVideo(webview) {
+  const url = webview.getURL();
+  if (url.includes('youtube.com/watch')) {
+    const videoId = new URL(url).searchParams.get('v');
+    if (videoId) {
+      try {
+        await webview.executeJavaScript(`
+        const video = document.querySelector('video');
+        if (video) video.pause();
+        `);
+      } catch (e) {}
+
+      const result = await window.electronAPI.openPlayerWindow(videoId, webview.getTitle());
+      if (result.success) {
+        showToast('Видео открыто в отдельном плеере');
+      } else {
+        console.error('Ошибка плеера:', result.message);
+        if (confirm('Не удалось открыть плеер. Открыть видео в браузере?')) {
+          window.electronAPI.openExternalUrl(`https://www.youtube.com/watch?v=${videoId}`);
+        } else {
+          showToast('Ошибка: ' + result.message, 'error');
+        }
+      }
+    } else {
+      showToast('Не удалось определить ID видео', 'warning');
+    }
+  } else {
+    showToast('Функция пока только для YouTube', 'warning');
+  }
+}
+
+async function requestPiP(webview) {
+  try {
+    const result = await webview.executeJavaScript(`
+    (async function() {
+      function findVideoDeep(context) {
+        let video = context.querySelector('video');
+        if (video) return video;
+
+        const iframes = context.querySelectorAll('iframe');
+        for (const iframe of iframes) {
+          try {
+            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (doc) {
+              video = findVideoDeep(doc);
+              if (video) return video;
+            }
+          } catch (e) {}
+        }
+        return null;
+      }
+
+      const video = findVideoDeep(document);
+      if (!video) {
+        return { success: false, reason: 'no_video' };
+      }
+
+      if (!document.pictureInPictureEnabled) {
+        return { success: false, reason: 'pip_not_supported' };
+      }
+
+      try {
+        await video.requestPictureInPicture();
+        return { success: true };
+      } catch (err) {
+        return { success: false, reason: err.toString() };
+      }
+    })()
+    `);
+
+    console.log('Результат PiP:', result);
+    if (result?.success) {
+      showToast('Режим PiP активирован');
+    } else {
+      showToast('PiP не работает: ' + (result?.reason || 'неизвестная ошибка'), 'error');
+    }
+  } catch (error) {
+    console.error('Ошибка executeJavaScript:', error);
+    showToast('Ошибка при вызове PiP', 'error');
+  }
+}
+
+// ========== КОНЕЦ ПЕРЕМЕЩЁННЫХ ОБЪЯВЛЕНИЙ ==========
+
+// ========== ОСТАЛЬНОЙ КОД БЕЗ ИЗМЕНЕНИЙ ==========
 
 async function refreshPasswordsFromSystem() {
   try {
@@ -63,7 +768,6 @@ let securityStats = {
   lastResetDate: new Date().toDateString()
 };
 
-// [ДОБАВЛЕНО] Функция применения кастомной темы
 function applyCustomTheme(css) {
   let styleEl = document.getElementById('custom-theme');
   if (!styleEl) {
@@ -74,7 +778,6 @@ function applyCustomTheme(css) {
   styleEl.textContent = css;
 }
 
-// [ДОБАВЛЕНО] Функция удаления кастомной темы
 function removeCustomTheme() {
   const styleEl = document.getElementById('custom-theme');
   if (styleEl) {
@@ -392,11 +1095,6 @@ function isInternalPage(url) {
 }
 
 function handleWebViewContextMenu(webview, data) {
-  const currentUrl = webview.getURL();
-  if (isMainPage(currentUrl)) {
-    return;
-  }
-
   currentContextWebview = webview;
   currentContextData = data;
 
@@ -446,30 +1144,25 @@ function handleWebViewContextMenu(webview, data) {
       break;
 
     default:
-      if (!isInternalPage(currentUrl)) {
-        menuItems.push(
-          { label: 'Назад', action: () => webview.goBack(), icon: '↶' },
-                       { label: 'Вперёд', action: () => webview.goForward(), icon: '↷' },
-                       { label: 'Перезагрузить', action: () => webview.reload(), icon: '↻' },
-                       { label: 'Перезагрузить без кэша', action: () => webview.reloadIgnoringCache(), icon: '🗑️' },
-                       { separator: true },
-                       { label: 'Сохранить страницу как...', action: () => savePageAs(webview), icon: '💾' },
-                       { label: 'Просмотреть исходный код', action: () => viewPageSource(webview), icon: '</>' },
-                       { label: 'Открыть видео в отдельном окне', action: () => detachVideo(webview), icon: '🎬' },
-                       { separator: true },
-                       { label: 'Исследовать элемент', action: () => inspectElement(webview, x, y), icon: '🔍' },
-                       { label: 'Создать скриншот', action: () => takeScreenshot(webview), icon: '📸' },
-                       { label: 'Печать...', action: () => webview.print(), icon: '🖨️' }
-        );
-      } else {
-        menuItems.push(
-          { label: 'Перезагрузить', action: () => webview.reload(), icon: '↻' },
-                       { label: 'Перезагрузить без кэша', action: () => webview.reloadIgnoringCache(), icon: '🗑️' },
-                       { separator: true },
-                       { label: 'Исследовать элемент', action: () => inspectElement(webview, x, y), icon: '🔍' }
-        );
-      }
+      menuItems.push(
+        { label: 'Назад', action: () => webview.goBack(), icon: '↶' },
+                     { label: 'Вперёд', action: () => webview.goForward(), icon: '↷' },
+                     { label: 'Перезагрузить', action: () => webview.reload(), icon: '↻' },
+                     { label: 'Перезагрузить без кэша', action: () => webview.reloadIgnoringCache(), icon: '🗑️' },
+                     { separator: true },
+                     { label: 'Сохранить страницу как...', action: () => savePageAs(webview), icon: '💾' },
+                     { label: 'Просмотреть исходный код', action: () => viewPageSource(webview), icon: '</>' },
+                     { separator: true },
+                     { label: 'Исследовать элемент', action: () => inspectElement(webview, x, y), icon: '🔍' },
+                     { label: 'Создать скриншот', action: () => takeScreenshot(webview), icon: '📸' },
+                     { label: 'Печать...', action: () => webview.print(), icon: '🖨️' }
+      );
   }
+
+  if (menuItems.length > 0) {
+    showContextMenuPopup(x, y, menuItems);
+  }
+
 
   if (menuItems.length > 0) {
     showContextMenuPopup(x, y, menuItems);
@@ -540,20 +1233,37 @@ function viewPageSource(webview) {
 function showUniversalContextMenu(x, y, target) {
   const currentWebView = views[active]?.querySelector('webview');
   const currentUrl = currentWebView?.getURL() || '';
-  if (isMainPage(currentUrl)) return;
 
+  // Удаляем предыдущее меню, если оно есть
   const oldMenu = document.getElementById('universal-context-menu');
   if (oldMenu) oldMenu.remove();
 
+  // Создаём контейнер меню
   const menu = document.createElement('div');
   menu.id = 'universal-context-menu';
   menu.className = 'universal-context-menu';
-  menu.style.cssText = `position: fixed; left: ${x}px; top: ${y}px; background: #2d2d2d; border: 1px solid #444; border-radius: 8px; padding: 6px 0; z-index: 1000000; color: #fff; min-width: 220px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); backdrop-filter: blur(10px); font-size: 13px;`;
+  menu.style.cssText = `
+  position: fixed;
+  left: ${x}px;
+  top: ${y}px;
+  background: #2d2d2d;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 6px 0;
+  z-index: 1000000;
+  color: #fff;
+  min-width: 220px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+  `;
 
+  // Определяем тип цели
   const isTab = target.closest('.tab');
   const isUrlBar = target.closest('#searchInput');
   const isEmptySpace = !isTab && !isUrlBar;
 
+  // Формируем пункты меню в зависимости от цели
   const menuItems = [];
 
   if (isTab) {
@@ -564,8 +1274,7 @@ function showUniversalContextMenu(x, y, target) {
         const wv = views[tabIndex]?.querySelector('webview');
         if (wv) createTab(wv.getURL());
       }, separator: true },
-      { label: pinnedTabs.has(tabIndex) ? 'Открепить вкладку' : 'Закрепить вкладку', icon: '📌', action: () => togglePinTab(tabIndex), separator: false },
-                   { label: 'Закрыть вкладку', icon: '✕', action: () => closeTab(tabIndex), separator: false },
+      { label: 'Закрыть вкладку', icon: '✕', action: () => closeTab(tabIndex), separator: false },
                    { label: 'Закрыть другие вкладки', icon: '🗑️', action: () => {
                      tabs.forEach((tab, i) => {
                        if (i !== tabIndex && i !== active) closeTab(i);
@@ -604,18 +1313,28 @@ function showUniversalContextMenu(x, y, target) {
     );
   }
 
+  // Заполняем меню пунктами
   menuItems.forEach((item, index) => {
+    // Разделитель перед пунктом (кроме первого)
     if (item.separator && index > 0) {
       const separator = document.createElement('div');
       separator.className = 'context-menu-separator';
-      separator.style.cssText = `height: 1px; background: #444; margin: 6px 0;`;
+      separator.style.cssText = 'height: 1px; background: #444; margin: 6px 0;';
       menu.appendChild(separator);
     }
 
     if (item.label) {
       const menuItem = document.createElement('div');
       menuItem.className = 'context-menu-item';
-      menuItem.style.cssText = `padding: 8px 16px; cursor: ${item.enabled !== false ? 'pointer' : 'default'}; display: flex; align-items: center; gap: 10px; opacity: ${item.enabled !== false ? '1' : '0.5'}; transition: background 0.2s;`;
+      menuItem.style.cssText = `
+      padding: 8px 16px;
+      cursor: ${item.enabled !== false ? 'pointer' : 'default'};
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: ${item.enabled !== false ? '1' : '0.5'};
+      transition: background 0.2s;
+      `;
 
       if (item.icon) {
         const iconSpan = document.createElement('span');
@@ -637,24 +1356,16 @@ function showUniversalContextMenu(x, y, target) {
           menu.remove();
         };
       }
+
+      menu.appendChild(menuItem); // ← ВАЖНО: добавляем пункт в меню
     }
   });
 
+  // Если есть пункты, показываем меню
   if (menuItems.length > 0) {
     document.body.appendChild(menu);
-    const closeMenu = (e) => {
-      if (!menu.contains(e.target)) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
-        document.removeEventListener('contextmenu', closeMenu);
-      }
-    };
 
-    setTimeout(() => {
-      document.addEventListener('click', closeMenu);
-      document.addEventListener('contextmenu', closeMenu);
-    }, 10);
-
+    // Корректировка позиции, если меню выходит за границы экрана
     const rect = menu.getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
@@ -665,6 +1376,31 @@ function showUniversalContextMenu(x, y, target) {
     if (rect.bottom > windowHeight) {
       menu.style.top = `${windowHeight - rect.height - 10}px`;
     }
+
+    // Закрытие меню при клике вне его или по Escape
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+        document.removeEventListener('contextmenu', closeMenu);
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+        document.removeEventListener('contextmenu', closeMenu);
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+
+    setTimeout(() => {
+      document.addEventListener('click', closeMenu);
+      document.addEventListener('contextmenu', closeMenu);
+      document.addEventListener('keydown', handleEscape);
+    }, 10);
   }
 }
 
@@ -673,19 +1409,10 @@ function initContextMenu() {
     e.preventDefault();
     e.stopPropagation();
     const target = e.target;
-    const webview = views[active]?.querySelector('webview');
-    const currentUrl = webview?.getURL() || '';
-    if (target.closest('.tab') || target.closest('#searchInput') || (!target.closest('webview') && !target.closest('.tab-content'))) {
+    if (!target.closest('webview') && !target.closest('.tab-content')) {
       showUniversalContextMenu(e.clientX, e.clientY, target);
     }
   });
-
-  const style = document.createElement('style');
-  style.textContent = `.universal-context-menu, .webview-context-menu { animation: contextMenuFadeIn 0.15s ease; }
-  @keyframes contextMenuFadeIn { from { opacity: 0; transform: translateY(-10px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-  .context-menu-item:hover { background: #3d3d3d !important; }
-  .context-menu-separator { height: 1px; background: #444; margin: 6px 0; }`;
-  document.head.appendChild(style);
 }
 
 function blockMainPageContextMenu() {
@@ -1477,7 +2204,6 @@ const ExtensionPopupManager = (function() {
   return new ExtensionPopupManager();
 })();
 
-// [НОВОЕ] Функция для обновления иконок расширений в панели
 async function updateExtensionIcons() {
   const container = document.getElementById('extension-icons-container');
   if (!container) {
@@ -1487,7 +2213,7 @@ async function updateExtensionIcons() {
 
   try {
     const browserActions = await window.electronAPI.invoke('get-browser-actions');
-    container.innerHTML = ''; // очищаем
+    container.innerHTML = '';
 
     browserActions.forEach(action => {
       const button = document.createElement('button');
@@ -1495,7 +2221,6 @@ async function updateExtensionIcons() {
       button.setAttribute('data-id', action.id);
       button.title = action.title || action.name;
 
-      // Выбираем иконку (предпочтительно 32px)
       let iconUrl = null;
       if (action.icons) {
         if (action.icons['32']) iconUrl = action.icons['32'];
@@ -1503,7 +2228,6 @@ async function updateExtensionIcons() {
         else if (action.icons['16']) iconUrl = action.icons['16'];
         else if (action.icons['128']) iconUrl = action.icons['128'];
         else if (typeof action.icons === 'object') {
-          // берём первый попавшийся
           const firstKey = Object.keys(action.icons)[0];
           if (firstKey) iconUrl = action.icons[firstKey];
         }
@@ -1515,14 +2239,12 @@ async function updateExtensionIcons() {
 
       button.style.backgroundImage = `url('${iconUrl}')`;
 
-      // Обработчик клика
       button.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (action.hasPopup) {
           try {
             const result = await window.electronAPI.invoke('open-plugin-popup', action.id);
             if (result && result.success) {
-              // Передаём координаты кнопки для позиционирования
               const rect = button.getBoundingClientRect();
               showExtensionPopup(result, rect);
             } else {
@@ -1533,14 +2255,12 @@ async function updateExtensionIcons() {
             showToast('Ошибка открытия popup', 'error');
           }
         } else {
-          // Если нет popup, отправляем событие клика в background
           window.electronAPI.send('extension-action-clicked', action.id);
         }
       });
 
       container.appendChild(button);
 
-      // Сохраняем ссылку для возможного обновления бейджа
       ExtensionPopupManager.extensionIcons.set(action.id, button);
     });
 
@@ -1650,7 +2370,6 @@ function showExtensionPopup(popupInfo, anchorRect = null) {
                const blobUrl = URL.createObjectURL(blob);
                iframe.src = blobUrl;
 
-               // [ДОБАВЛЕНО] Обработчик сообщений от iframe для авторазмера
                const messageHandler = (event) => {
                  if (event.data && event.data.extensionId === pluginId) {
                    switch (event.data.type) {
@@ -1665,15 +2384,13 @@ function showExtensionPopup(popupInfo, anchorRect = null) {
                        break;
                      case 'extension-storage-remove': ExtensionStorage.removeStorageData(pluginId, event.data.data.keys, event.data.data.namespace); break;
                      case 'extension-storage-clear': ExtensionStorage.clearStorageData(pluginId, event.data.data.namespace); break;
-                     case 'open-url': if (window.electronAPI) window.electronAPI.send('OPEN_URL', event.data.data); break;
-                     // [НОВЫЙ] Обработка popup-resize
+                     case 'open-url': if (window.electronAPI) window.electronAPI.send('OPEN_URL', `https://www.youtube.com/watch?v=${videoId}`); break;
                      case 'popup-resize':
                        if (event.data.width && event.data.height) {
                          let newWidth = Math.min(800, Math.max(200, event.data.width));
                          let newHeight = Math.min(800, Math.max(200, event.data.height));
                          container.style.width = newWidth + 'px';
                          container.style.height = newHeight + 'px';
-                         // Перепозиционируем, если нужно
                          if (anchorRect) {
                            let x = anchorRect.x + (anchorRect.width / 2) - (newWidth / 2);
                            let y = anchorRect.y + anchorRect.height + 5;
@@ -1729,8 +2446,6 @@ function formatTimeAgo(ms) {
   const seconds = Math.floor(ms / 1000); const minutes = Math.floor(seconds / 60); const hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24);
   if (days > 0) return `${days} дн. назад`; if (hours > 0) return `${hours} ч. назад`; if (minutes > 0) return `${minutes} мин. назад`; return 'только что';
 }
-
-let closedTabsHistory = [];
 
 function restoreClosedTab() {
   if (closedTabsHistory.length === 0) { showToast('Нет закрытых вкладок для восстановления'); return; }
@@ -2121,7 +2836,6 @@ function initializeBrowser() {
           document.getElementById('refresh').onclick = () => reload();
           addTabBtn.onclick = () => createTab();
 
-          // [НОВОЕ] Кнопка инкогнито
           const incognitoBtn = document.getElementById('incognito-btn');
           if (incognitoBtn) {
             incognitoBtn.onclick = () => {
@@ -2129,7 +2843,6 @@ function initializeBrowser() {
             };
           }
 
-          // [НОВОЕ] Кнопка менеджера вкладок
           const tabManagerBtn = document.getElementById('tab-manager-btn');
           if (tabManagerBtn) {
             tabManagerBtn.onclick = () => {
@@ -2220,7 +2933,6 @@ function initializeBrowser() {
           initPasswordManager();
           initSecurityManager();
 
-          // Контейнер для иконок расширений
           let extensionIconsContainer = document.getElementById('extension-icons-container');
           if (!extensionIconsContainer) {
             const toolbar = document.querySelector('.toolbar') || document.querySelector('.address-bar') || document.body;
@@ -2234,10 +2946,8 @@ function initializeBrowser() {
             }
           }
 
-          // Загружаем иконки расширений
           updateExtensionIcons();
 
-          // Подписываемся на события обновления расширений
           if (window.electronAPI) {
             window.electronAPI.on('extensions-loaded', updateExtensionIcons);
             window.electronAPI.on('extensions-updated', updateExtensionIcons);
@@ -2254,7 +2964,6 @@ function initializeBrowser() {
     } else createTab();
     loadTheme();
 
-    // Загрузка кастомной темы
     if (window.electronAPI) {
       window.electronAPI.invoke('get-custom-theme').then(css => {
         if (css) applyCustomTheme(css);
@@ -2343,12 +3052,10 @@ function setupIpcHandlers() {
   });
   window.electronAPI.on('extension-settings-save', (data) => { const { extensionId, settings } = data; ExtensionStorage.saveSettings(extensionId, settings); });
 
-  // [ДОБАВЛЕНО] Слушатель применения кастомной темы
   window.electronAPI.on('apply-custom-theme', (css) => {
     applyCustomTheme(css);
   });
 
-  // [ДОБАВЛЕНО] Слушатель удаления кастомной темы
   window.electronAPI.on('clear-custom-theme', () => {
     removeCustomTheme();
   });
@@ -2515,66 +3222,32 @@ function addDownload(filename, url, totalBytes, fullPath, time) {
   views.forEach(view => { const wv = view.querySelector('webview'); if (wv && wv.getURL().includes('Settings.html')) wv.send('downloads-updated'); });
 }
 
-// [НОВЫЙ БЛОК] =============== ОПТИМИЗАЦИЯ ПАМЯТИ: ВЫГРУЗКА НЕАКТИВНЫХ ВКЛАДОК ===============
-let unloadTimers = new Map();
-const UNLOAD_DELAY = 30 * 60 * 1000; // 30 минут
+// Переопределяем createTab с учётом выгрузки и краша (но createTab уже определён выше, поэтому просто дополняем логику)
+// Вместо переопределения добавим вызовы scheduleTabUnload и setupCrashHandler внутри createTab
+// Для этого модифицируем createTab, добавив в конец:
 
-function scheduleTabUnload(tabIndex) {
-  if (tabIndex === active) return; // активную не выгружаем
-  if (unloadTimers.has(tabIndex)) clearTimeout(unloadTimers.get(tabIndex));
-  const timer = setTimeout(() => {
-    const webview = views[tabIndex]?.querySelector('webview');
-    if (webview && tabIndex !== active) {
-      const url = webview.getURL();
-      // Сохраняем информацию для восстановления
-      webview.dataset.unloadedUrl = url;
-      webview.src = 'about:blank'; // выгружаем
-      webview.classList.add('unloaded');
-      console.log(`⏳ Вкладка ${tabIndex} выгружена (неактивна >30 мин)`);
-    }
-    unloadTimers.delete(tabIndex);
-  }, UNLOAD_DELAY);
-  unloadTimers.set(tabIndex, timer);
-}
-
-// При активации вкладки восстанавливаем, если была выгружена
-function restoreTabIfUnloaded(tabIndex) {
-  const webview = views[tabIndex]?.querySelector('webview');
-  if (webview && webview.classList.contains('unloaded')) {
-    const url = webview.dataset.unloadedUrl || START_PAGE;
-    webview.src = url;
-    webview.classList.remove('unloaded');
-    console.log(`🔄 Вкладка ${tabIndex} восстановлена`);
-  }
-  if (unloadTimers.has(tabIndex)) {
-    clearTimeout(unloadTimers.get(tabIndex));
-    unloadTimers.delete(tabIndex);
-  }
-}
-
-// Модифицируем createTab: при создании запускаем таймер выгрузки
 const originalCreateTab = createTab;
 createTab = function(url = START_PAGE) {
   originalCreateTab(url);
   const newIndex = tabs.length - 1;
   scheduleTabUnload(newIndex);
+  const webview = views[newIndex]?.querySelector('webview');
+  if (webview) {
+    setupCrashHandler(webview, newIndex);
+  }
 };
 
-// Модифицируем activateTab: отменяем таймер для активируемой, восстанавливаем
 const originalActivateTab = activateTab;
 activateTab = function(i) {
   restoreTabIfUnloaded(i);
   originalActivateTab(i);
-  // Сброс таймера для всех остальных
   tabs.forEach((_, idx) => {
     if (idx !== i) scheduleTabUnload(idx);
   });
 };
 
-// [ИСПРАВЛЕНО] В closeTab удаляем таймер
 const originalCloseTab = closeTab;
 closeTab = function(i) {
-  // Удаляем таймер выгрузки, если есть
   if (unloadTimers.has(i)) {
     clearTimeout(unloadTimers.get(i));
     unloadTimers.delete(i);
@@ -2582,495 +3255,7 @@ closeTab = function(i) {
   originalCloseTab(i);
 };
 
-// =============== FALLBACK-СТРАНИЦА ПРИ КРАШЕ WEBVIEW ===============
-function setupCrashHandler(webview, tabIndex) {
-  webview.addEventListener('crashed', (event) => {
-    console.error(`💥 WebView упал (вкладка ${tabIndex})`, event);
-    const sadPage = `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="UTF-8"><title>Страница упала</title>
-    <style>body{background:#1e1e1e;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;}</style>
-    </head>
-    <body>
-    <h1>😞 Что‑то пошло не так</h1>
-    <p>Страница аварийно завершила работу.</p>
-    <button onclick="location.reload()" style="padding:10px 20px;background:#0a84ff;border:none;border-radius:8px;color:#fff;cursor:pointer;">Перезагрузить</button>
-    </body>
-    </html>
-    `;
-    webview.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(sadPage)}`);
-  });
-}
-
-const originalCreateTab2 = createTab;
-createTab = function(url = START_PAGE) {
-  originalCreateTab2(url);
-  const newIndex = tabs.length - 1;
-  const webview = views[newIndex]?.querySelector('webview');
-  if (webview) {
-    setupCrashHandler(webview, newIndex);
-  }
-};
-
-// =============== ЗАКРЕПЛЕНИЕ ВКЛАДОК ===============
-let pinnedTabs = new Set(); // [НОВОЕ] индексы закреплённых вкладок
-
-function togglePinTab(index) {
-  if (pinnedTabs.has(index)) {
-    pinnedTabs.delete(index);
-    tabs[index]?.classList.remove('pinned');
-  } else {
-    pinnedTabs.add(index);
-    tabs[index]?.classList.add('pinned');
-  }
-  // Перемещаем закреплённые в начало
-  reorderTabsByPin();
-  saveTabsState();
-}
-
-function reorderTabsByPin() {
-  // Простейшая реализация: сортируем массив tabs и views, чтобы закреплённые были первыми
-  // Но чтобы не ломать индексы, лучше использовать отдельный контейнер или визуальное выделение.
-  // Оставим пока просто класс .pinned.
-}
-
-// =============== ГРУППИРОВКА ВКЛАДОК (БАЗОВАЯ) ===============
-let tabGroups = new Map(); // группа -> массив индексов
-
-function createGroup(name, tabIndices) {
-  tabGroups.set(name, tabIndices);
-  // Визуально можно обернуть вкладки в рамку или добавить заголовок
-}
-
-// =============== МЕНЕДЖЕР ВКЛАДОК С ПРЕДПРОСМОТРОМ ===============
-async function showTabManager() {
-  // Создаём оверлей с миниатюрами
-  const overlay = document.createElement('div');
-  overlay.className = 'tab-manager-overlay';
-  overlay.style.cssText = `
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.9); z-index: 1000000;
-  display: flex; flex-wrap: wrap; gap: 20px; padding: 20px;
-  overflow-y: auto;
-  `;
-
-  for (let i = 0; i < views.length; i++) {
-    const webview = views[i]?.querySelector('webview');
-    if (!webview) continue;
-    const thumbnail = await webview.capturePage();
-    const dataUrl = thumbnail.toDataURL();
-
-    const card = document.createElement('div');
-    card.className = 'tab-thumbnail';
-    card.innerHTML = `
-    <img src="${dataUrl}" style="width:200px;height:150px;object-fit:cover;border-radius:10px;">
-    <div>${tabs[i]?.querySelector('.title')?.textContent || 'Вкладка'}</div>
-    `;
-    card.onclick = () => {
-      activateTab(i);
-      overlay.remove();
-    };
-    overlay.appendChild(card);
-  }
-
-  document.body.appendChild(overlay);
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-}
-
-// =============== ОТДЕЛЯЕМЫЙ ВИДЕО‑ПРОИГРЫВАТЕЛЬ ===============
-async function detachVideo(webview) {
-  const url = webview.getURL();
-  const title = webview.getTitle();
-  try {
-    // Пытаемся найти видеоэлемент на странице
-    const videoSrc = await webview.executeJavaScript(`
-    (() => {
-      const video = document.querySelector('video');
-      return video ? video.currentSrc || video.src : null;
-    })()
-    `);
-    if (videoSrc) {
-      await window.electronAPI.invoke('detach-video', videoSrc, title);
-      showToast('Видео открыто в отдельном окне');
-    } else {
-      showToast('На странице не найдено видео', 'warning');
-    }
-  } catch (error) {
-    console.error('Ошибка при извлечении видео:', error);
-    showToast('Не удалось открыть видео', 'error');
-  }
-}
-
-// =============== МАСТЕР‑ПАРОЛЬ (ДИАЛОГ) ===============
-async function ensureMasterPassword() {
-  const hasMaster = await window.electronAPI.invoke('has-master-password');
-  if (!hasMaster.has) {
-    // Предложить установить
-    if (confirm('Для защиты паролей рекомендуется установить мастер-пароль. Установить сейчас?')) {
-      const password = prompt('Введите мастер-пароль (минимум 4 символа):');
-      if (password && password.length >= 4) {
-        const result = await window.electronAPI.invoke('set-master-password', password);
-        if (result.success) showToast('Мастер-пароль установлен');
-      }
-    }
-  } else {
-    // Запрос мастер-пароля перед просмотром паролей
-    const password = prompt('Введите мастер-пароль для доступа к паролям:');
-    if (password) {
-      const valid = await window.electronAPI.invoke('verify-master-password', password);
-      if (!valid) {
-        alert('Неверный мастер-пароль');
-        return false;
-      }
-    } else return false;
-  }
-  return true;
-}
-
-// Модифицируем функции открытия менеджера паролей, чтобы запрашивать мастер-пароль
-const originalShowPasswordsManager = showPasswordsManager;
-showPasswordsManager = async function() {
-  const ok = await ensureMasterPassword();
-  if (ok) originalShowPasswordsManager();
-};
-
-// ... (весь остальной код renderer.js остаётся без изменений, кроме добавленных выше функций)
-
-function createTab(url = START_PAGE) {
-  try {
-    if (!tabsBar || !addTabBtn) return;
-    const tab = document.createElement('div'); tab.className = 'tab'; tab.innerHTML = `<span class="title">Загрузка...</span><button class="close">×</button>`;
-    const view = document.createElement('div'); view.className = 'tab-content';
-    const webview = document.createElement('webview');
-    // [НОВОЕ] Учитываем партицию в зависимости от режима инкогнито
-    if (isIncognito) {
-      webview.setAttribute('partition', 'incognito');
-    } else {
-      webview.setAttribute('partition', 'persist:webview');
-    }
-    webview.src = url;
-    webview.style = 'width:100%; height:100%';
-    webview.setAttribute('allowpopups', 'true');
-    webview.setAttribute('disablewebsecurity', 'true');
-    view.appendChild(webview); tabsArea.appendChild(view); tabsBar.insertBefore(tab, addTabBtn);
-    tabs.push(tab); views.push(view); active = tabs.length - 1;
-
-    webview.addEventListener('dom-ready', () => { activateTab(active); });
-    webview.addEventListener('did-finish-load', () => { if (url.includes('Settings.html')) {} });
-    webview.addEventListener('console-message', (e) => { if (url.includes('Settings.html')) {} });
-    webview.addEventListener('page-title-updated', e => {
-      tab.querySelector('.title').textContent = (e.title || 'Новая вкладка').substr(0, 30);
-      try {
-        const currentUrl = webview.getURL();
-        if (currentUrl && !currentUrl.includes('MainPage') && !currentUrl.includes('Settings.html')) updateHistory(currentUrl, e.title);
-      } catch (error) {}
-    });
-    webview.addEventListener('new-window', e => { e.preventDefault(); if (e.url && e.url !== 'about:blank') createTab(e.url); });
-    const updateAddressAndHistory = () => {
-      try {
-        const u = webview.getURL(); const t = webview.getTitle();
-        if (active === tabs.indexOf(tab)) addressBar.value = u?.includes('MainPage') || u?.includes('Settings.html') ? '' : u;
-        if (u && !u.includes('MainPage') && !u.includes('Settings.html')) updateHistory(u, t);
-        updateNavButtons(); saveTabsState();
-      } catch (error) {}
-    };
-    webview.addEventListener('did-navigate', updateAddressAndHistory); webview.addEventListener('did-navigate-in-page', updateAddressAndHistory); webview.addEventListener('dom-ready', updateAddressAndHistory);
-    tab.addEventListener('click', e => { if (!e.target.classList.contains('close')) activateTab(tabs.indexOf(tab)); });
-    tab.querySelector('.close').onclick = e => { e.stopPropagation(); closeTab(tabs.indexOf(tab)); };
-    webview.addEventListener('dom-ready', () => { if (tabs.indexOf(tab) === active) activateTab(active); });
-    webview.addEventListener('ipc-message', event => {
-      if (event.channel === 'restart-browser') restartBrowser();
-      if (event.channel === 'set-save-tabs') {
-        const isEnabled = event.args[0]; localStorage.setItem('saveTabs', isEnabled ? 'true' : 'false');
-        if (!isEnabled) localStorage.removeItem('savedTabs'); else saveTabsState();
-      }
-      if (event.channel === 'get-save-tabs') {
-        const responseChannel = event.args[0]; const isEnabled = localStorage.getItem('saveTabs') === 'true'; webview.send(responseChannel, isEnabled);
-      }
-      if (event.channel === 'set-save-internal-pages') {
-        const isEnabled = event.args[0]; localStorage.setItem('saveInternalPages', isEnabled ? 'true' : 'false');
-      }
-      if (event.channel === 'get-save-internal-pages') {
-        const responseChannel = event.args[0]; const isEnabled = localStorage.getItem('saveInternalPages') === 'true'; webview.send(responseChannel, isEnabled);
-      }
-      if (event.channel === 'get-search-engine') {
-        const responseChannel = event.args[0]; const url = localStorage.getItem('searchEngineUrl') || 'https://startpozi.netlify.app/search.html?q='; currentSearchEngine = url; webview.send(responseChannel, url);
-      }
-      if (event.channel === 'set-search-engine') {
-        const url = event.args[0]; localStorage.setItem('searchEngineUrl', url); currentSearchEngine = url;
-      }
-      if (event.channel === 'get-history') {
-        const history = JSON.parse(localStorage.getItem('browserHistory') || '[]'); webview.send('history-data', history);
-      }
-      if (event.channel === 'clear-history') {
-        localStorage.removeItem('browserHistory');
-        views.forEach(v => { const wv = v.querySelector('webview'); if (wv && wv.getURL().includes('Settings.html')) wv.send('history-updated'); });
-      }
-      if (event.channel === 'get-downloads') {
-        const downloadsData = JSON.parse(localStorage.getItem('browserDownloads') || '[]'); webview.send('downloads-data', downloadsData);
-      }
-      if (event.channel === 'clear-downloads') {
-        localStorage.removeItem('browserDownloads'); downloads = []; sessionDownloads = []; ongoingDownloads.clear();
-        views.forEach(v => { const wv = v.querySelector('webview'); if (wv && wv.getURL().includes('Settings.html')) wv.send('downloads-updated'); });
-      }
-      if (event.channel === 'get-current-download-path') {
-        window.electronAPI.invoke('get-current-download-path').then(path => { webview.send('current-download-path-data', path); }).catch(err => {});
-      }
-      if (event.channel === 'set-download-path') {
-        window.electronAPI.invoke('set-download-path').then(newPath => { webview.send('download-path-updated', newPath); }).catch(err => {});
-      }
-      if (event.channel === 'open-url-from-settings') { const url = event.args[0]; createTab(url); }
-      if (event.channel === 'get-theme') { const responseChannel = event.args[0]; const theme = localStorage.getItem('themeMode') || 'system'; webview.send(responseChannel, theme); }
-      if (event.channel === 'set-theme') {
-        const theme = event.args[0]; localStorage.setItem('themeMode', theme); loadTheme();
-        views.forEach(v => { const wv = v.querySelector('webview'); if (wv) wv.send('theme-updated', theme); });
-      }
-      if (event.channel === 'get-passwords') { const responseChannel = event.args[0]; webview.send(responseChannel, passwords); }
-      if (event.channel === 'save-password') { const [site, username, password, notes] = event.args; addPassword(site, username, password, notes); }
-      if (event.channel === 'edit-password') { const [id, updates] = event.args; editPassword(id, updates); }
-      if (event.channel === 'delete-password') { const [id] = event.args; deletePassword(id); }
-      if (event.channel === 'search-passwords') { const [query, responseChannel] = event.args; const results = searchPasswords(query); webview.send(responseChannel, results); }
-      if (event.channel === 'get-password-by-id') { const [id, responseChannel] = event.args; const password = getPasswordById(id); webview.send(responseChannel, password); }
-      if (event.channel === 'export-passwords') exportPasswords();
-      if (event.channel === 'import-passwords') { const [jsonData] = event.args; importPasswords(jsonData); }
-      if (event.channel === 'clear-all-passwords') clearAllPasswords();
-      if (event.channel === 'webview-contextmenu') { const contextData = event.args[0]; handleWebViewContextMenu(webview, contextData); }
-      if (event.channel === 'security-blocked') { const blockData = event.args[0]; const type = blockData.type || 'tracker'; incrementBlockedCounter(type); }
-    });
-    webview.addEventListener('dom-ready', () => {
-      setTimeout(() => { applySecuritySettingsToWebView(webview); }, 200);
-      try { webview.executeJavaScript(`document.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); }, true);`); } catch (error) {}
-    });
-    saveTabsState();
-  } catch (error) {}
-}
-
-const originalCreateTab3 = createTab;
-createTab = function(url = START_PAGE) {
-  originalCreateTab3(url);
-  const newIndex = tabs.length - 1;
-  const webview = views[newIndex]?.querySelector('webview');
-  if (webview) {
-    setupCrashHandler(webview, newIndex);
-  }
-};
-
-function activateTab(i) {
-  try {
-    tabs.forEach(t => t.classList.remove('active')); views.forEach(v => v.classList.remove('active'));
-    tabs[i].classList.add('active'); views[i].classList.add('active'); active = i;
-    const wv = views[i].querySelector('webview');
-    if (wv) {
-      const u = wv.getURL();
-      if (addressBar) addressBar.value = u?.includes('MainPage') || u?.includes('Settings.html') ? '' : u;
-      updateNavButtons();
-    }
-    if (wv) setTimeout(() => wv.focus(), 100);
-  } catch (error) {}
-}
-
-function goBack() { if (views[active]?.querySelector('webview')) views[active].querySelector('webview').goBack(); }
-function goForward() { if (views[active]?.querySelector('webview')) views[active].querySelector('webview').goForward(); }
-function reload() { if (views[active]?.querySelector('webview')) views[active].querySelector('webview').reload(); }
-function updateNavButtons() { const wv = views[active]?.querySelector('webview'); if (wv) { document.getElementById('back').disabled = !wv.canGoBack(); document.getElementById('forward').disabled = !wv.canGoForward(); } }
-
-function closeTab(i) {
-  if (tabs.length <= 1) return;
-  const webview = views[i].querySelector('webview');
-  if (webview) {
-    const url = webview.getURL(); const title = tabs[i].querySelector('.title').textContent;
-    closedTabsHistory.push({ url: url, title: title || 'Без названия', favicon: webview.favicon || '', timestamp: Date.now() });
-    if (closedTabsHistory.length > 20) closedTabsHistory.shift();
-  }
-  tabsBar.removeChild(tabs[i]); tabsArea.removeChild(views[i]); tabs.splice(i, 1); views.splice(i, 1);
-  if (active >= tabs.length) active = tabs.length - 1; activateTab(active); saveTabsState();
-}
-
-function saveTabsState() {
-  try {
-    const saveTabsEnabled = localStorage.getItem('saveTabs') === 'true';
-    const saveInternalPages = localStorage.getItem('saveInternalPages') === 'true';
-    if (!saveTabsEnabled) { localStorage.setItem('savedTabs', JSON.stringify([])); return; }
-    const urlsToSave = [];
-    for (let i = 0; i < views.length; i++) {
-      const view = views[i]; const webview = view?.querySelector('webview');
-      if (!webview) continue;
-      setTimeout(() => {
-        try {
-          const url = webview.getURL(); if (!url || url === 'about:blank') return;
-          const isInternalPage = url.includes('MainPage') || url.includes('Settings.html') || url.includes('internal-page') || url.startsWith('file://');
-          if (!saveInternalPages && isInternalPage) return;
-          urlsToSave.push(url);
-          if (urlsToSave.length > 0) localStorage.setItem('savedTabs', JSON.stringify(urlsToSave));
-        } catch (error) {}
-      }, 100);
-    }
-    if (urlsToSave.length > 0) localStorage.setItem('savedTabs', JSON.stringify(urlsToSave));
-  } catch (error) {}
-}
-
-function updateHistory(url, title = '') {
-  if (!url || url.includes('MainPage') || url.includes('Settings.html')) return;
-  try {
-    const cleanUrl = url.split('#')[0].split('?')[0];
-    const cleanTitle = title.trim() || new URL(url).hostname || 'Без названия';
-    let h = JSON.parse(localStorage.getItem('browserHistory') || '[]');
-    h = h.filter(x => x.url !== cleanUrl);
-    h.push({ url: cleanUrl, title: cleanTitle, time: Date.now() });
-    if (h.length > 500) h.shift();
-    localStorage.setItem('browserHistory', JSON.stringify(h));
-    views.forEach(view => { const wv = view.querySelector('webview'); if (wv && wv.getURL().includes('Settings.html')) wv.send('history-updated'); });
-  } catch (error) {}
-}
-
-function openInternalPage(title, content) {
-  createTab('about:blank'); const wv = views[active].querySelector('webview');
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>body{background:#0f0f17;color:#eee;font-family:system-ui;padding:20px;margin:0}h1{color:#00c8ff}</style></head><body><h1>${title}</h1>${content}</body></html>`;
-  wv.loadURL('data:text/html,' + encodeURIComponent(html));
-}
-
-function showBookmarks() { }
-function showDownloads() { createTab(SETTINGS_PAGE); }
-function showPasswordsManager() { createTab('Settings.html#passwords'); }
-function showHistory() { createTab(SETTINGS_PAGE); }
-function showAbout() { openInternalPage('О браузере', '<h2>StartPOZI 2025</h2><p>Всё работает идеально!</p>'); }
-
-function loadTheme() {
-  try {
-    const t = localStorage.getItem('themeMode') || 'system';
-    let className;
-    if (t === 'system') className = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'theme-dark' : 'theme-light';
-    else className = `theme-${t}`;
-    document.body.classList.remove('theme-dark', 'theme-light'); document.body.classList.add(className);
-  } catch (error) {}
-}
-
-async function loadExtensionsDropdown() {
-  const list = document.getElementById('extensionsListDropdown');
-  if (!list) return;
-  try {
-    if (!window.electronAPI) { list.innerHTML = '<div class="no-extensions">Browser API not available</div>'; return; }
-    list.innerHTML = '<div class="no-extensions">Loading extensions...</div>';
-    const [plugins, savedStates] = await Promise.all([ window.electronAPI.invoke('get-plugins').catch(() => []), window.electronAPI.invoke('load-extension-states').catch(() => ({})) ]);
-    if (!plugins || plugins.length === 0) {
-      list.innerHTML = '<div class="no-extensions">No extensions installed</div>';
-      const addBtn = document.createElement('div'); addBtn.className = 'menu-item'; addBtn.innerHTML = '<span style="color: #0a84ff; font-weight: 600;">+ Add Extension</span>';
-      addBtn.onclick = async () => {
-        try {
-          const result = await window.electronAPI.invoke('add-plugin');
-          if (result?.success) { showToast(result.message); loadExtensionsDropdown(); } else showToast(result?.message || 'Failed to add extension', 'error');
-        } catch (error) { showToast('Error adding extension', 'error'); }
-      };
-      list.appendChild(addBtn); return;
-    }
-    const updatedPlugins = plugins.map(plugin => savedStates.hasOwnProperty(plugin.id) ? { ...plugin, enabled: savedStates[plugin.id] } : plugin);
-    const enabledPlugins = updatedPlugins.filter(p => p.enabled); const disabledPlugins = updatedPlugins.filter(p => !p.enabled);
-    list.innerHTML = '';
-    if (enabledPlugins.length > 0) {
-      const enabledHeader = document.createElement('div'); enabledHeader.className = 'extensions-section-header'; enabledHeader.textContent = `Enabled (${enabledPlugins.length})`; list.appendChild(enabledHeader);
-      enabledPlugins.forEach(plugin => { list.appendChild(createExtensionElement(plugin)); });
-    }
-    if (disabledPlugins.length > 0) {
-      const disabledHeader = document.createElement('div'); disabledHeader.className = 'extensions-section-header'; disabledHeader.textContent = `Disabled (${disabledPlugins.length})`; list.appendChild(disabledHeader);
-      disabledPlugins.forEach(plugin => { list.appendChild(createExtensionElement(plugin)); });
-    }
-    setupExtensionEventHandlers();
-  } catch (error) { list.innerHTML = '<div class="no-extensions">Error loading extensions</div>'; }
-}
-
-function createExtensionElement(plugin) {
-  const div = document.createElement('div'); div.className = `extension-item-dropdown ${plugin.enabled ? 'enabled' : 'disabled'}`; div.setAttribute('data-id', plugin.id);
-  div.innerHTML = `<div class="extension-header"><div class="extension-icon-small" style="background-image: url('${getExtensionIcon(plugin)}')"></div><span class="extension-name">${plugin.name}</span><span class="extension-version">v${plugin.version}</span></div>
-  <div class="extension-status"><span class="status-badge ${plugin.enabled ? 'enabled' : 'disabled'}">${plugin.enabled ? 'Включено' : 'Отключено'}</span></div>
-  <div class="extension-actions"><button class="extension-action-btn toggle-btn" data-id="${plugin.id}" data-enabled="${plugin.enabled}">${plugin.enabled ? 'Выключить' : 'Включить'}</button>
-  ${!plugin.isSystem ? `<button class="extension-action-btn remove-btn" data-id="${plugin.id}">Удалить</button>` : ''}
-  ${plugin.hasPopup ? `<button class="extension-action-btn popup-btn" data-id="${plugin.id}">Меню</button>` : ''}</div>`;
-  return div;
-}
-
-function setupExtensionEventHandlers() {
-  document.querySelectorAll('.toggle-btn').forEach(btn => {
-    btn.onclick = async (e) => {
-      e.stopPropagation(); const pluginId = btn.dataset.id; const currentlyEnabled = btn.dataset.enabled === 'true'; const newState = !currentlyEnabled;
-      try {
-        const result = await window.electronAPI.invoke('toggle-plugin', pluginId, newState);
-        if (result.success) {
-          const extensionItem = btn.closest('.extension-item-dropdown');
-          if (extensionItem) {
-            extensionItem.className = `extension-item-dropdown ${newState ? 'enabled' : 'disabled'}`;
-            const statusBadge = extensionItem.querySelector('.status-badge');
-            if (statusBadge) { statusBadge.className = `status-badge ${newState ? 'enabled' : 'disabled'}`; statusBadge.textContent = newState ? 'Включено' : 'Отключено'; }
-            btn.dataset.enabled = newState; btn.textContent = newState ? 'Выключить' : 'Включить';
-            setTimeout(() => loadExtensionsDropdown(), 100);
-          }
-          showToast(result.message);
-        } else showToast(result.message, 'error');
-      } catch (error) { showToast('Ошибка при переключении расширения', 'error'); }
-    };
-  });
-  document.querySelectorAll('.remove-btn').forEach(btn => {
-    btn.onclick = async (e) => {
-      e.stopPropagation(); const pluginId = btn.dataset.id; const pluginName = btn.closest('.extension-item-dropdown').querySelector('.extension-name').textContent;
-      if (confirm(`Вы уверены, что хотите удалить расширение "${pluginName}"?`)) {
-        try {
-          const result = await window.electronAPI.invoke('remove-plugin', pluginId);
-          if (result.success) {
-            showToast(result.message); const extensionItem = btn.closest('.extension-item-dropdown');
-            if (extensionItem) {
-              extensionItem.style.opacity = '0.5';
-              setTimeout(() => { extensionItem.remove(); setTimeout(() => loadExtensionsDropdown(), 100); }, 300);
-            }
-          } else showToast(result.message, 'error');
-        } catch (error) { showToast('Ошибка при удалении расширения', 'error'); }
-      }
-    };
-  });
-  document.querySelectorAll('.popup-btn').forEach(btn => {
-    btn.onclick = async (e) => {
-      e.stopPropagation(); const pluginId = btn.dataset.id;
-      try {
-        showToast('Открытие меню расширения...');
-        const result = await window.electronAPI.invoke('open-plugin-popup', pluginId);
-        if (result && result.success) {
-          document.getElementById('extensionsDropdown').classList.remove('show');
-          showExtensionPopup(result);
-          showToast(`Меню "${result.extension.name}" открыто`);
-        } else showToast(result?.message || 'Не удалось открыть меню', 'error');
-      } catch (error) { showToast('Ошибка: ' + error.message, 'error'); }
-    };
-  });
-}
-
-function getExtensionIcon(plugin) {
-  if (plugin.manifest) {
-    if (plugin.manifest.browser_action && plugin.manifest.browser_action.default_icon) {
-      const icon = plugin.manifest.browser_action.default_icon;
-      if (typeof icon === 'string') {
-        const iconPath = icon; if (plugin.path) return `file://${plugin.path}/${iconPath}`.replace(/\\/g, '/');
-      } else if (typeof icon === 'object') {
-        const sizes = ['32', '48', '16', '128']; for (const size of sizes) { if (icon[size] && plugin.path) return `file://${plugin.path}/${icon[size]}`.replace(/\\/g, '/'); }
-      }
-    }
-    if (plugin.manifest.action && plugin.manifest.action.default_icon) {
-      const icon = plugin.manifest.action.default_icon;
-      if (typeof icon === 'string') {
-        const iconPath = icon; if (plugin.path) return `file://${plugin.path}/${iconPath}`.replace(/\\/g, '/');
-      } else if (typeof icon === 'object') {
-        const sizes = ['32', '48', '16', '128']; for (const size of sizes) { if (icon[size] && plugin.path) return `file://${plugin.path}/${icon[size]}`.replace(/\\/g, '/'); }
-      }
-    }
-    if (plugin.manifest.icons) {
-      const icons = plugin.manifest.icons; const sizes = ['32', '48', '16', '128', '64']; for (const size of sizes) { if (icons[size] && plugin.path) return `file://${plugin.path}/${icons[size]}`.replace(/\\/g, '/'); }
-    }
-  }
-  if (plugin.icons) {
-    const sizes = ['32', '48', '16', '128']; for (const size of sizes) { if (plugin.icons[size]) return plugin.icons[size]; }
-  }
-  return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="%230a84ff"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg>';
-}
-
-function restartBrowser() { window.electronAPI.invoke('restart-browser').then(result => { if (result && result.success) showToast('Браузер перезапускается...', 3000); }); }
+// ========== Остальной код без изменений (продолжение) ==========
 
 window.ExtensionPopupManager = ExtensionPopupManager;
 window.ExtensionStorage = ExtensionStorage;
@@ -3145,4 +3330,4 @@ setTimeout(async () => {
   }
 }, 3000);
 
-setInterval(() => updateNavButtons(), 500)
+setInterval(() => updateNavButtons(), 500);

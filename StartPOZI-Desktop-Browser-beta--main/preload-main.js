@@ -67,12 +67,14 @@ const validInvokeChannels = [
 'create-incognito-window',
 'clear-cache-and-data',
 'detach-video',
+'detach-youtube-video',
 'set-master-password',
 'verify-master-password',
 'has-master-password',
 'get-custom-theme',
 // [ДОБАВЛЕНО] Канал для удаления кастомной темы
-'clear-custom-theme'
+'clear-custom-theme',
+'open-player-window'
 ];
 
 // Создаем безопасный API для рендерера
@@ -270,6 +272,7 @@ const electronAPI = {
         return await ipcRenderer.invoke('load-extension-data', extensionId);
     },
 
+
     // ========== МЕТОДЫ ДЛЯ УПРАВЛЕНИЯ БРАУЗЕРОМ ==========
     restartBrowser: async () => {
         return await ipcRenderer.invoke('restart-browser');
@@ -435,6 +438,21 @@ const electronAPI = {
     },
     testSettingsAPI: async () => {
         return await ipcRenderer.invoke('test-settings-api');
+    },
+
+
+    // =========== PiP ==========
+
+    openPlayerWindow: async (videoId, title) => {
+        return await ipcRenderer.invoke('open-player-window', videoId, title);
+    },
+
+    detachYoutubeVideo: async (videoId, title) => {
+        return await ipcRenderer.invoke('detach-youtube-video', videoId, title);
+    },
+
+    openExternalUrl: async (url) => {
+        return await ipcRenderer.invoke('open-external', url);
     },
 
     // ========== НОВЫЕ МЕТОДЫ (инкогнито, очистка кэша, видео, мастер-пароль) ==========

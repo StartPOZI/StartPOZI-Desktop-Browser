@@ -1,4 +1,4 @@
-// ==================== main.js (полный файл с изменениями) ====================
+// ==================== main.js (с Express-сервером для плеера) ====================
 
 const { app, BrowserWindow, ipcMain, dialog, session, shell, screen, webContents } = require('electron');
 const path = require('path');
@@ -7,6 +7,64 @@ const AdmZip = require('adm-zip');
 const { nanoid } = require('nanoid');
 const { exec, execSync } = require('child_process');
 const crypto = require('crypto'); // для мастер‑пароля и шифрования
+const { Blob, File } = require('buffer');
+const express = require('express');
+const http = require('http');
+
+globalThis.Blob = Blob;
+globalThis.File = File;
+
+let playerServer = null;
+let playerServerUrl = null;
+let playerServerReady = null; // Promise для ожидания запуска сервера
+
+// Функция запуска Express-сервера для статических файлов плеера
+function startPlayerServer() {
+    const playerPath = path.join(__dirname, 'player-is-here');
+
+    if (!fs.existsSync(playerPath)) {
+        console.error(`❌ Папка плеера не найдена: ${playerPath}`);
+        playerServerReady = Promise.reject(new Error('Папка плеера не найдена'));
+        return null;
+    }
+
+    const playerHtml = path.join(playerPath, 'player.html');
+    if (!fs.existsSync(playerHtml)) {
+        console.error(`❌ Файл player.html отсутствует в ${playerPath}`);
+        playerServerReady = Promise.reject(new Error('Файл player.html отсутствует'));
+        return null;
+    }
+
+    const appExpress = express();
+    appExpress.use(express.static(playerPath));
+
+    const server = http.createServer(appExpress);
+
+    // Создаём Promise, который зарезолвится, когда сервер запустится
+    playerServerReady = new Promise((resolve, reject) => {
+        server.listen(0, 'localhost', () => {   // вместо '127.0.0.1'
+            const port = server.address().port;
+            playerServerUrl = `http://localhost:${port}`;
+            console.log(`✅ Player server started at ${playerServerUrl} (serving ${playerPath})`);
+            resolve(playerServerUrl);
+        });
+
+        server.on('error', (err) => {
+            console.error('❌ Player server error:', err);
+            playerServerUrl = null;
+            reject(err);
+        });
+    });
+
+    return server;
+}
+
+// (на всякий случай добавляем ещё FormData, если вдруг выскочит)
+const FormData = require('form-data');
+globalThis.FormData = FormData;
+
+console.log('✅ Web API polyfill загружен для ytdl-core');
+let playerWindow = null;
 
 // Добавьте после констант путей:
 const PLATFORM_CONFIG = {
@@ -461,46 +519,137 @@ function createIncognitoWindow() {
     return win;
 }
 
-// =============== ОТДЕЛЯЕМЫЙ ВИДЕО‑ПРОИГРЫВАТЕЛЬ ===============
-let detachedVideoWindow = null;
+// =============== ОТДЕЛЯЕМЫЙ ВИДЕО‑ПРОИГРЫВАТЕЛЬ (PiP) ===============
 
-function createDetachedVideoWindow(videoUrl, title) {
-    if (detachedVideoWindow && !detachedVideoWindow.isDestroyed()) {
-        detachedVideoWindow.focus();
-        return detachedVideoWindow;
+// Функция создания окна плеера (PiP)
+async function createPlayerWindow(videoId, title) {
+    if (playerWindow && !playerWindow.isDestroyed()) {
+        playerWindow.focus();
+        return { success: true, message: 'Window already exists' };
     }
 
-    detachedVideoWindow = new BrowserWindow({
-        width: 800,
-        height: 450,
-        minWidth: 400,
-        minHeight: 300,
-        frame: true,
-        show: false,
-        icon: path.join(__dirname, 'icon.png'),
-                                            webPreferences: {
-                                                preload: path.join(__dirname, 'webview-preload.js'),
-                                            nodeIntegration: false,
-                                            contextIsolation: true,
-                                            webviewTag: true,
-                                            webSecurity: false,
-                                            partition: 'persist:webview'
-                                            },
-                                            backgroundColor: '#000000',
-                                            titleBarStyle: 'default'
-    });
+    // Дожидаемся запуска сервера
+    if (!playerServerUrl) {
+        try {
+            await playerServerReady;
+        } catch (err) {
+            return { success: false, message: 'Player server failed to start' };
+        }
+    }
 
-    detachedVideoWindow.setTitle(`🎬 ${title || 'Отдельное видео'}`);
-    detachedVideoWindow.loadURL(videoUrl);
-    detachedVideoWindow.once('ready-to-show', () => {
-        detachedVideoWindow.show();
-    });
+    try {
+        playerWindow = new BrowserWindow({
+            width: 880,
+            height: 540,
+            minWidth: 640,
+            minHeight: 360,
+            frame: false,
+            show: false,
+            icon: path.join(__dirname, 'icon.png'),
+                                         backgroundColor: '#000000',
+                                         webPreferences: {
+                                             nodeIntegration: false,
+                                             contextIsolation: true,
+                                             preload: path.join(__dirname, 'player-preload.js'),
+                                         partition: 'persist:webview',   // обязательно общая сессия
+                                         webSecurity: false,
+                                         allowRunningInsecureContent: true
+                                         }
+        });
 
-    detachedVideoWindow.on('closed', () => {
-        detachedVideoWindow = null;
-    });
+        // Устанавливаем нормальный User-Agent
+        const chromeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+        playerWindow.webContents.setUserAgent(chromeUserAgent);
 
-    return detachedVideoWindow;
+        // === ПОЛУЧАЕМ КУКИ ИЗ СЕССИИ ===
+        const ses = playerWindow.webContents.session;
+        const youtubeCookies = await ses.cookies.get({ domain: '.youtube.com' });
+        const cookieString = youtubeCookies.map(c => `${c.name}=${c.value}`).join('; ');
+        console.log('🍪 YouTube cookies:', cookieString || 'нет кук');
+
+        // === ПОДМЕНЯЕМ ЗАГОЛОВКИ, ДОБАВЛЯЯ КУКИ ===
+        // (без изменения Origin/Referer)
+        playerWindow.webContents.session.webRequest.onBeforeSendHeaders(
+            {
+                urls: [
+                    '*://*.youtube.com/*',
+                    '*://*.googlevideo.com/*',
+                    '*://*.ytimg.com/*',
+                    '*://*.googleapis.com/*',
+                    '*://*.doubleclick.net/*',
+                    '*://*.ggpht.com/*',
+                    '*://*.google.com/*',
+                    '*://*.youtube.com/api/*',
+                    '*://*.youtube.com/youtubei/*',
+                    '*://*.youtube.com/iframe_api*'
+                ]
+            },
+            (details, callback) => {
+                // Добавляем куки, если они есть
+                if (cookieString) {
+                    details.requestHeaders['Cookie'] = cookieString;
+                }
+                // Оставляем оригинальные Origin/Referer (от localhost)
+                callback({ requestHeaders: details.requestHeaders });
+            }
+        );
+
+        // === ЗАГРУЗКА ПЛЕЕРА ===
+        const params = new URLSearchParams({
+            videoId: videoId,
+            title: title || 'YouTube Video'
+        });
+        const url = `${playerServerUrl}/player.html?${params.toString()}`;
+        console.log(`🖥️ Загружаем URL плеера: ${url}`);
+
+        const showTimer = setTimeout(() => {
+            if (playerWindow && !playerWindow.isDestroyed() && !playerWindow.isVisible()) {
+                playerWindow.show();
+                playerWindow.focus();
+            }
+        }, 2000);
+
+        playerWindow.once('ready-to-show', () => {
+            clearTimeout(showTimer);
+            if (playerWindow && !playerWindow.isDestroyed()) {
+                playerWindow.show();
+                playerWindow.focus();
+                console.log('✅ Player window показано');
+            }
+        });
+
+        playerWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+            if (!isMainFrame) return;
+            console.error(`❌ Ошибка загрузки плеера: ${errorDescription} (${errorCode})`);
+            clearTimeout(showTimer);
+            if (playerWindow && !playerWindow.isDestroyed()) {
+                playerWindow.webContents.executeJavaScript(`
+                if (window.showStatus) {
+                    window.showStatus('Ошибка загрузки: ${errorDescription}', true, 0);
+                }
+                `);
+            }
+        });
+
+        await playerWindow.loadURL(url).catch(err => {
+            console.error('loadURL выбросил исключение:', err.message);
+            throw err;
+        });
+
+        playerWindow.on('closed', () => {
+            clearTimeout(showTimer);
+            playerWindow = null;
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('❌ Ошибка createPlayerWindow:', error.message);
+        if (playerWindow && !playerWindow.isDestroyed()) {
+            playerWindow.destroy();
+            playerWindow = null;
+        }
+        return { success: false, message: error.message };
+    }
 }
 
 // =============== ОЧИСТКА КЭША И ДАННЫХ ===============
@@ -646,6 +795,7 @@ class BlockListManager {
     async loadLists() {
         try {
             // Простой список для демонстрации (можно заменить на реальные списки)
+            const fetch = require('node-fetch');
             const response = await fetch('https://easylist.to/easylist/easylist.txt');
             const text = await response.text();
             this.parseList(text);
@@ -667,16 +817,19 @@ class BlockListManager {
     }
 
     setupWebRequest() {
-        session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-            const url = details.url;
-            for (const [pattern, action] of this.rules) {
-                if (url.includes(pattern)) {
-                    console.log(`🚫 Заблокировано по списку: ${url}`);
-                    return callback({ cancel: true });
+        session.defaultSession.webRequest.onBeforeSendHeaders(
+            { urls: ['*://*.googleapis.com/*', '*://*.youtube.com/*', '*://*.googlevideo.com/*'] },
+            (details, callback) => {
+                console.log('🌐 GLOBAL REQUEST:', details.url);
+                if (playerServerUrl) {
+                    const pageOrigin = new URL(playerServerUrl).origin;
+                    details.requestHeaders['Referer'] = pageOrigin + '/';
+                    details.requestHeaders['Origin'] = pageOrigin;
+                    console.log('   Set Referer:', details.requestHeaders['Referer']);
                 }
+                callback({ requestHeaders: details.requestHeaders });
             }
-            callback({ cancel: false });
-        });
+        );
     }
 }
 
@@ -737,6 +890,11 @@ ipcMain.handle('get-platform-info', async () => {
         version: process.version,
         appVersion: app.getVersion()
     };
+});
+
+ipcMain.handle('detach-youtube-video', (event, videoId, title) => {
+    console.log('detach-youtube-video вызван с videoId:', videoId);
+    createDetachedYouTubeWindow(videoId, title);
 });
 
 // =============== КРИТИЧЕСКИЕ НАСТРОЙКИ ===============
@@ -968,6 +1126,7 @@ function createWindow() {
             const url = attachedWebContents.getURL();
             console.log(`🌐 WebView loaded: ${url}`);
 
+
             // Внедряем защиту от фингерпринтинга
             injectAntiFingerprint(attachedWebContents);
 
@@ -1009,6 +1168,49 @@ function createWindow() {
     }
 
     console.log('✅ Main window created successfully');
+}
+
+function createDetachedYouTubeWindow(videoId, title) {
+    if (detachedVideoWindow && !detachedVideoWindow.isDestroyed()) {
+        detachedVideoWindow.focus();
+        return;
+    }
+
+    detachedVideoWindow = new BrowserWindow({
+        width: 800,
+        height: 450,
+        minWidth: 400,
+        minHeight: 300,
+        frame: true, // Используем системную рамку для простоты
+        show: false,
+        icon: path.join(__dirname, 'icon.png'),
+                                            webPreferences: {
+                                                nodeIntegration: false,
+                                                contextIsolation: true,
+                                                // Не отключаем webSecurity без крайней нужды
+                                                webSecurity: true,
+                                                // Используем ту же сессию, что и основные вкладки,
+                                                // чтобы сохранить куки и настройки пользователя YouTube.
+                                                partition: 'persist:webview'
+                                            },
+                                            backgroundColor: '#000000'
+    });
+
+    // Устанавливаем User-Agent как у обычного Chrome (это все еще полезно)
+    const chromeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    detachedVideoWindow.webContents.setUserAgent(chromeUserAgent);
+
+    // Загружаем ОБЫЧНУЮ страницу, а не embed
+    const src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+    detachedVideoWindow.loadURL(src);
+
+    detachedVideoWindow.once('ready-to-show', () => {
+        detachedVideoWindow.show();
+    });
+
+    detachedVideoWindow.on('closed', () => {
+        detachedVideoWindow = null;
+    });
 }
 
 // =============== ОБРАБОТКА ЗАГРУЗОК ===============
@@ -1556,6 +1758,13 @@ ipcMain.handle('get-browser-actions', async () => {
         console.error('Error in get-browser-actions:', error);
         return [];
     }
+});
+
+// ======== PiP окна (ipcMain.handle) ==========
+
+// IPC-обработчик для открытия окна плеера
+ipcMain.handle('open-player-window', async (event, videoId, title) => {
+    return await createPlayerWindow(videoId, title);
 });
 
 // =============== УНИФИЦИРОВАННЫЕ ОБРАБОТЧИКИ ДЛЯ STORAGE РАСШИРЕНИЙ (только ipcMain.handle) ===============
@@ -2300,6 +2509,9 @@ app.whenReady().then(async () => {
     console.log('\n=== App Ready ===');
     console.log('🚀 Starting StartPOZI Browser...');
 
+    // Запускаем Express сервер для плеера
+    playerServer = startPlayerServer();
+
     cleanupLockFiles();
 
     try {
@@ -2325,6 +2537,11 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
     console.log('\n=== All Windows Closed ===');
     cleanupLockFiles();
+    // Останавливаем сервер плеера
+    if (playerServer) {
+        playerServer.close();
+        console.log('🛑 Player server stopped');
+    }
     if (process.platform !== 'darwin') {
         app.quit();
     }
@@ -2349,6 +2566,11 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
     console.log('👋 Goodbye!');
+});
+
+ipcMain.on('open-external', (event, url) => {
+    console.log('open-external (send) called', url);
+    shell.openExternal(url);
 });
 
 // =============== ДОПОЛНИТЕЛЬНЫЕ ОБРАБОТЧИКИ ===============

@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StartPOZI Browser — Настройка</title>
+<style>
+/* ============ ПЕРЕМЕННЫЕ ТЕМЫ ============ */
+:root{
+  --accent:#0c77ff;
+  --accent-light:#3d9bff;
+  --accent-rgb:12,119,255;
+  --win-opacity:1;
+}
+/* Тёмная (по умолчанию) */
+.theme-dark{
+  --bg:#0a0c10;
+  --bg-soft:#14171e;
+  --bg-card:#1a1e27;
+  --bg-card-hover:#21262f;
+  --border:#2a2f3a;
+  --text:#f3f5f8;
+  --text-dim:#9aa3b2;
+  --text-mut:#6b7384;
+  --track:rgba(255,255,255,.09);
+}
+/* Светлая */
+.theme-light{
+  --bg:#eef1f6;
+  --bg-soft:#ffffff;
+  --bg-card:#ffffff;
+  --bg-card-hover:#f5f7fa;
+  --border:#dde2ea;
+  --text:#14171e;
+  --text-dim:#4a5263;
+  --text-mut:#8a93a3;
+  --track:rgba(0,0,0,.09);
+}
+/* Авто = системная */
+@media (prefers-color-scheme: dark){ .theme-auto{
+  --bg:#0a0c10;--bg-soft:#14171e;--bg-card:#1a1e27;--bg-card-hover:#21262f;
+  --border:#2a2f3a;--text:#f3f5f8;--text-dim:#9aa3b2;--text-mut:#6b7384;--track:rgba(255,255,255,.09);
+}}
+@media (prefers-color-scheme: light){ .theme-auto{
+  --bg:#eef1f6;--bg-soft:#ffffff;--bg-card:#ffffff;--bg-card-hover:#f5f7fa;
+  --border:#dde2ea;--text:#14171e;--text-dim:#4a5263;--text-mut:#8a93a3;--track:rgba(0,0,0,.09);
+}}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  overflow:hidden;
+  transition:background .4s ease,color .4s ease;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+
+/* ============ КОНТЕЙНЕР ОКНА (прозрачность) ============ */
+#app{
+  height:100vh;
+  width:100vw;
+  position:relative;
+  opacity:var(--win-opacity);
+  transition:opacity .25s ease;
+}
+
+/* ============ ЭКРАНЫ ============ */
+.screen{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  opacity:0;visibility:hidden;
+  transform:translateX(40px);
+  transition:opacity .5s ease,transform .5s ease,visibility .5s;
+  padding:40px 24px;
+}
+.screen.active{opacity:1;visibility:visible;transform:translateX(0)}
+.screen.prev{transform:translateX(-40px)}
+
+/* ============ ЭКРАН 0 — ИНТРО АНИМАЦИЯ ============ */
+#screen-intro{padding:0;background:#000}
+#intro-frame{
+  position:absolute;inset:0;width:100%;height:100%;border:0;
+}
+#intro-overlay{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  z-index:10;
+  pointer-events:none;
+}
+#intro-tagline{
+  font-size:clamp(30px,5.5vw,68px);
+  font-weight:600;
+  color:#fff;
+  text-align:center;
+  letter-spacing:-.5px;
+  text-shadow:0 4px 40px rgba(0,0,0,.5);
+  opacity:0;
+  transform:translateY(16px);
+  transition:opacity 1s ease 1s,transform 1s ease 1s;
+}
+#screen-intro.show-tag #intro-tagline{opacity:1;transform:translateY(0)}
+#intro-skip{
+  position:absolute;bottom:38px;right:38px;z-index:11;
+  color:rgba(255,255,255,.5);font-size:15px;
+  padding:10px 22px;border-radius:8px;
+  pointer-events:auto;cursor:pointer;
+  transition:color .2s,background .2s;
+}
+#intro-skip:hover{color:#fff;background:rgba(255,255,255,.1)}
+#intro-progress{
+  position:absolute;left:0;bottom:0;height:3px;width:0;
+  background:linear-gradient(90deg,var(--accent),var(--accent-light));
+  z-index:12;transition:width .1s linear;
+}
+
+/* ============ ЛОГОТИП ============ */
+.logo{
+  display:flex;align-items:center;justify-content:center;
+  gap:14px;margin-bottom:30px;
+}
+.logo-mark{width:46px;height:46px;flex:none}
+.logo-mark svg{width:100%;height:100%;display:block}
+.logo-text{font-size:23px;font-weight:600;letter-spacing:-.3px}
+
+/* ============ ЗАГОЛОВКИ ЭКРАНОВ ============ */
+.screen-title{
+  font-size:clamp(26px,3.6vw,42px);
+  font-weight:600;
+  text-align:center;
+  letter-spacing:-.6px;
+  margin-bottom:14px;
+}
+.screen-sub{
+  font-size:17px;
+  color:var(--text-dim);
+  text-align:center;
+  max-width:520px;
+  margin-bottom:40px;
+  line-height:1.5;
+}
+.step-label{
+  font-size:14px;font-weight:600;
+  color:var(--accent);
+  margin-bottom:10px;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+}
+
+/* ============ КНОПКИ ============ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:600;
+  padding:14px 46px;
+  border-radius:14px;
+  transition:transform .15s ease,background .2s ease,box-shadow .2s ease;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{
+  background:var(--accent);
+  color:#fff;
+  box-shadow:0 6px 20px rgba(var(--accent-rgb),.35);
+}
+.btn-primary:hover{background:var(--accent-light)}
+.btn-ghost{
+  color:var(--text-dim);
+  padding:12px 24px;
+}
+.btn-ghost:hover{color:var(--text)}
+
+/* большая кнопка-донат с заливкой при наведении */
+.btn-donate{
+  position:relative;
+  overflow:hidden;
+  font-size:19px;font-weight:700;
+  padding:22px 70px;
+  border-radius:16px;
+  color:#fff;
+  background:#0c5fd6;
+  z-index:0;
+  transition:transform .15s ease,box-shadow .25s ease;
+  box-shadow:0 10px 34px rgba(12,95,214,.4);
+}
+.btn-donate::before{
+  content:"";position:absolute;inset:0;z-index:-1;
+  background:var(--accent-light);
+  transform:translateY(100%);
+  transition:transform .35s cubic-bezier(.4,0,.2,1);
+}
+.btn-donate:hover::before{transform:translateY(0)}
+.btn-donate:hover{box-shadow:0 14px 44px rgba(var(--accent-rgb),.55)}
+.btn-donate:active{transform:scale(.97)}
+
+/* ============ ВВЕРХ / ВНИЗ ПАНЕЛИ ЭКРАНА ============ */
+.screen-body{width:100%;max-width:680px}
+.screen-foot{
+  margin-top:auto;padding-top:36px;
+  width:100%;max-width:680px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+}
+
+/* ============ ТОГГЛ-СТРОКИ (приватность) ============ */
+.toggle-row{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:18px 22px;
+  margin-bottom:12px;
+  transition:background .2s,border-color .2s;
+}
+.toggle-row:hover{background:var(--bg-card-hover)}
+.toggle-row .info{flex:1}
+.toggle-row .t-name{font-size:16px;font-weight:600;margin-bottom:4px}
+.toggle-row .t-desc{font-size:14px;color:var(--text-mut);line-height:1.4}
+
+/* тумблер */
+.switch{
+  position:relative;flex:none;width:48px;height:28px;
+  margin-top:2px;
+}
+.switch input{display:none}
+.switch .track{
+  position:absolute;inset:0;
+  background:var(--track);
+  border-radius:100px;
+  transition:background .25s ease;
+}
+.switch .thumb{
+  position:absolute;top:3px;left:3px;
+  width:22px;height:22px;border-radius:50%;
+  background:#fff;
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 2px 6px rgba(0,0,0,.25);
+}
+.switch input:checked + .track{background:var(--accent)}
+.switch input:checked + .track + .thumb{transform:translateX(20px)}
+
+/* ============ СЕКЦИОННЫЕ ЗАГОЛОВКИ ============ */
+.section-head{
+  font-size:20px;font-weight:600;
+  margin:28px 0 16px;
+}
+.section-head:first-child{margin-top:0}
+
+/* ============ ВЫБОР ТЕМЫ ============ */
+.theme-grid{display:flex;gap:14px}
+.theme-card{
+  flex:1;
+  border:2px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+  cursor:pointer;
+  background:var(--bg-card);
+  transition:border-color .2s,background .2s,transform .15s;
+  text-align:center;
+}
+.theme-card:hover{background:var(--bg-card-hover)}
+.theme-card.sel{border-color:var(--accent)}
+.theme-card .preview{
+  height:64px;border-radius:9px;margin-bottom:12px;
+  border:1px solid var(--border);overflow:hidden;position:relative;
+}
+.theme-card .preview i{
+  position:absolute;left:8px;top:8px;width:26px;height:6px;border-radius:3px;
+  background:#fff;opacity:.85;
+}
+.theme-card .preview i:nth-child(2){top:20px;width:40px;opacity:.55}
+.theme-card .preview i:nth-child(3){top:32px;width:30px;opacity:.4}
+.theme-card.auto .preview{background:linear-gradient(90deg,#0a0c10 50%,#eef1f6 50%)}
+.theme-card.auto .preview i:nth-child(1){left:8px}
+.theme-card.auto .preview i:nth-child(2),
+.theme-card.auto .preview i:nth-child(3){left:42px}
+.theme-card.light .preview{background:#eef1f6}
+.theme-card.light .preview i{background:#14171e}
+.theme-card.dark .preview{background:#0a0c10}
+.theme-card.dark .preview i{background:#fff}
+.theme-card .t-label{font-size:14px;font-weight:600}
+.theme-card .t-sub{font-size:12px;color:var(--text-mut);margin-top:2px}
+
+/* ============ СЛАЙДЕР ПРОЗРАЧНОСТИ ============ */
+.slider-row{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:18px 22px;
+  margin-top:14px;
+}
+.slider-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.slider-top .s-name{font-size:16px;font-weight:600}
+.slider-top .s-val{font-size:14px;color:var(--accent);font-weight:600}
+.slider-top .s-desc{font-size:13px;color:var(--text-mut);margin-top:3px}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:6px;border-radius:100px;
+  background:var(--track);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:20px;height:20px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  border:3px solid var(--bg-soft);
+  box-shadow:0 2px 6px rgba(0,0,0,.3);
+}
+input[type=range]::-moz-range-thumb{
+  width:20px;height:20px;border-radius:50%;
+  background:var(--accent);cursor:pointer;border:3px solid var(--bg-soft);
+}
+
+/* ============ АКЦЕНТНЫЙ ЦВЕТ ============ */
+.color-row{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:18px 22px;
+  margin-top:14px;
+}
+.color-row .c-name{font-size:16px;font-weight:600}
+.color-row .c-desc{font-size:13px;color:var(--text-mut);margin-top:3px;margin-bottom:14px}
+.swatches{display:flex;gap:12px;flex-wrap:wrap}
+.swatch{
+  width:38px;height:38px;border-radius:50%;
+  cursor:pointer;position:relative;
+  border:3px solid transparent;
+  transition:transform .15s,border-color .2s;
+}
+.swatch:hover{transform:scale(1.1)}
+.swatch.sel{border-color:var(--text)}
+.swatch.sel::after{
+  content:"";position:absolute;inset:-7px;border-radius:50%;
+  border:2px solid var(--accent);
+}
+
+/* ============ ДЕЙСТВИЯ (экран 3) ============ */
+.action-card{
+  display:flex;align-items:center;gap:18px;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:20px 22px;
+  margin-bottom:12px;
+  cursor:pointer;
+  transition:background .2s,border-color .2s,transform .15s;
+}
+.action-card:hover{background:var(--bg-card-hover);transform:translateY(-1px)}
+.action-icon{
+  flex:none;width:46px;height:46px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(var(--accent-rgb),.14);color:var(--accent);
+}
+.action-icon svg{width:24px;height:24px}
+.action-body{flex:1}
+.action-body .a-name{font-size:16px;font-weight:600}
+.action-body .a-desc{font-size:14px;color:var(--text-mut);margin-top:2px}
+.action-card .chev{color:var(--text-mut);flex:none}
+.action-card .chev svg{width:20px;height:20px}
+
+/* ============ ЭКРАН ДОНАТА ============ */
+#screen-donate .donate-wrap{
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  max-width:560px;
+}
+.donate-heart{
+  width:84px;height:84px;margin-bottom:28px;
+  color:var(--accent);
+}
+.donate-heart svg{width:100%;height:100%}
+.donate-title{
+  font-size:clamp(26px,3.8vw,40px);font-weight:700;
+  letter-spacing:-.5px;margin-bottom:14px;line-height:1.2;
+}
+.donate-desc{
+  font-size:18px;color:var(--text-dim);line-height:1.5;margin-bottom:44px;
+}
+#skip-link{
+  margin-top:30px;
+  color:var(--text-mut);font-size:15px;
+  opacity:0;pointer-events:none;
+  transition:opacity .6s ease;
+  padding:12px 24px;border-radius:10px;
+}
+#skip-link.show{opacity:1;pointer-events:auto}
+#skip-link:hover{color:var(--text);background:var(--bg-card)}
+
+/* ============ ТОСТ ============ */
+#toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--bg-card);border:1px solid var(--border);
+  color:var(--text);
+  padding:14px 22px;border-radius:12px;font-size:15px;
+  box-shadow:0 10px 30px rgba(0,0,0,.3);
+  z-index:9999;opacity:0;
+  transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .35s;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============ ПРОГРЕСС ШАГИ ============ */
+.steps{
+  position:absolute;top:30px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;z-index:5;
+}
+.steps .dot{
+  width:8px;height:8px;border-radius:50%;background:var(--track);
+  transition:background .3s,width .3s;
+}
+.steps .dot.on{background:var(--accent);width:24px;border-radius:100px}
+</style>
+</head>
+<body class="theme-auto">
+<div id="app">
+
+  <!-- ===================== ЭКРАН 0: ИНТРО ===================== -->
+  <section class="screen active" id="screen-intro">
+    <iframe id="intro-frame" src="FirstLogonAnim.htm"></iframe>
+    <div id="intro-overlay">
+      <div id="intro-tagline">По-настоящему приватный браузер</div>
+    </div>
+    <button id="intro-skip">Пропустить</button>
+    <div id="intro-progress"></div>
+  </section>
+
+  <!-- ===================== ЭКРАН 1: ПРИВЕТСТВИЕ ===================== -->
+  <section class="screen" id="screen-welcome">
+    <div class="steps">
+      <span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs><linearGradient id="lg1" x1="0" y1="0" x2="48" y2="48">
+            <stop stop-color="#0c77ff"/><stop offset="1" stop-color="#3d9bff"/>
+          </linearGradient></defs>
+          <rect width="48" height="48" rx="13" fill="url(#lg1)"/>
+          <path d="M24 11l11 5v7c0 6.8-4.7 12.4-11 14-6.3-1.6-11-7.2-11-14v-7l11-5z" fill="#fff" fill-opacity=".95"/>
+          <circle cx="24" cy="22" r="4.5" fill="#0c77ff"/>
+          <path d="M24 26.5v6" stroke="#0c77ff" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="logo-text">StartPOZI</div>
+    </div>
+    <div class="screen-title">Добро пожаловать в<br>StartPOZI Browser</div>
+    <div class="screen-sub">Настроим браузер за несколько шагов, чтобы он работал именно так, как вам нужно.</div>
+    <button class="btn btn-primary" data-goto="screen-protection">Далее</button>
+  </section>
+
+  <!-- ===================== ЭКРАН 2: ЗАЩИТА ===================== -->
+  <section class="screen" id="screen-protection">
+    <div class="steps">
+      <span class="dot"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+    <div style="width:100%;max-width:680px;overflow-y:auto;max-height:calc(100vh - 80px);padding-bottom:30px">
+      <div class="step-label">Шаг 2 из 5</div>
+      <div class="screen-title" style="text-align:left;font-size:30px">Защита</div>
+      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Настройте, что блокировать при просмотре сайтов.</div>
+
+      <div class="toggle-row">
+        <div class="info">
+          <div class="t-name">Блокировать трекеры</div>
+          <div class="t-desc">Не позволять сайтам следить за вами в интернете.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="opt-trackers" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="info">
+          <div class="t-name">Блокировать виджеты соцсетей</div>
+          <div class="t-desc">Запрещать кнопкам «Поделиться» и «Лайк» отслеживать ваши действия.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="opt-widgets" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="info">
+          <div class="t-name">Блокировать поисковую рекламу и саморекламу сайтов</div>
+          <div class="t-desc">Блокировать рекламу в результатах поиска и собственную рекламу на сайтах.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="opt-ads" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+    </div>
+    <div class="screen-foot">
+      <button class="btn btn-ghost" data-goto="screen-welcome">Назад</button>
+      <button class="btn btn-primary" data-goto="screen-appearance">Далее</button>
+    </div>
+  </section>
+
+  <!-- ===================== ЭКРАН 3: ОФОРМЛЕНИЕ ===================== -->
+  <section class="screen" id="screen-appearance">
+    <div class="steps">
+      <span class="dot"></span><span class="dot"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+    <div style="width:100%;max-width:680px;overflow-y:auto;max-height:calc(100vh - 80px);padding-bottom:30px">
+      <div class="step-label">Шаг 3 из 5</div>
+      <div class="screen-title" style="text-align:left;font-size:30px">Оформление</div>
+      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Выберите, как будет выглядеть браузер.</div>
+
+      <div class="section-head">Тема</div>
+      <div class="theme-grid">
+        <div class="theme-card auto sel" data-theme="auto">
+          <div class="preview"><i></i><i></i><i></i></div>
+          <div class="t-label">Авто</div><div class="t-sub">По системе</div>
+        </div>
+        <div class="theme-card light" data-theme="light">
+          <div class="preview"><i></i><i></i><i></i></div>
+          <div class="t-label">Светлая</div><div class="t-sub">Днём</div>
+        </div>
+        <div class="theme-card dark" data-theme="dark">
+          <div class="preview"><i></i><i></i><i></i></div>
+          <div class="t-label">Тёмная</div><div class="t-sub">Для глаз</div>
+        </div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-top">
+          <div>
+            <div class="s-name">Прозрачность браузера</div>
+            <div class="s-desc">Насколько прозрачным будет окно браузера.</div>
+          </div>
+          <div class="s-val" id="opacity-val">100%</div>
+        </div>
+        <input type="range" id="opacity-slider" min="70" max="100" value="100" step="1">
+      </div>
+
+      <div class="color-row">
+        <div class="c-name">Акцентный цвет</div>
+        <div class="c-desc">Цвет кнопок и ссылок.</div>
+        <div class="swatches" id="swatches">
+          <div class="swatch sel" data-color="#0c77ff" data-rgb="12,119,255" data-light="#3d9bff" style="background:#0c77ff"></div>
+          <div class="swatch" data-color="#7c3aed" data-rgb="124,58,237" data-light="#9d6cf2" style="background:#7c3aed"></div>
+          <div class="swatch" data-color="#db2777" data-rgb="219,39,119" data-light="#f05ba6" style="background:#db2777"></div>
+          <div class="swatch" data-color="#dc2626" data-rgb="220,38,38" data-light="#f05252" style="background:#dc2626"></div>
+          <div class="swatch" data-color="#ea580c" data-rgb="234,88,12" data-light="#f77f3a" style="background:#ea580c"></div>
+          <div class="swatch" data-color="#16a34a" data-rgb="22,163,74" data-light="#22c55e" style="background:#16a34a"></div>
+          <div class="swatch" data-color="#0d9488" data-rgb="13,148,136" data-light="#14b8a6" style="background:#0d9488"></div>
+        </div>
+      </div>
+    </div>
+    <div class="screen-foot">
+      <button class="btn btn-ghost" data-goto="screen-protection">Назад</button>
+      <button class="btn btn-primary" data-goto="screen-setup">Далее</button>
+    </div>
+  </section>
+
+  <!-- ===================== ЭКРАН 4: НАСТРОЙКИ STARTPOZI ===================== -->
+  <section class="screen" id="screen-setup">
+    <div class="steps">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot on"></span><span class="dot"></span>
+    </div>
+    <div style="width:100%;max-width:680px">
+      <div class="step-label">Шаг 4 из 5</div>
+      <div class="screen-title" style="text-align:left;font-size:30px">Закрепите StartPOZI</div>
+      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Пара полезных действий, чтобы начать пользоваться быстрее.</div>
+
+      <div class="action-card" id="act-pin">
+        <div class="action-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v6l-3 4h12l-3-4V4"/><path d="M9 4h6"/><line x1="12" y1="16" x2="12" y2="20"/></svg>
+        </div>
+        <div class="action-body">
+          <div class="a-name">Закрепить StartPOZI на панели задач</div>
+          <div class="a-desc">Быстрый доступ к браузеру в один клик.</div>
+        </div>
+        <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="opt-pin" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+
+      <div class="action-card" id="act-import">
+        <div class="action-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </div>
+        <div class="action-body">
+          <div class="a-name">Импортировать закладки и пароли</div>
+          <div class="a-desc">Перенесите данные из другого браузера.</div>
+        </div>
+        <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+      </div>
+
+      <div class="action-card" id="act-restore">
+        <div class="action-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </div>
+        <div class="action-body">
+          <div class="a-name">Восстанавливать предыдущие вкладки при запуске</div>
+          <div class="a-desc">Продолжайте с того места, где остановились.</div>
+        </div>
+        <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="opt-restore" checked><span class="track"></span><span class="thumb"></span></label>
+      </div>
+    </div>
+    <div class="screen-foot">
+      <button class="btn btn-ghost" data-goto="screen-appearance">Назад</button>
+      <button class="btn btn-primary" data-goto="screen-donate">Далее</button>
+    </div>
+  </section>
+
+  <!-- ===================== ЭКРАН 5: ДОНАТ ===================== -->
+  <section class="screen" id="screen-donate">
+    <div class="steps">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot on"></span>
+    </div>
+    <div class="donate-wrap">
+      <div class="donate-heart">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.2C.4 8.4 2 4.8 5.4 4.1c2-.4 3.9.5 5 2 1.1-1.5 3-2.4 5-2 3.4.7 5 4.3 3.4 7.7C19.5 16.4 12 21 12 21z"/></svg>
+      </div>
+      <div class="donate-title">StartPOZI существует благодаря тебе</div>
+      <div class="donate-desc">StartPOZI — бесплатный браузер без рекламы и слежки. Если он вам нравится, поддержите разработку — так мы сможем делать его ещё лучше.</div>
+      <a class="btn btn-donate" id="donate-btn" href="https://startpozi.com/s/donate.html" target="_blank" rel="noopener">Поддержать проект</a>
+      <button id="skip-link">Пропустить и закончить</button>
+    </div>
+  </section>
+
+</div>
+
+<div id="toast"></div>
+
+<script src="../i18n.js"></script>
+<script src="start.js"></script>
+</body>
+</html>

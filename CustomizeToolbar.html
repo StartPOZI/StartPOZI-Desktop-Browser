@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customize toolbar</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#1a1a2e;--bg2:#16213e;--card:rgba(255,255,255,0.06);--card-border:rgba(255,255,255,0.1);
+  --text:#e0e0e0;--text2:rgba(255,255,255,0.5);--accent:#667eea;--accent2:#764ba2;
+  --danger:#e74c3c;--success:#2ecc71;
+}
+html,body{height:100%;font-family:'SF Pro Display',-apple-system,sans-serif;background:var(--bg);color:var(--text);overflow-y:auto}
+body{background:linear-gradient(135deg,var(--bg) 0%,var(--bg2) 100%)}
+
+.page{max-width:800px;margin:0 auto;padding:32px 24px}
+
+h1{font-size:22px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+h1 svg{flex-shrink:0}
+.subtitle{color:var(--text2);font-size:13px;margin-bottom:28px}
+
+.section{margin-bottom:28px}
+.section-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2);margin-bottom:10px}
+
+.toolbar-zone{
+  background:var(--card);border:2px dashed var(--card-border);border-radius:12px;
+  min-height:56px;padding:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  transition:border-color 0.2s,background 0.2s;
+}
+.toolbar-zone.drag-over{border-color:var(--accent);background:rgba(102,126,234,0.08)}
+.toolbar-zone.empty-hint::after{
+  content:'Drag buttons here';color:var(--text2);font-size:13px;font-style:italic;width:100%;text-align:center;padding:8px 0;
+}
+
+.pool-zone{
+  background:rgba(0,0,0,0.2);border:2px dashed rgba(255,255,255,0.06);border-radius:12px;
+  min-height:56px;padding:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  transition:border-color 0.2s,background 0.2s;
+}
+.pool-zone.drag-over{border-color:var(--accent);background:rgba(102,126,234,0.05)}
+.pool-zone.empty-hint::after{
+  content:'All buttons are on the toolbar';color:var(--text2);font-size:13px;font-style:italic;width:100%;text-align:center;padding:8px 0;
+}
+
+.tb-btn{
+  display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:8px;
+  cursor:grab;user-select:none;font-size:13px;font-weight:500;
+  transition:transform 0.15s,box-shadow 0.15s,opacity 0.15s;
+  border:1px solid rgba(255,255,255,0.08);position:relative;
+}
+.tb-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+.tb-btn.dragging{opacity:0.4;transform:scale(0.95)}
+.tb-btn.on-toolbar{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.tb-btn.in-pool{background:rgba(255,255,255,0.06);color:var(--text);border-color:rgba(255,255,255,0.1)}
+.tb-btn svg{width:16px;height:16px;flex-shrink:0}
+.tb-btn .btn-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+
+.sep-label{
+  font-size:11px;color:var(--text2);padding:4px 8px;width:100%;margin-top:12px;
+  border-top:1px solid rgba(255,255,255,0.06);padding-top:14px;
+}
+.sep-label:first-child{margin-top:0;border-top:none;padding-top:0}
+
+.actions{display:flex;gap:10px;margin-top:20px}
+.act-btn{
+  padding:10px 20px;border:none;border-radius:8px;font-size:13px;font-weight:600;
+  cursor:pointer;transition:background 0.2s,transform 0.1s;display:flex;align-items:center;gap:6px;
+}
+.act-btn:active{transform:scale(0.97)}
+.act-btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.act-btn.primary:hover{filter:brightness(1.1)}
+.act-btn.secondary{background:rgba(255,255,255,0.08);color:var(--text)}
+.act-btn.secondary:hover{background:rgba(255,255,255,0.14)}
+.act-btn.danger{background:rgba(231,76,60,0.15);color:var(--danger)}
+.act-btn.danger:hover{background:rgba(231,76,60,0.25)}
+
+.hint-box{
+  background:rgba(102,126,234,0.08);border-left:3px solid var(--accent);border-radius:8px;
+  padding:10px 14px;margin-bottom:24px;font-size:12px;color:var(--text2);line-height:1.5;
+}
+.hint-box strong{color:var(--text)}
+
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;
+  opacity:0;transition:all 0.3s;z-index:999;pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.success{background:var(--success);color:#fff}
+.toast.error{background:var(--danger);color:#fff}
+</style>
+<script src="i18n.js"></script>
+</head>
+<body>
+<div class="page">
+  <h1>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+    Customize toolbar
+  </h1>
+  <div class="subtitle">Drag buttons between the toolbar and the pool. Double-click for a quick move.</div>
+
+  <div class="hint-box">
+    <strong>Tip:</strong> Buttons added to the toolbar will appear in browser navigation. Changes apply instantly. Button order matches their left-to-right arrangement.
+  </div>
+
+  <div class="section">
+    <div class="section-title">Toolbar</div>
+    <div class="toolbar-zone" id="toolbarZone"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Available buttons</div>
+    <div class="pool-zone" id="poolZone"></div>
+  </div>
+
+  <div class="actions">
+    <button class="act-btn primary" id="saveBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Save
+    </button>
+    <button class="act-btn danger" id="resetBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12"/><path d="M3 3v9h9"/></svg>
+      Reset
+    </button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var ALL_BUTTONS = {
+  left: {
+    label: 'Navigation',
+    buttons: {
+      library: { name: 'Library', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>' },
+      home: { name: 'Home', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>' },
+      back: { name: 'Back', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>' },
+      forward: { name: 'Forward', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>' },
+      reload: { name: 'Reload', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>' }
+    }
+  },
+  right: {
+    label: 'Actions',
+    buttons: {
+      downloads: { name: 'Downloads', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' },
+      autofill: { name: 'Passwords', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>' },
+      adblock: { name: 'Ad blocker', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' },
+      scripts: { name: 'Scripts', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6z"/><polyline points="14 2 14 8 20 8"/></svg>' },
+      darkMode: { name: 'Dark mode', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>' },
+      media: { name: 'Media', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>' },
+      equalizer: { name: 'Equalizer', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg>' },
+      qrScan: { name: 'QR scanner', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg>' },
+      split: { name: 'Split screen', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>' },
+      settings: { name: 'Settings', svg: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' }
+    }
+  }
+};
+
+var DEFAULT_TOOLBAR = ['library','home','back','forward','reload','downloads','autofill','adblock','scripts'];
+var currentButtons = [];
+
+function getAllButtonIds() {
+  var ids = [];
+  Object.keys(ALL_BUTTONS).forEach(function(sec) {
+    Object.keys(ALL_BUTTONS[sec].buttons).forEach(function(id) { ids.push(id); });
+  });
+  return ids;
+}
+
+function getBtnConfig(id) {
+  var keys = Object.keys(ALL_BUTTONS);
+  for (var i = 0; i < keys.length; i++) {
+    if (ALL_BUTTONS[keys[i]].buttons[id]) return ALL_BUTTONS[keys[i]].buttons[id];
+  }
+  return null;
+}
+
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type || 'success') + ' show';
+  setTimeout(function() { t.classList.remove('show'); }, 2500);
+}
+
+function createBtnEl(id, zone) {
+  var cfg = getBtnConfig(id);
+  if (!cfg) return null;
+  var el = document.createElement('div');
+  el.className = 'tb-btn ' + (zone === 'toolbar' ? 'on-toolbar' : 'in-pool');
+  el.dataset.buttonId = id;
+  el.dataset.zone = zone;
+  el.draggable = true;
+  el.innerHTML = (cfg.svg || '') + '<span class="btn-label">' + cfg.name + '</span>';
+
+  el.addEventListener('dragstart', function(e) {
+    e.dataTransfer.setData('text/plain', JSON.stringify({id: id, zone: zone}));
+    e.dataTransfer.effectAllowed = 'move';
+    el.classList.add('dragging');
+  });
+  el.addEventListener('dragend', function() {
+    el.classList.remove('dragging');
+    document.querySelectorAll('.toolbar-zone,.pool-zone').forEach(function(z) { z.classList.remove('drag-over'); });
+  });
+  el.addEventListener('dblclick', function() {
+    if (zone === 'toolbar') moveToPool(id);
+    else moveToToolbar(id);
+  });
+  return el;
+}
+
+function render() {
+  var tz = document.getElementById('toolbarZone');
+  var pz = document.getElementById('poolZone');
+  tz.innerHTML = '';
+  pz.innerHTML = '';
+
+  currentButtons.forEach(function(id) {
+    var el = createBtnEl(id, 'toolbar');
+    if (el) tz.appendChild(el);
+  });
+
+  getAllButtonIds().forEach(function(id) {
+    if (currentButtons.indexOf(id) === -1) {
+      var el = createBtnEl(id, 'pool');
+      if (el) pz.appendChild(el);
+    }
+  });
+
+  tz.classList.toggle('empty-hint', currentButtons.length === 0);
+  pz.classList.toggle('empty-hint', getAllButtonIds().length === currentButtons.length);
+}
+
+function moveToToolbar(id) {
+  if (currentButtons.indexOf(id) !== -1) return;
+  currentButtons.push(id);
+  render();
+}
+
+function moveToPool(id) {
+  currentButtons = currentButtons.filter(function(b) { return b !== id; });
+  render();
+}
+
+function insertAt(id, targetId) {
+  currentButtons = currentButtons.filter(function(b) { return b !== id; });
+  var idx = currentButtons.indexOf(targetId);
+  if (idx === -1) currentButtons.push(id);
+  else currentButtons.splice(idx, 0, id);
+  render();
+}
+
+function setupDropZone(el, zoneName) {
+  el.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    el.classList.add('drag-over');
+  });
+  el.addEventListener('dragleave', function(e) {
+    if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over');
+  });
+  el.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    el.classList.remove('drag-over');
+    try {
+      var data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      if (zoneName === 'toolbar') {
+        var target = e.target.closest('.tb-btn');
+        if (target && target.dataset.zone === 'toolbar' && data.id !== target.dataset.buttonId) {
+          insertAt(data.id, target.dataset.buttonId);
+        } else if (data.zone !== 'toolbar') {
+          moveToToolbar(data.id);
+        }
+      } else {
+        if (data.zone === zoneName) return;
+        moveToPool(data.id);
+      }
+    } catch(err) {}
+  });
+}
+
+setupDropZone(document.getElementById('toolbarZone'), 'toolbar');
+setupDropZone(document.getElementById('poolZone'), 'pool');
+
+document.getElementById('saveBtn').addEventListener('click', function() {
+  if (window.electronAPI && window.electronAPI.saveToolbarButtons) {
+    window.electronAPI.saveToolbarButtons(currentButtons).then(function(result) {
+      if (result && result.success) {
+        showToast('Buttons saved!', 'success');
+        setTimeout(function() {
+          if (window.electronAPI && window.electronAPI.goBack) window.electronAPI.goBack();
+        }, 800);
+      } else {
+        showToast('Save error', 'error');
+      }
+    }).catch(function() { showToast('Save error', 'error'); });
+  } else {
+    localStorage.setItem('startpozi-toolbar-buttons', JSON.stringify(currentButtons));
+    showToast('Buttons saved!', 'success');
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+  currentButtons = DEFAULT_TOOLBAR.slice();
+  render();
+  showToast('Reset to defaults', 'success');
+});
+
+(function init() {
+  var saved = localStorage.getItem('startpozi-toolbar-buttons');
+  if (saved) {
+    try { currentButtons = JSON.parse(saved); } catch(e) { currentButtons = DEFAULT_TOOLBAR.slice(); }
+  } else {
+    currentButtons = DEFAULT_TOOLBAR.slice();
+  }
+  if (window.electronAPI && window.electronAPI.getToolbarButtons) {
+    window.electronAPI.getToolbarButtons().then(function(result) {
+      if (result && result.success && result.buttons) currentButtons = result.buttons;
+      render();
+    }).catch(function() { render(); });
+  } else {
+    render();
+  }
+})();
+</script>
+</body>
+</html>

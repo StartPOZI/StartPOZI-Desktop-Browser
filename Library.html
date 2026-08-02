@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Library</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; font-family: 'SF Pro Display', -apple-system, sans-serif; }
+        :root { --base-font-size: 14px; --accent-color: #667eea; --accent-secondary: #764ba2; --accent-gradient: linear-gradient(135deg, #667eea, #764ba2); --card-opacity: 0.7; --overlay-opacity: 0.48; }
+        body.theme-dark { --body-bg-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%); --overlay-bg: rgba(20,20,30,var(--overlay-opacity)); --overlay-filter: blur(60px) saturate(180%) brightness(1.7); --sidebar-bg: rgba(28,28,38,0.65); --sidebar-border: rgba(255,255,255,0.08); --card-bg: rgba(40,40,55,var(--card-opacity)); --card-filter: blur(30px); --card-border: rgba(255,255,255,0.12); --h2-color: white; --text-color: white; --secondary-text: rgba(255,255,255,0.6); --btn-bg: rgba(255,255,255,0.12); --btn-border: 1px solid rgba(255,255,255,0.18); --btn-color: white; --btn-hover-bg: rgba(255,255,255,0.22); --input-bg: rgba(0,0,0,0.3); --input-border: 1px solid rgba(255,255,255,0.15); --input-color: white; --placeholder-color: rgba(255,255,255,0.6); --danger-hover: rgba(244,67,54,0.15); }
+        body.theme-light { --body-bg-image: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%); --overlay-bg: rgba(255,255,255,var(--overlay-opacity)); --overlay-filter: blur(60px) saturate(120%) brightness(1.0); --sidebar-bg: rgba(255,255,255,0.65); --sidebar-border: rgba(0,0,0,0.08); --card-bg: rgba(255,255,255,var(--card-opacity)); --card-filter: blur(30px); --card-border: rgba(0,0,0,0.12); --h2-color: black; --text-color: black; --secondary-text: rgba(0,0,0,0.6); --btn-bg: rgba(0,0,0,0.12); --btn-border: 1px solid rgba(0,0,0,0.18); --btn-color: black; --btn-hover-bg: rgba(0,0,0,0.22); --input-bg: rgba(255,255,255,0.3); --input-border: 1px solid rgba(0,0,0,0.15); --input-color: black; --placeholder-color: rgba(0,0,0,0.6); --danger-hover: rgba(244,67,54,0.1); }
+        body { font-size: var(--base-font-size); background: var(--body-bg-image); background-attachment: fixed; position: relative; background-size: cover; background-position: center; }
+        body.custom-bg { background: var(--custom-bg) !important; background-size: var(--custom-bg-size, cover) !important; background-position: var(--custom-bg-pos, center) !important; background-repeat: var(--custom-bg-repeat, no-repeat) !important; background-attachment: var(--custom-bg-attach, fixed) !important; }
+        body::before { content: ''; position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-filter); pointer-events: none; z-index: -1; }
+        .window { width: 100vw; height: 100vh; display: flex; position: relative; z-index: 1; }
+        .sidebar { width: 250px; background: var(--sidebar-bg); backdrop-filter: blur(40px); border-right: 1px solid var(--sidebar-border); padding: 50px 0 30px; flex-shrink: 0; }
+        .sidebar h1 { padding: 0 24px 24px; font-size: 20px; font-weight: 700; color: var(--h2-color); display: flex; align-items: center; gap: 10px; }
+        .sidebar h1 svg { width: 24px; height: 24px; }
+        nav a { display: flex; align-items: center; padding: 14px 24px; color: var(--secondary-text); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; cursor: pointer; }
+        nav a:hover { background: var(--btn-bg); color: var(--text-color); }
+        nav a.active { background: var(--btn-hover-bg); color: var(--text-color); font-weight: 600; }
+        nav a svg { width: 20px; height: 20px; margin-right: 12px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .content { flex: 1; padding: 50px 40px 40px; overflow-y: auto; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .card { background: var(--card-bg); backdrop-filter: var(--card-filter); border-radius: 20px; padding: 28px; margin-bottom: 24px; border: 1px solid var(--card-border); }
+        .card h2 { font-size: 22px; font-weight: 600; color: var(--h2-color); margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+        .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .actions select, .actions button { padding: 7px 14px; border-radius: 10px; font-size: 12px; font-weight: 500; cursor: pointer; background: var(--btn-bg); border: var(--btn-border); color: var(--btn-color); transition: background 0.2s; }
+        .actions button:hover { background: var(--btn-hover-bg); }
+        .actions .btn-danger:hover { background: var(--danger-hover); color: #f44336; }
+        .item { display: flex; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--card-border); transition: background 0.15s; }
+        .item:last-child { border-bottom: none; }
+        .item:hover { background: var(--btn-bg); margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-radius: 10px; }
+        .item img { width: 20px; height: 20px; border-radius: 4px; margin-right: 14px; flex-shrink: 0; }
+        .item .icon-ph { width: 20px; height: 20px; border-radius: 4px; margin-right: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--btn-bg); font-size: 11px; }
+        .item .info { flex: 1; min-width: 0; cursor: pointer; }
+        .item .title { color: var(--text-color); font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item .url { color: var(--secondary-text); font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .item .meta { color: var(--secondary-text); font-size: 12px; margin-left: 16px; white-space: nowrap; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+        .item .del-btn { background: none; border: none; color: var(--secondary-text); cursor: pointer; padding: 4px 8px; margin-left: 8px; font-size: 16px; border-radius: 6px; transition: all 0.15s; }
+        .item .del-btn:hover { background: var(--danger-hover); color: #f44336; }
+        .empty { color: var(--secondary-text); text-align: center; padding: 50px 20px; font-size: 15px; }
+        .search { width: 100%; padding: 12px 16px; background: var(--input-bg); border: var(--input-border); border-radius: 12px; color: var(--input-color); font-size: 14px; margin-bottom: 20px; outline: none; }
+        .search::placeholder { color: var(--placeholder-color); }
+        .ck-item { background: var(--input-bg); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+        .ck-item .ck-name { font-weight: 600; color: var(--text-color); font-size: 13px; }
+        .ck-item .ck-domain { color: var(--secondary-text); font-size: 12px; margin-top: 3px; }
+        .ck-item .ck-val { color: var(--secondary-text); font-size: 12px; margin-top: 6px; word-break: break-all; max-height: 60px; overflow: hidden; }
+        .ck-item .del-btn { margin-top: 8px; padding: 4px 12px; background: var(--btn-bg); border: var(--btn-border); border-radius: 6px; color: var(--btn-color); font-size: 12px; cursor: pointer; }
+        .ck-item .del-btn:hover { background: var(--danger-hover); color: #f44336; }
+        .back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--btn-bg); border: var(--btn-border); color: var(--btn-color); border-radius: 10px; font-size: 13px; cursor: pointer; margin-bottom: 20px; transition: background 0.2s; }
+        .back-btn:hover { background: var(--btn-hover-bg); }
+        .date-sep { color: var(--secondary-text); font-size: 12px; font-weight: 600; padding: 8px 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .view-toggle { display: flex; gap: 4px; }
+        .view-toggle button { padding: 6px 10px; border-radius: 8px; background: var(--btn-bg); border: var(--btn-border); color: var(--btn-color); cursor: pointer; display: flex; align-items: center; transition: background 0.2s; }
+        .view-toggle button.active { background: var(--btn-hover-bg); font-weight: 600; }
+        .view-toggle button:hover { background: var(--btn-hover-bg); }
+        .view-toggle svg { width: 16px; height: 16px; }
+        #histList.grid-view { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+        #histList.grid-view .date-sep { grid-column: 1 / -1; }
+        #histList.grid-view .item { flex-direction: column; align-items: flex-start; padding: 14px; border-radius: 12px; background: var(--btn-bg); border: 1px solid var(--card-border); margin: 0; }
+        #histList.grid-view .item img { width: 28px; height: 28px; margin-right: 0; margin-bottom: 10px; }
+        #histList.grid-view .item .icon-ph { width: 28px; height: 28px; margin-right: 0; margin-bottom: 10px; font-size: 14px; }
+        #histList.grid-view .item .info { width: 100%; }
+        #histList.grid-view .item .meta { margin-left: 0; margin-top: 8px; flex-direction: row; align-items: center; width: 100%; }
+        #histList.grid-view .item .del-btn { position: absolute; top: 6px; right: 6px; }
+        #histList.grid-view .item { position: relative; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.3); border-radius: 3px; }
+    </style>
+<script src="i18n.js"></script>
+</head>
+<body class="theme-dark">
+    <div class="window">
+        <div class="sidebar">
+            <h1>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Library
+            </h1>
+            <nav>
+                <a href="#" data-section="history" class="active">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    History
+                </a>
+                <a href="#" data-section="downloads">
+                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Downloads
+                </a>
+                <a href="#" data-section="bookmarks">
+                    <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    Bookmarks
+                </a>
+                <a href="#" data-section="cookies">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                    Cookies
+                </a>
+            </nav>
+        </div>
+
+        <div class="content">
+            <button class="back-btn" id="backBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Back
+            </button>
+
+            <div id="sec-history" class="section active">
+                <div class="card">
+                    <h2>Browsing history
+                        <div class="actions">
+                            <select id="histPeriod"><option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option></select>
+                            <select id="histSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="alpha">Alphabetical</option><option value="visits">By visit count</option></select>
+                            <button id="histClear" class="btn-danger">Clear</button>
+                            <div class="view-toggle">
+                                <button id="histViewList" class="active" title="List"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                                <button id="histViewGrid" title="Grid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+                            </div>
+                        </div>
+                    </h2>
+                    <input type="text" class="search" id="histSearch" placeholder="Search history...">
+                    <div id="histList"></div>
+                </div>
+            </div>
+
+            <div id="sec-downloads" class="section">
+                <div class="card">
+                    <h2>Download history
+                        <div class="actions">
+                            <select id="dlPeriod"><option value="all">All time</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option></select>
+                            <select id="dlSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">By name</option><option value="size">By size</option></select>
+                            <button id="dlClear" class="btn-danger">Clear</button>
+                        </div>
+                    </h2>
+                    <input type="text" class="search" id="dlSearch" placeholder="Search downloads...">
+                    <div id="dlList"></div>
+                </div>
+            </div>
+
+            <div id="sec-bookmarks" class="section">
+                <div class="card">
+                    <h2>Bookmarks
+                        <div class="actions">
+                            <select id="bmSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="alpha">Alphabetical</option></select>
+                            <button id="bmAdd">+ Add</button>
+                            <button id="bmImport">Import</button>
+                            <button id="bmExport">Export</button>
+                            <button id="bmClear" class="btn-danger">Clear all</button>
+                        </div>
+                    </h2>
+                    <input type="text" class="search" id="bmSearch" placeholder="Search bookmarks...">
+                    <div id="bmList"></div>
+                </div>
+            </div>
+
+            <div id="sec-cookies" class="section">
+                <div class="card">
+                    <h2>Cookies
+                        <div class="actions"><button id="ckClear" class="btn-danger">Delete all</button></div>
+                    </h2>
+                    <input type="text" class="search" id="ckSearch" placeholder="Search by domain or name...">
+                    <div id="ckList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var api = window.electronAPI;
+
+        function applyTheme(theme) {
+            var c;
+            if (theme === 'system') c = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'theme-dark' : 'theme-light';
+            else c = 'theme-' + theme;
+            document.body.classList.remove('theme-dark', 'theme-light');
+            document.body.classList.add(c);
+        }
+        if (api && api.getTheme) api.getTheme().then(applyTheme);
+
+        function applyWallpaper(cust) {
+            if (!cust || !cust.mainPageBackground) return;
+            document.documentElement.style.setProperty('--custom-bg', cust.mainPageBackground);
+            if (cust.mainPageBackgroundSize) document.documentElement.style.setProperty('--custom-bg-size', cust.mainPageBackgroundSize);
+            if (cust.mainPageBackgroundPosition) document.documentElement.style.setProperty('--custom-bg-pos', cust.mainPageBackgroundPosition);
+            if (cust.mainPageBackgroundRepeat) document.documentElement.style.setProperty('--custom-bg-repeat', cust.mainPageBackgroundRepeat);
+            if (cust.mainPageBackgroundAttachment) document.documentElement.style.setProperty('--custom-bg-attach', cust.mainPageBackgroundAttachment);
+            document.body.classList.add('custom-bg');
+        }
+        if (api && api.getCustomizationSettings) api.getCustomizationSettings().then(function(r) { if (r && r.settings) applyWallpaper(r.settings); });
+
+        document.getElementById('backBtn').addEventListener('click', function() {
+            if (api && api.openUrlFromSettings) api.openUrlFromSettings('Settings.html');
+            else window.history.back();
+        });
+
+        document.querySelectorAll('nav a').forEach(function(a) {
+            a.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('nav a').forEach(function(x) { x.classList.remove('active'); });
+                a.classList.add('active');
+                document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
+                var sec = document.getElementById('sec-' + a.dataset.section);
+                if (sec) sec.classList.add('active');
+                if (a.dataset.section === 'history') loadHistory();
+                if (a.dataset.section === 'downloads') loadDownloads();
+                if (a.dataset.section === 'bookmarks') loadBookmarks();
+                if (a.dataset.section === 'cookies') loadCookies();
+            });
+        });
+
+        function fmtDate(ts) {
+            var d = new Date(ts);
+            var now = new Date();
+            var diff = now - d;
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' min ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' h ago';
+            if (diff < 172800000) return 'Yesterday ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        }
+        function fmtDay(ts) {
+            var d = new Date(ts); var now = new Date();
+            var td = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            var dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            var diff = td - dd;
+            if (diff === 0) return 'Today';
+            if (diff <= 86400000) return 'Yesterday';
+            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+        }
+        function fmtSize(b) {
+            if (!b) return '—';
+            if (b < 1024) return b + ' B';
+            if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+            if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+            return (b / 1073741824).toFixed(2) + ' GB';
+        }
+        function getFavicon(url) {
+            try { var u = new URL(url); return 'https://www.google.com/s2/favicons?domain=' + u.hostname + '&sz=32'; } catch(e) { return ''; }
+        }
+        function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+        function periodFilter(period) {
+            var now = new Date();
+            var td = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            switch (period) {
+                case 'today': return function(t) { return t >= td.getTime(); };
+                case 'yesterday': return function(t) { return t >= td.getTime() - 86400000 && t < td.getTime(); };
+                case 'week': return function(t) { return t >= td.getTime() - 7 * 86400000; };
+                case 'month': return function(t) { return t >= td.getTime() - 30 * 86400000; };
+                default: return function() { return true; };
+            }
+        }
+
+        // ---- HISTORY ----
+        var histData = [];
+        function loadHistory() {
+            if (!api || !api.getHistory) return;
+            api.getHistory().then(function(l) { histData = l || []; renderHistory(); });
+        }
+        function renderHistory() {
+            var sort = document.getElementById('histSort').value;
+            var period = document.getElementById('histPeriod').value;
+            var search = document.getElementById('histSearch').value.toLowerCase();
+            var pf = periodFilter(period);
+            var items = histData.filter(function(h) {
+                if (!pf(h.time)) return false;
+                if (search && (h.title || '').toLowerCase().indexOf(search) === -1 && (h.url || '').toLowerCase().indexOf(search) === -1) return false;
+                return true;
+            });
+            if (sort === 'newest') items.sort(function(a, b) { return (b.time || 0) - (a.time || 0); });
+            else if (sort === 'oldest') items.sort(function(a, b) { return (a.time || 0) - (b.time || 0); });
+            else if (sort === 'alpha') items.sort(function(a, b) { return (a.title || '').localeCompare(b.title || ''); });
+            else if (sort === 'visits') items.sort(function(a, b) { return (b.visitCount || 0) - (a.visitCount || 0); });
+
+            var el = document.getElementById('histList');
+            if (items.length === 0) { el.innerHTML = '<div class="empty">No entries</div>'; return; }
+            var html = '';
+            var lastDay = '';
+            for (var i = 0; i < items.length; i++) {
+                var h = items[i];
+                var day = fmtDay(h.time);
+                if (day !== lastDay) { html += '<div class="date-sep">' + day + '</div>'; lastDay = day; }
+                var fav = getFavicon(h.url);
+                html += '<div class="item" data-url="' + esc(h.url) + '">' +
+                    (fav ? '<img src="' + esc(fav) + '" onerror="this.style.display=\'none\'">' : '<div class="icon-ph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>') +
+                    '<div class="info"><div class="title">' + esc(h.title || h.url || 'Untitled') + '</div>' +
+                    '<div class="url">' + esc(h.url) + '</div></div>' +
+                    '<div class="meta"><span>' + fmtDate(h.time) + '</span>' +
+                    (h.visitCount > 1 ? '<span style="font-size:11px;opacity:0.7">' + h.visitCount + ' visits</span>' : '') + '</div>' +
+                    '<button class="del-btn" data-action="del-hist" data-url="' + esc(h.url) + '" title="Delete">×</button></div>';
+            }
+            el.innerHTML = html;
+        }
+        document.getElementById('histSort').addEventListener('change', renderHistory);
+        document.getElementById('histPeriod').addEventListener('change', renderHistory);
+        document.getElementById('histSearch').addEventListener('input', renderHistory);
+        document.getElementById('histClear').addEventListener('click', function() {
+            if (api && api.clearHistory) api.clearHistory().then(function() { histData = []; renderHistory(); });
+        });
+        document.getElementById('histList').addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-action="del-hist"]');
+            if (btn) { e.stopPropagation(); histData = histData.filter(function(h) { return h.url !== btn.dataset.url; }); renderHistory(); if (api && api.clearHistory) api.clearHistory().then(function() { loadHistory(); }); return; }
+            var item = e.target.closest('.item[data-url]');
+            if (item && api && api.openUrlFromSettings) api.openUrlFromSettings(item.dataset.url);
+        });
+
+        document.getElementById('histViewList').addEventListener('click', function() {
+            document.getElementById('histList').classList.remove('grid-view');
+            this.classList.add('active');
+            document.getElementById('histViewGrid').classList.remove('active');
+        });
+        document.getElementById('histViewGrid').addEventListener('click', function() {
+            document.getElementById('histList').classList.add('grid-view');
+            this.classList.add('active');
+            document.getElementById('histViewList').classList.remove('active');
+        });
+
+        // ---- DOWNLOADS ----
+         var dlData = [];
+         var dlExistsMap = {};
+         function loadDownloads() {
+             if (!api || !api.getDownloads) return;
+             api.getDownloads().then(function(l) { dlData = l || []; checkDlFiles(); });
+         }
+         function checkDlFiles() {
+             var paths = dlData.filter(function(d) { return d.state === 'completed' && d.path; }).map(function(d) { return d.path; });
+             paths = paths.filter(function(p, i, a) { return a.indexOf(p) === i; });
+             if (paths.length > 0 && api && api.checkFilesExist) {
+                 api.checkFilesExist(paths).then(function(m) { dlExistsMap = m || {}; renderDownloads(); });
+             } else {
+                 renderDownloads();
+             }
+         }
+         function renderDownloads() {
+             var sort = document.getElementById('dlSort').value;
+             var period = document.getElementById('dlPeriod').value;
+             var search = document.getElementById('dlSearch').value.toLowerCase();
+             var pf = periodFilter(period);
+             var items = dlData.filter(function(d) {
+                 if (!pf(d.startTime)) return false;
+                 if (search && (d.filename || '').toLowerCase().indexOf(search) === -1 && (d.url || '').toLowerCase().indexOf(search) === -1) return false;
+                 return true;
+             });
+             if (sort === 'newest') items.sort(function(a, b) { return (b.startTime || 0) - (a.startTime || 0); });
+             else if (sort === 'oldest') items.sort(function(a, b) { return (a.startTime || 0) - (b.startTime || 0); });
+             else if (sort === 'name') items.sort(function(a, b) { return (a.filename || '').localeCompare(b.filename || ''); });
+             else if (sort === 'size') items.sort(function(a, b) { return (b.totalBytes || 0) - (a.totalBytes || 0); });
+
+             var el = document.getElementById('dlList');
+             if (items.length === 0) { el.innerHTML = '<div class="empty">No downloads</div>'; return; }
+             var html = '';
+             var lastDay = '';
+             for (var i = 0; i < items.length; i++) {
+                 var d = items[i];
+                 var day = fmtDay(d.startTime);
+                 if (day !== lastDay) { html += '<div class="date-sep">' + day + '</div>'; lastDay = day; }
+                 var fav = getFavicon(d.url);
+                 var missing = d.path && dlExistsMap[d.path] === false;
+                 html += '<div class="item' + (missing ? ' file-missing' : '') + '">' +
+                     (fav ? '<img src="' + esc(fav) + '" onerror="this.style.display=\'none\'">' : '<div class="icon-ph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>') +
+                     '<div class="info"><div class="title">' + esc(d.filename || 'File') + '</div>' +
+                     '<div class="url">' + fmtSize(d.totalBytes) + (d.state === 'progressing' ? ' — downloading...' : d.state === 'interrupted' ? ' — interrupted' : '') + '</div>' +
+                     (missing ? '<div class="url" style="color:#e5a00d;font-size:11px;">File was moved or deleted</div>' : '') +
+                     '</div>' +
+                     '<div class="meta"><span>' + fmtDate(d.startTime) + '</span></div>' +
+                     '<button class="del-btn" data-action="open-dl" data-path="' + esc(d.path) + '" title="Open folder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button></div>';
+             }
+             el.innerHTML = html;
+         }
+        document.getElementById('dlSort').addEventListener('change', renderDownloads);
+        document.getElementById('dlPeriod').addEventListener('change', renderDownloads);
+        document.getElementById('dlSearch').addEventListener('input', renderDownloads);
+        document.getElementById('dlClear').addEventListener('click', function() {
+            if (api && api.clearDownloads) api.clearDownloads().then(function() { dlData = []; renderDownloads(); });
+        });
+        document.getElementById('dlList').addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-action="open-dl"]');
+            if (btn && api && api.openDownloadFolder) api.openDownloadFolder(btn.dataset.path);
+        });
+
+        // ---- BOOKMARKS ----
+        var bmData = [];
+        function loadBookmarks() {
+            if (!api || !api.loadBookmarks) return;
+            api.loadBookmarks().then(function(l) { bmData = l || []; renderBookmarks(); });
+        }
+        function renderBookmarks() {
+            var sort = document.getElementById('bmSort').value;
+            var search = document.getElementById('bmSearch').value.toLowerCase();
+            var items = bmData.filter(function(b) {
+                if (b.folder === '__folder__') return false;
+                if (search && (b.title || '').toLowerCase().indexOf(search) === -1 && (b.url || '').toLowerCase().indexOf(search) === -1) return false;
+                return true;
+            });
+            if (sort === 'newest') items.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+            else if (sort === 'oldest') items.sort(function(a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+            else if (sort === 'alpha') items.sort(function(a, b) { return (a.title || '').localeCompare(b.title || ''); });
+
+            var el = document.getElementById('bmList');
+            if (items.length === 0) { el.innerHTML = '<div class="empty">No bookmarks</div>'; return; }
+            var html = '';
+            for (var i = 0; i < items.length; i++) {
+                var b = items[i];
+                var fav = b.icon || getFavicon(b.url);
+                html += '<div class="item" data-url="' + esc(b.url) + '">' +
+                    (fav ? '<img src="' + esc(fav) + '" onerror="this.style.display=\'none\'">' : '<div class="icon-ph">⭐</div>') +
+                    '<div class="info"><div class="title">' + esc(b.title || b.url || 'Untitled') + '</div>' +
+                    '<div class="url">' + esc(b.url) + '</div></div>' +
+                    '<div class="meta"><span>' + fmtDate(b.createdAt) + '</span></div>' +
+                    '<button class="del-btn" data-action="del-bm" data-id="' + esc(b.id || '') + '" title="Delete">×</button></div>';
+            }
+            el.innerHTML = html;
+        }
+        document.getElementById('bmSort').addEventListener('change', renderBookmarks);
+        document.getElementById('bmSearch').addEventListener('input', renderBookmarks);
+        document.getElementById('bmList').addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-action="del-bm"]');
+            if (btn) {
+                e.stopPropagation();
+                var id = btn.dataset.id;
+                if (id && api && api.removeBookmark) api.removeBookmark(id).then(function() { loadBookmarks(); });
+                return;
+            }
+            var item = e.target.closest('.item[data-url]');
+            if (item && api && api.openUrlFromSettings) api.openUrlFromSettings(item.dataset.url);
+        });
+        document.getElementById('bmAdd').addEventListener('click', function() {
+            var overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(4px);';
+            overlay.innerHTML = '<div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:24px;min-width:360px;max-width:90vw;">' +
+                '<h3 style="color:var(--h2-color);margin:0 0 16px;font-size:18px;">Add bookmark</h3>' +
+                '<div><label style="color:var(--text-color);font-size:14px;display:block;margin-bottom:6px;">URL</label>' +
+                '<input id="bm-add-url" placeholder="https://example.com" style="width:100%;padding:10px 14px;border-radius:10px;background:var(--input-bg);border:var(--input-border);color:var(--input-color);font-size:14px;"></div>' +
+                '<div style="margin-top:12px;"><label style="color:var(--text-color);font-size:14px;display:block;margin-bottom:6px;">Name</label>' +
+                '<input id="bm-add-title" placeholder="My site" style="width:100%;padding:10px 14px;border-radius:10px;background:var(--input-bg);border:var(--input-border);color:var(--input-color);font-size:14px;"></div>' +
+                '<div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">' +
+                '<button id="bm-add-cancel" style="padding:8px 16px;border-radius:8px;background:var(--btn-bg);border:var(--btn-border);color:var(--btn-color);cursor:pointer;">Cancel</button>' +
+                '<button id="bm-add-ok" style="padding:8px 16px;border-radius:8px;background:var(--accent-gradient);color:#fff;border:none;cursor:pointer;font-weight:600;">Add</button></div></div>';
+            document.body.appendChild(overlay);
+            var urlInput = overlay.querySelector('#bm-add-url');
+            setTimeout(function() { urlInput.focus(); }, 50);
+            overlay.querySelector('#bm-add-cancel').onclick = function() { overlay.remove(); };
+            overlay.querySelector('#bm-add-ok').onclick = function() {
+                var url = urlInput.value.trim();
+                var title = overlay.querySelector('#bm-add-title').value.trim();
+                if (!url) return;
+                api.addBookmark({ url: url, title: title || url }).then(function() {
+                    overlay.remove();
+                    loadBookmarks();
+                });
+            };
+            urlInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') overlay.querySelector('#bm-add-ok').click(); });
+            overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+        });
+        document.getElementById('bmImport').addEventListener('click', function() {
+            if (api && api.importBookmarks) api.importBookmarks().then(function(r) { if (r && r.success) loadBookmarks(); });
+        });
+        document.getElementById('bmExport').addEventListener('click', function() {
+            if (api && api.exportBookmarks) api.exportBookmarks();
+        });
+        document.getElementById('bmClear').addEventListener('click', function() {
+            if (!api || !api.removeBookmark || bmData.length === 0) return;
+            var pending = bmData.slice();
+            var chain = Promise.resolve();
+            pending.forEach(function(b) {
+                if (b.folder === '__folder__') return;
+                chain = chain.then(function() { return api.removeBookmark(b.id); });
+            });
+            chain.then(function() { bmData = []; renderBookmarks(); }).catch(function() { loadBookmarks(); });
+        });
+
+        // ---- COOKIES ----
+        var ckData = [];
+        function loadCookies() {
+            if (!api || !api.getCookies) return;
+            api.getCookies().then(function(l) { ckData = l || []; renderCookies(); });
+        }
+        function renderCookies() {
+            var search = document.getElementById('ckSearch').value.toLowerCase();
+            var items = ckData.filter(function(c) {
+                if (search && (c.domain || '').toLowerCase().indexOf(search) === -1 && (c.name || '').toLowerCase().indexOf(search) === -1) return false;
+                return true;
+            });
+            var el = document.getElementById('ckList');
+            if (items.length === 0) { el.innerHTML = '<div class="empty">No cookies</div>'; return; }
+            var html = '';
+            for (var i = 0; i < items.length; i++) {
+                var c = items[i];
+                html += '<div class="ck-item"><div class="ck-name">' + esc(c.name) + '</div>' +
+                    '<div class="ck-domain">' + esc(c.domain) + '</div>' +
+                    '<div class="ck-val">' + esc((c.value || '').substring(0, 150)) + '</div>' +
+                    '<button class="del-btn" data-action="del-ck" data-url="' + esc(c.url) + '" data-name="' + esc(c.name) + '">Delete</button></div>';
+            }
+            el.innerHTML = html;
+        }
+        document.getElementById('ckSearch').addEventListener('input', renderCookies);
+        document.getElementById('ckClear').addEventListener('click', function() {
+            if (api && api.clearCookies) api.clearCookies().then(function() { ckData = []; renderCookies(); });
+        });
+        document.getElementById('ckList').addEventListener('click', function(e) {
+            var btn = e.target.closest('[data-action="del-ck"]');
+            if (btn && api && api.removeCookie) api.removeCookie(btn.dataset.url, btn.dataset.name).then(function() { loadCookies(); });
+        });
+
+        loadHistory();
+    </script>
+</body>
+</html>

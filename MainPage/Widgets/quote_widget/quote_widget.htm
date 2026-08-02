@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote of the day | Widget</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 20% 80%, #253341, #0a0f1a);
+            font-family: 'Georgia', 'Times New Roman', serif;
+        }
+        .widget {
+            background: transparent;
+            border-radius: 2rem;
+            padding: 1.8rem;
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,245,175,0.1);
+        }
+        .widget-title {
+            font-size: 1.7rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #FFEEDD, #CFE0FF);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .widget-desc {
+            font-size: 0.8rem;
+            color: #cbdefc;
+            margin: 0.3rem 0 1.2rem;
+            border-left: 2px solid #ffbc6e;
+            padding-left: 0.7rem;
+            text-align: left;
+        }
+        .quote-text {
+            font-size: 1.2rem;
+            font-style: italic;
+            line-height: 1.4;
+            margin: 0.8rem 0;
+            color: #F9F2E0;
+        }
+        .quote-author {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            margin-bottom: 1.2rem;
+            color: #e7dbbc;
+        }
+        .refresh-btn {
+            background: rgba(255,245,200,0.18);
+            border: none;
+            color: #ffecb3;
+            padding: 0.4rem 1.2rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: 0.2s;
+        }
+        .refresh-btn:hover {
+            background: rgba(255,200,100,0.5);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+<div class="widget">
+    <div class="widget-title">✨ Thought of the day</div>
+    <div class="widget-desc">A random quote to set the mood. Refresh anytime.</div>
+    <div class="quote-text" id="quote">"Magic begins beyond your comfort zone"</div>
+    <div class="quote-author" id="author">~ Unknown author</div>
+    <button class="refresh-btn" id="newQuote">🎲 New quote</button>
+</div>
+<script>
+    const quotes = [
+        { text: "Simplicity is the ultimate sophistication.", author: "Leonardo da Vinci" },
+        { text: "Try not to become a person of success, but a person of value.", author: "Albert Einstein" },
+        { text: "Your time is limited, so don't waste it living someone else's life.", author: "Steve Jobs" },
+        { text: "Every day is a little life.", author: "Maxim Gorky" },
+        { text: "Be the change that you wish to see in the world.", author: "Mahatma Gandhi" },
+        { text: "Action is the foundational key to all success.", author: "Pablo Picasso" },
+        { text: "Don't wait for the perfect moment — create it yourself.", author: "Unknown" },
+        { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+        { text: "Fall seven times, stand up eight.", author: "Japanese proverb" }
+    ];
+    const quoteEl = document.getElementById('quote');
+    const authorEl = document.getElementById('author');
+    function randomQuote() {
+        const idx = Math.floor(Math.random() * quotes.length);
+        quoteEl.innerText = `❝ ${quotes[idx].text} ❞`;
+        authorEl.innerText = `— ${quotes[idx].author}`;
+    }
+    document.getElementById('newQuote').addEventListener('click', randomQuote);
+    randomQuote();
+</script>
+</body>
+</html>

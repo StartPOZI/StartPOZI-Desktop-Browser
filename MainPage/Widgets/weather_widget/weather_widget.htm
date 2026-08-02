@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather | Widget</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 80% 50%, #1f2e3c, #0b111c);
+            font-family: 'Segoe UI', system-ui;
+        }
+        .widget {
+            background: transparent;
+            border-radius: 2rem;
+            padding: 1.6rem;
+            text-align: center;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,245,190,0.1);
+            max-width: 320px;
+            width: 100%;
+        }
+        .widget-title {
+            font-size: 1.7rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #FFF0D6, #BED6FF);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .widget-desc {
+            font-size: 0.8rem;
+            color: #bed1f5;
+            margin: 0.3rem 0 1rem;
+            border-left: 2px solid #ffbc6e;
+            padding-left: 0.7rem;
+            text-align: left;
+        }
+        .weather-icon {
+            font-size: 3rem;
+            margin: 0.3rem 0;
+        }
+        .temp {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #fff0ce;
+        }
+        .desc {
+            font-size: 1rem;
+            margin: 0.2rem 0;
+        }
+        .city {
+            font-size: 0.75rem;
+            opacity: 0.8;
+            margin: 0.3rem 0 0.8rem;
+        }
+        button {
+            background: rgba(255,245,200,0.18);
+            border: none;
+            color: #ffe2b5;
+            padding: 0.3rem 1rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        button:hover {
+            background: rgba(255,195,100,0.5);
+        }
+    </style>
+</head>
+<body>
+<div class="widget">
+    <div class="widget-title">🌤️ Light weather</div>
+    <div class="widget-desc">Simulated weather for inspiration. You can refresh the state.</div>
+    <div class="weather-icon" id="weatherIcon">☀️</div>
+    <div class="temp" id="tempValue">+21°C</div>
+    <div class="desc" id="weatherDesc">Sunny, clear</div>
+    <div class="city" id="cityName">📍 Saint Petersburg</div>
+    <button id="refreshWeather">🔄 Refresh weather</button>
+</div>
+<script>
+    const conditions = [
+        { emoji: "☀️", desc: "Sunny", temps: [18, 28] },
+        { emoji: "⛅", desc: "Partly cloudy", temps: [14, 22] },
+        { emoji: "🌥️", desc: "Cloudy", temps: [12, 19] },
+        { emoji: "🌦️", desc: "Light rain", temps: [8, 15] },
+        { emoji: "🌈", desc: "Rainbow breeze", temps: [15, 21] },
+        { emoji: "❄️", desc: "Light snow", temps: [-2, 4] },
+        { emoji: "🌬️", desc: "Windy", temps: [5, 12] }
+    ];
+    const cities = ["Saint Petersburg", "Moscow", "Kazan", "Novosibirsk", "Vladivostok", "Yekaterinburg"];
+
+    function updateWeather() {
+        const randCond = conditions[Math.floor(Math.random() * conditions.length)];
+        const [minT, maxT] = randCond.temps;
+        const temp = Math.floor(Math.random() * (maxT - minT + 1) + minT);
+        const sign = temp > 0 ? '+' : '';
+        document.getElementById('weatherIcon').innerText = randCond.emoji;
+        document.getElementById('tempValue').innerText = `${sign}${temp}°C`;
+        document.getElementById('weatherDesc').innerText = randCond.desc;
+        const randomCity = cities[Math.floor(Math.random() * cities.length)];
+        document.getElementById('cityName').innerText = `📍 ${randomCity}`;
+    }
+    document.getElementById('refreshWeather').addEventListener('click', updateWeather);
+    updateWeather();
+</script>
+</body>
+</html>

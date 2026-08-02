@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media widget | Upload an image/GIF</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 60% 40%, #1e2a36, #0b1018);
+            font-family: system-ui, 'Segoe UI';
+        }
+        .widget {
+            background: transparent;
+            border-radius: 2rem;
+            padding: 1.8rem;
+            text-align: center;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,250,180,0.1);
+            max-width: 340px;
+            width: 100%;
+        }
+        .widget-title {
+            font-size: 1.7rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #FFECCF, #C0D4FF);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .widget-desc {
+            font-size: 0.8rem;
+            color: #c5d3f0;
+            margin: 0.4rem 0 1.2rem;
+            border-left: 2px solid #ffbc6e;
+            padding-left: 0.7rem;
+            text-align: left;
+        }
+        .preview {
+            width: 130px;
+            height: 130px;
+            object-fit: contain;
+            background: rgba(0,0,0,0.2);
+            border-radius: 32px;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(3px);
+            border: 1px dashed #ffd58c;
+            padding: 0.4rem;
+        }
+        .file-label {
+            background: rgba(255,245,210,0.15);
+            padding: 0.5rem 1.3rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            display: inline-block;
+            font-size: 0.9rem;
+            color: #f5eac1;
+            transition: 0.2s;
+        }
+        .file-label:hover {
+            background: rgba(255,205,100,0.5);
+        }
+        input {
+            display: none;
+        }
+        small {
+            display: block;
+            margin-top: 0.8rem;
+            opacity: 0.6;
+            color: #cbdcff;
+        }
+    </style>
+</head>
+<body>
+<div class="widget">
+    <div class="widget-title">🖼️ Media widget</div>
+    <div class="widget-desc">Upload an icon, GIF or any image — it will decorate your start page.</div>
+    <img id="previewImg" class="preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ddd9cc'%3E%3Cpath d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z'/%3E%3C/svg%3E" alt="preview">
+    <label for="uploadFile" class="file-label">📁 Choose a GIF / icon</label>
+    <input type="file" id="uploadFile" accept="image/gif,image/png,image/jpeg,image/webp,image/svg+xml">
+    <small>GIF, PNG, JPG, WEBP are supported</small>
+</div>
+<script>
+    const fileInput = document.getElementById('uploadFile');
+    const preview = document.getElementById('previewImg');
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const url = URL.createObjectURL(file);
+            preview.src = url;
+            preview.onload = () => URL.revokeObjectURL(url);
+        } else if (file) {
+            alert('Please select an image (gif, png, jpg)');
+        }
+    });
+</script>
+</body>
+</html>

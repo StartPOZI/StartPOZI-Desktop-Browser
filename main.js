@@ -31,10 +31,27 @@ require('events').EventEmitter.defaultMaxListeners = 50;
   }
 })();
 
+// Privacy: remove leftover diagnostics log that recorded requests to Google
+// (headers + JS-probe of navigator properties). The diagnostic code has been
+// removed; this wipes any pre-existing file from earlier versions.
+(function _purgeStaleDiagnostics() {
+  try {
+    var staleLog = path.join(app.getPath('userData'), 'google-headers-debug.log');
+    if (fs.existsSync(staleLog)) fs.unlinkSync(staleLog);
+  } catch(e) {}
+})();
+
 let mainWindow;
 
 var _pendingDialogs = {};
 var _pendingPermRequests = {};
+// Per-session (until browser restart) permission grants from the popup's
+// "Allow while on this site" button. Cleared on app quit. Not persisted to disk.
+// Shape: { [domain]: { [permissionCamel]: true } }
+var _sessionPermissions = {};
+// In-memory geo-override coordinates per domain (set via Site Info panel).
+// Shape: { [domain]: { lat:Number, lng:Number, accuracy:Number } }
+var _geoOverrides = {};
 
 // Disable KWallet and other password prompts
 app.commandLine.appendSwitch('password-store', 'basic');
@@ -140,8 +157,170 @@ var _secChUaBrands = '"Chromium";v="' + _chromeMajorVersion + '", "Not:A-Brand";
 // is suspicious. Now the versions match the engine — we send it like Chrome.
 var _secChUaFullVersionList = '"Chromium";v="' + _chromeFullVersion + '", "Not:A-Brand";v="24.0.0.0", "Google Chrome";v="' + _chromeFullVersion + '"';
 
+// ============================================================================
+// PERMISSION REQUEST HANDLER (unified)
+// ----------------------------------------------------------------------------
+// Single source of truth for setPermissionRequestHandler. Used both from
+// createWindow() and applySecuritySettings() so security toggles no longer
+// overwrite the per-site popup logic.
+//
+// Resolution order (first match wins):
+//   1. Internal StartPOZI pages (Settings/MainPage/ErrorPage) → always allow
+//   2. Global security toggles (autoplayBlock, blockNotifications,
+//      blockGeolocation) → deny
+//   3. Persistent per-site decisions in settings.json (true/false)
+//   4. Session grants ("Allow while on this site") — in-memory only
+//   5. Otherwise → ask the user via 'permission-request' IPC → popup
+// ============================================================================
+// Normalise Chromium permission names to canonical camelCase keys that match
+// what is stored in settings.json and shown in the Site Info panel.
+function _normalisePermKey(permission) {
+  var p = String(permission || '');
+  // kebab → camelCase (clipboard-read → clipboardRead)
+  if (p.indexOf('-') > -1) {
+    return p.replace(/-([a-z])/g, function(_, c) { return c.toUpperCase(); });
+  }
+  return p;
+}
+
+function _isInternalPage(url) {
+  try {
+    if (!url) return false;
+    return url.indexOf('file://') === 0 && (
+      url.indexOf('Settings.html') > -1 ||
+      url.indexOf('MainPage/index.html') > -1 ||
+      url.indexOf('ErrorPage/index.html') > -1 ||
+      url.indexOf('ErrorPage/security.html') > -1 ||
+      url.indexOf('IncognitoPage.html') > -1 ||
+      url.indexOf('MainPage/IncognitoPage.html') > -1 ||
+      url.indexOf('TaskManager.html') > -1 ||
+      url.indexOf('Library.html') > -1 ||
+      url.indexOf('CustomizeToolbar.html') > -1
+    );
+  } catch(e) { return false; }
+}
+
+function _makePermissionHandler(sec) {
+  sec = sec || {};
+  return function(webContents, permission, callback) {
+    try {
+      var url = webContents ? webContents.getURL() : '';
+      var domain = '';
+      try { domain = url ? new URL(url).hostname : ''; } catch(e) {}
+
+      // (1) Internal pages always get full access.
+      if (_isInternalPage(url)) { callback(true); return; }
+
+      var permKey = _normalisePermKey(permission);
+
+      // (2) Global security toggles take priority over per-site decisions.
+      // NOTE: autoplayBlock is intentionally NOT mapped to the 'media'
+      // permission here. In Chromium 'media' = camera/microphone access, not
+      // autoplay. Autoplay is already restricted via the
+      // 'autoplay-policy=user-gesture-required' command-line switch + the
+      // play()-wrapper injected by preload-webview.js. Mapping autoplayBlock
+      // to permission 'media' silently denied every mic/cam request, which
+      // is why onlinemictest.com showed "Permission denied" without a popup.
+      if (permKey === 'notifications' && sec.blockNotifications) { callback(false); return; }
+      if (permKey === 'geolocation' && sec.blockGeolocation && !sec.spoofGeolocation) {
+        callback(false); return;
+      }
+      // When spoofGeolocation is on, we *grant* the permission so the page
+      // receives fake coordinates injected by preload-webview.js.
+      if (permKey === 'geolocation' && sec.spoofGeolocation) { callback(true); return; }
+      if ((permKey === 'clipboardRead' || permKey === 'clipboardWrite') && sec.blockClipboard) {
+        callback(false); return;
+      }
+
+      // (3) Persistent per-site decision (true = allow, false = block).
+      if (domain) {
+        var store = readStorage();
+        var sitePerms = (store.sitePermissions && store.sitePermissions[domain]) || {};
+        if (permKey in sitePerms) {
+          var v = sitePerms[permKey];
+          // Accept booleans and 'allow'/'block' strings for forwards-compat.
+          if (v === true || v === 'allow') { callback(true); return; }
+          if (v === false || v === 'block') { callback(false); return; }
+        }
+
+        // (4) Session-scoped grant ("Allow while on this site").
+        var sess = (_sessionPermissions[domain] && _sessionPermissions[domain][permKey]);
+        if (sess === true) { callback(true); return; }
+      }
+
+      // (5) Ask the user.
+      var dialogId = 'perm-' + Date.now() + '-' + Math.random().toString(36).substr(2,5);
+      _pendingPermRequests[dialogId] = {
+        callback: callback,
+        domain: domain,
+        permission: permKey
+      };
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('permission-request', {
+            dialogId: dialogId,
+            domain: domain,
+            permission: permKey,
+            // Friendly icon hint for the renderer.
+            icon: _permIcon(permKey)
+          });
+        }
+      } catch(e2) {}
+
+      // Auto-deny after 60s (raised from 30s — three-button choice takes longer).
+      setTimeout(function() {
+        var req = _pendingPermRequests[dialogId];
+        if (req) {
+          delete _pendingPermRequests[dialogId];
+          try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('permission-request-timeout', { dialogId: dialogId }); } catch(e) {}
+          req.callback(false);
+        }
+      }, 60000);
+    } catch(e) {
+      try { callback(true); } catch(_) {}
+    }
+  };
+}
+
+// Friendly lucide-style icon name per permission type (rendered in popup).
+function _permIcon(permKey) {
+  switch (permKey) {
+    case 'geolocation': return 'location';
+    case 'notifications': return 'bell';
+    case 'media':
+    case 'audioCapture':
+    case 'videoCapture': return 'mic';
+    case 'clipboardRead':
+    case 'clipboardWrite': return 'clipboard';
+    case 'fullscreen': return 'maximize';
+    case 'midi':
+    case 'midiSysex': return 'music';
+    case 'openExternal': return 'external';
+    case 'pointerLock': return 'pointer';
+    case 'persistentStorage': return 'database';
+    case 'usb': return 'usb';
+    default: return 'shield';
+  }
+}
+
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  // Restore last window position/size so the browser opens where the user
+  // left it — not always at the default 1200x800 in the screen corner.
+  // Persisted in window-state.json next to settings.json.
+  var savedBounds = null;
+  var startMaximized = false;
+  try {
+    var statePath = path.join(app.getPath('userData'), 'window-state.json');
+    if (fs.existsSync(statePath)) {
+      var parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.bounds && typeof parsed.bounds.width === 'number') savedBounds = parsed.bounds;
+        if (parsed.maximized === true) startMaximized = true;
+      }
+    }
+  } catch(e) {}
+
+  var windowOpts = {
     width: 1200,
     height: 800,
     minWidth: 800,
@@ -157,8 +336,49 @@ function createWindow() {
       webSecurity: true
     },
     title: ''
-  });
+  };
+  // Apply saved bounds only when they fit inside a currently-attached display
+  // (otherwise a disconnected second monitor would leave the window invisible).
+  if (savedBounds) {
+    try {
+      var screen = require('electron').screen;
+      var visible = savedBounds.width >= 400 && savedBounds.height >= 300 &&
+        screen.getAllDisplays().some(function(d) {
+          var r = d.bounds;
+          // Some part of the saved rectangle must overlap a display.
+          return savedBounds.x < r.x + r.width && savedBounds.x + savedBounds.width > r.x &&
+                 savedBounds.y < r.y + r.height && savedBounds.y + savedBounds.height > r.y;
+        });
+      if (visible) {
+        windowOpts.x = savedBounds.x;
+        windowOpts.y = savedBounds.y;
+        windowOpts.width = savedBounds.width;
+        windowOpts.height = savedBounds.height;
+      }
+    } catch(e) {}
+  }
+
+  mainWindow = new BrowserWindow(windowOpts);
+  if (startMaximized) {
+    try { mainWindow.maximize(); } catch(e) {}
+  }
   _mainWindow = mainWindow;
+
+  // Keep the renderer informed about window state so the macOS-style
+  // window controls can switch their maximize/restore glyph and dim their
+  // colors when the window loses focus.
+  mainWindow.on('maximize', function() {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-state-changed', { maximized: true });
+  });
+  mainWindow.on('unmaximize', function() {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-state-changed', { maximized: false });
+  });
+  mainWindow.on('focus', function() {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-focus-changed', { focused: true });
+  });
+  mainWindow.on('blur', function() {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-focus-changed', { focused: false });
+  });
 
   // Disable KWallet password prompt by clearing storage
   mainWindow.webContents.session.clearStorageData({
@@ -237,40 +457,48 @@ function createWindow() {
     });
   });
 
-  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+  // Unified permission handler — defined once, reused by applySecuritySettings
+  // so toggling security options no longer overwrites the per-site popup flow.
+  try {
+    var initSec = (readStorage().security) || {};
+    mainWindow.webContents.session.setPermissionRequestHandler(_makePermissionHandler(initSec));
+  } catch(e) {}
+
+  // === Certificate verifier — per-site exceptions for self-signed/expired
+  // certs. IMPORTANT: this runs for EVERY https request, so it must be fast.
+  // We cache certExceptions in memory instead of reading settings.json each
+  // time (which made every page take seconds to load).
+  var _certExceptionsCache = null;
+  function _loadCertExceptionsCache() {
     try {
-      const url = webContents.getURL();
-      const domain = new URL(url).hostname;
-      const store = readStorage();
-      const sitePerms = (store.sitePermissions && store.sitePermissions[domain]) || {};
-      if (permission in sitePerms) {
-        callback(sitePerms[permission]);
-        return;
+      var s = readStorage();
+      _certExceptionsCache = s.certExceptions || {};
+    } catch(e) { _certExceptionsCache = {}; }
+  }
+  _loadCertExceptionsCache();
+  try {
+    mainWindow.webContents.session.setCertificateVerifyProc(function verifyCert(request, callback) {
+      try {
+        var hostname = (request && request.hostname) || '';
+        // Loopback / internal pages — always trusted.
+        if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+          callback(0); return;
+        }
+        // User-accepted per-site exception — trust regardless of cert state.
+        if (_certExceptionsCache && _certExceptionsCache[hostname] === true) {
+          callback(0); return;
+        }
+        // Otherwise — defer to Chromium. -3 = "use the default verification"
+        // so any ERR_CERT_* error code is preserved on its way to
+        // did-fail-load, where the renderer routes it to ErrorPage/security.html.
+        // Returning -2 (distrust) here collapsed every cert problem into a
+        // generic error and made some borderline-but-valid sites fail outright.
+        callback(-3);
+      } catch(e) {
+        try { callback(-3); } catch(_) {}
       }
-    } catch(e) { callback(true); return; }
-
-    var dialogId = 'perm-' + Date.now() + '-' + Math.random().toString(36).substr(2,5);
-    _pendingPermRequests[dialogId] = { callback: callback, domain: undefined, permission: permission };
-
-    try {
-      var permUrl = webContents.getURL();
-      var permDomain = new URL(permUrl).hostname;
-      _pendingPermRequests[dialogId].domain = permDomain;
-      mainWindow.webContents.send('permission-request', {
-        dialogId: dialogId,
-        domain: permDomain,
-        permission: permission
-      });
-    } catch(e2) {}
-
-    setTimeout(function() {
-      var req = _pendingPermRequests[dialogId];
-      if (req) {
-        delete _pendingPermRequests[dialogId];
-        req.callback(false);
-      }
-    }, 30000);
-  });
+    });
+  } catch(e) {}
 
   mainWindow.loadFile('index.html');
   applySecuritySettings();
@@ -307,6 +535,9 @@ function createWindow() {
   });
 
   mainWindow.on('minimize', () => {
+    // Notify renderer so it can freeze ALL tabs (regular + incognito) —
+    // no point burning CPU on background pages while the window is hidden.
+    try { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-minimized'); } catch(e) {}
     var store = readStorage();
     var opt = store.optimization || {};
     if (opt.clearOnMinimize) {
@@ -314,6 +545,11 @@ function createWindow() {
       ses.clearCache().catch(function(){});
       if (global.gc) global.gc();
     }
+  });
+
+  mainWindow.on('restore', () => {
+    // Unfreeze the active tab — background tabs stay frozen until clicked.
+    try { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-restored'); } catch(e) {}
   });
 }
 
@@ -332,12 +568,22 @@ app.on('web-contents-created', (event, contents) => {
     event.preventDefault();
     var dialogId = 'dlg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
     _pendingDialogs[dialogId] = { type: type, callback: callback };
+    // Capture the page URL/domain so the renderer can show it Chrome-style
+    // (the dialog belongs to a specific site, not the browser).
+    var pageUrl = '';
+    var pageDomain = '';
+    try {
+      pageUrl = contents && contents.getURL ? contents.getURL() : '';
+      if (pageUrl) pageDomain = new URL(pageUrl).hostname;
+    } catch(e) {}
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('show-webview-dialog', {
         dialogId: dialogId,
         type: type,
-        message: message,
-        defaultText: defaultText || ''
+        message: message || '',
+        defaultText: defaultText || '',
+        url: pageUrl,
+        domain: pageDomain
       });
     } else {
       callback(type === 'confirm' ? false : (type === 'prompt' ? '' : undefined));
@@ -544,6 +790,11 @@ app.whenReady().then(async () => {
   const initStore = readStorage();
   initStore._sessionStartTime = Date.now();
   writeStorage(initStore);
+  // One-time secure defaults: if a master password already exists (set before
+  // the Protection/Backup toggles were introduced), turn those two protections
+  // ON. Runs once (_secureDefaultsApplied flag); later the user's explicit
+  // choices — including turning them OFF with the password — are respected.
+  _applySecureDefaultsIfNeeded();
   if (initStore.windowOpacity !== undefined && initStore.windowOpacity < 1) {
     mainWindow.setOpacity(Math.max(0.1, Math.min(1, initStore.windowOpacity)));
   }
@@ -573,39 +824,6 @@ app.whenReady().then(async () => {
     // otherwise incognito and new tabs go directly bypassing the proxy.
     try { _ensureProxyOnSession(webContents.session); } catch(e) {}
 
-    // DIAGNOSTICS: after loading the Google page — check whether
-    // the page sees the substituted navigator.userAgentData or the original Electron.
-    webContents.on('dom-ready', function() {
-      try {
-        var url = webContents.getURL() || '';
-        if (url.indexOf('google') === -1) return;
-        webContents.executeJavaScript(
-          '(function(){try{' +
-          'var u=navigator.userAgentData;' +
-          'var brands=u&&u.brands?JSON.stringify(u.brands):"no-userAgentData";' +
-          'var ua=navigator.userAgent;' +
-          'var wd=navigator.webdriver;' +
-          'var wc=typeof window.chrome;' +
-          'var wcr=!!(window.chrome&&window.chrome.runtime);' +
-          'var plugins=navigator.plugins?navigator.plugins.length:-1;' +
-          'var ow=window.outerWidth,iw=window.innerWidth,oh=window.outerHeight,ih=window.innerHeight;' +
-          'var dm=navigator.deviceMemory;' +
-          'var nc=navigator.connection?navigator.connection.effectiveType:"none";' +
-          'var perm=navigator.permissions?"ok":"none";' +
-          'return JSON.stringify({brands:brands,ua:ua.substring(0,100),webdriver:wd,windowChrome:wc,chromeRuntime:wcr,plugins:plugins,' +
-          'outerW:ow,innerW:iw,outerH:oh,innerH:ih,hDelta:oh-ih,devMem:dm,conn:nc,perm:perm});' +
-          '}catch(e){return "ERR:"+e.message;}})()'
-        ).then(function(result) {
-          try {
-            fs.appendFileSync(
-              path.join(electronApp.getPath('userData'), 'google-headers-debug.log'),
-              '[JS-CHECK] ' + new Date().toISOString() + ' ' + url.substring(0,60) + ' → ' + result + '\n'
-            );
-          } catch(e) {}
-        }).catch(function() {});
-      } catch(e) {}
-    });
-
     webContents.on('before-input-event', (event, input) => {
       _handleBrowserShortcut(event, input, webContents);
     });
@@ -618,7 +836,22 @@ app.whenReady().then(async () => {
   });
 });
 
+// Persist the window's position/size/maximized state so the next launch
+// reopens the browser exactly where the user left it.
+function _saveWindowState() {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    var bounds = mainWindow.getNormalBounds ? mainWindow.getNormalBounds() : mainWindow.getBounds();
+    var maximized = mainWindow.isMaximized ? mainWindow.isMaximized() : false;
+    fs.writeFileSync(
+      path.join(app.getPath('userData'), 'window-state.json'),
+      JSON.stringify({ bounds: bounds, maximized: maximized })
+    );
+  } catch(e) {}
+}
+
 app.on('window-all-closed', () => {
+  _saveWindowState();
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -666,7 +899,100 @@ function readStorage() {
 }
 function writeStorage(data) {
   try {
+    if (!data || typeof data !== 'object') return;
+    // === Bloat guard ===
+    // settings.json is read synchronously on every IPC call. If it grows
+    // past a couple of MB the whole browser becomes sluggish and crashes.
+    // We hard-cap the worst offenders on every write.
+    try {
+      // 1) blockedLog — limit to 200 entries.
+      if (Array.isArray(data.blockedLog) && data.blockedLog.length > 200) {
+        data.blockedLog = data.blockedLog.slice(-200);
+      }
+      // 2) Base64 background images can balloon to 250KB each and are often
+      //    stored 2-3 times (customization + mainPage). Hard-cap each to
+      //    100KB and de-duplicate identical strings.
+      var cust = (data.customization && typeof data.customization === 'object') ? data.customization : null;
+      var mp = (data.mainPage && typeof data.mainPage === 'object') ? data.mainPage : null;
+      var cbi = cust ? cust.customBackgroundImage : '';
+      // Pairwise dedup: if mainPageBackground / startpozi_background equal
+      // customBackgroundImage, drop the duplicates (keep just one copy).
+      if (cbi && typeof cbi === 'string' && cbi.length > 5000) {
+        if (cust && cust.mainPageBackground === cbi) delete cust.mainPageBackground;
+        if (mp && mp.startpozi_background === cbi) delete mp.startpozi_background;
+      } else if (cust && mp && cust.mainPageBackground && cust.mainPageBackground === mp.startpozi_background) {
+        delete mp.startpozi_background;
+      }
+      // Cap individual long base64 strings at 100KB to keep the file
+      // bounded even if dedup did not catch them.
+      function capStr(parent, key) {
+        if (parent && typeof parent === 'object' && typeof parent[key] === 'string' && parent[key].length > 100000) {
+          parent[key] = parent[key].slice(0, 100000);
+        }
+      }
+      capStr(cust, 'customBackgroundImage');
+      capStr(cust, 'mainPageBackground');
+      capStr(mp, 'startpozi_background');
+      // 3) Sanity cap: if the whole settings.json somehow exceeds 1.5 MB
+      //    after the above, drop blockedLog entirely and re-trim. This is
+      //    a last-resort safety so the browser can never lock itself out.
+      try {
+        var preview = JSON.stringify(data);
+        if (preview.length > 1500000) {
+          data.blockedLog = (data.blockedLog || []).slice(-50);
+        }
+      } catch(_) {}
+    } catch(_) {}
     fs.writeFileSync(storagePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch(e) {}
+}
+
+// ============== BACKGROUND IMAGE PERSISTENCE ==============
+// User-uploaded wallpapers arrive as base64 data URLs. Storing them inline in
+// settings.json bloats the file (read synchronously on every IPC call → the
+// browser gets sluggish), and the legacy 100 KB cap in writeStorage() silently
+// truncated them — corrupting the base64 so the wallpaper never came back
+// after a reload.
+//
+// Fix: dump each data URL to <userData>/backgrounds/<sha1>.<ext> and keep only
+// a short file:// URL in settings.json. The conversion is content-addressed
+// (sha1 of the base64), so repeated saves of the same image are idempotent.
+function _bgDir() {
+  var dir = path.join(app.getPath('userData'), 'backgrounds');
+  try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch(e) {}
+  return dir;
+}
+function _dataUrlToBgFile(dataUrl) {
+  try {
+    var m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(String(dataUrl));
+    if (!m) return dataUrl; // not a data URL → return unchanged
+    var ext = m[1].split('/')[1].replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+    var hash = crypto.createHash('sha1').update(m[2]).digest('hex').slice(0, 24);
+    var file = path.join(_bgDir(), hash + '.' + ext);
+    if (!fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(m[2], 'base64'));
+    return 'file://' + file.replace(/\\/g, '/');
+  } catch(e) { return dataUrl; }
+}
+// Replace every data: URL embedded in an arbitrary CSS shorthand string
+// (e.g. MainPage's `url("data:...") no-repeat center center / cover fixed`)
+// with a file:// URL. Non-data-URL strings pass through untouched.
+function _replaceDataUrlsInCss(cssStr) {
+  if (!cssStr || typeof cssStr !== 'string' || cssStr.indexOf('data:') === -1) return cssStr;
+  return cssStr.replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, function(m) {
+    return _dataUrlToBgFile(m);
+  });
+}
+// Broadcast customization changes to EVERY webContents (main window + all
+// <webview> tags: Settings, Library, TaskManager, MainPage). The previous code
+// only sent to mainWindow.webContents, so webviews — which live in separate
+// renderer processes — never received live wallpaper/gradient updates.
+function _broadcastCustomization(customization) {
+  try {
+    var _wc = require('electron').webContents;
+    var payload = customization || {};
+    _wc.getAllWebContents().forEach(function(wc) {
+      try { wc.send('customization-updated', payload); } catch(e) {}
+    });
   } catch(e) {}
 }
 
@@ -1173,29 +1499,10 @@ function applySecuritySettings() {
     try { ses.setWebRTCIPHandlingPolicy('default'); } catch(e) {}
   }
 
-  var needPermHandler = sec.autoplayBlock || sec.blockNotifications || sec.blockGeolocation;
-  if (needPermHandler) {
-    ses.setPermissionRequestHandler(function(webContents, permission, callback) {
-      if (permission === 'media' && sec.autoplayBlock) {
-        try {
-          var url = webContents ? webContents.getURL() : '';
-          if (url.indexOf('Settings.html') > -1 || url.indexOf('MainPage/index.html') > -1 || url.indexOf('ErrorPage/index.html') > -1) {
-            callback(true);
-            return;
-          }
-        } catch(e) {}
-        callback(false);
-      } else if (permission === 'notifications' && sec.blockNotifications) {
-        callback(false);
-      } else if (permission === 'geolocation' && sec.blockGeolocation) {
-        callback(false);
-      } else {
-        callback(true);
-      }
-    });
-  } else {
-    ses.setPermissionRequestHandler(null);
-  }
+  // Permission handler is now owned by _makePermissionHandler (single source
+  // of truth). Security toggles are evaluated inside it, so we just refresh
+  // the bound config — never overwrite with a stripped-down handler again.
+  try { ses.setPermissionRequestHandler(_makePermissionHandler(sec)); } catch(e) {}
 
   if (sec.blockThirdPartyCookies) {
     _secBeforeSendHeaders = function(details, callback) {
@@ -1255,14 +1562,12 @@ function applySecuritySettings() {
     if (!securityHandler) {
       var h0 = details.requestHeaders || {};
       _applyChromeHeadersToObject(h0);
-      _diagLog(details, h0);
       callback({ requestHeaders: h0 });
       return;
     }
     securityHandler(details, function(res) {
       var h1 = (res && res.requestHeaders) || details.requestHeaders || {};
       _applyChromeHeadersToObject(h1);
-      _diagLog(details, h1);
       callback({ requestHeaders: h1 });
     });
   };
@@ -1410,49 +1715,9 @@ function _ensureChromeHeadersOnSession(ses) {
     ses.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, function(details, callback) {
       var h = details.requestHeaders || {};
       _applyChromeHeadersToObject(h);
-      _diagLog(details, h);
       callback({ requestHeaders: h });
     });
     try { ses.setUserAgent(_uaPlatformString); } catch(e) {}
-  } catch(e) {}
-}
-
-// DIAGNOSTICS: write request headers to Google to a file, to understand
-// whether the substitution is really applied. File: userData/google-headers-debug.log
-var _diagLogPath = null;
-var _diagLastFlush = 0;
-var _diagBuf = [];
-function _diagLog(details, headers) {
-  try {
-    if (!details || !details.url) return;
-    var host = '';
-    try { host = new URL(details.url).hostname; } catch(e) { return; }
-    if (host.indexOf('google') === -1 && host.indexOf('googleapis') === -1) return;
-    if (!_diagLogPath) {
-      _diagLogPath = path.join(electronApp.getPath('userData'), 'google-headers-debug.log');
-    }
-    var ua = '', secua = '', secplat = '', secmobile = '';
-    Object.keys(headers).forEach(function(k) {
-      var lk = k.toLowerCase();
-      if (lk === 'user-agent') ua = headers[k];
-      else if (lk === 'sec-ch-ua') secua = headers[k];
-      else if (lk === 'sec-ch-ua-platform') secplat = headers[k];
-      else if (lk === 'sec-ch-ua-mobile') secmobile = headers[k];
-    });
-    var hasElectron = (ua && ua.indexOf('Electron') > -1) || (secua && secua.indexOf('Electron') > -1);
-    var line = new Date().toISOString() + ' | ' + host + details.path + ' | resourceType=' + (details.resourceType || '?') +
-      ' | UA=' + (ua ? ua.substring(0, 80) : 'NONE') +
-      ' | sec-ch-ua=' + (secua || 'NONE') +
-      ' | sec-ch-ua-platform=' + (secplat || 'NONE') +
-      ' | sec-ch-ua-mobile=' + (secmobile || 'NONE') +
-      ' | ⚠ELECTRON_LEAK=' + (hasElectron ? 'YES' : 'no') + '\n';
-    _diagBuf.push(line);
-    var now = Date.now();
-    if (now - _diagLastFlush > 2000 || _diagBuf.length > 30) {
-      fs.appendFileSync(_diagLogPath, _diagBuf.join(''));
-      _diagBuf = [];
-      _diagLastFlush = now;
-    }
   } catch(e) {}
 }
 
@@ -1470,6 +1735,7 @@ try {
 
 // Save tabs when app quits
 app.on('before-quit', () => {
+  _saveWindowState();
   const store = readStorage();
   store.saveTabs = saveTabsSetting;
   store.saveInternalPages = saveInternalPagesSetting;
@@ -1507,19 +1773,45 @@ ipcMain.on('webview-dialog-response', (_, data) => {
   }
 });
 
+// Renderer → main: user picked a decision in the permission popup.
+// data.decision ∈ 'allow' | 'block' | 'session' | 'once' | 'dismiss'
+//   allow    → persist true  in settings.json (always allow for this site)
+//   block    → persist false in settings.json (always block for this site)
+//   session  → grant only for the current browser session (in-memory)
+//   once     → grant this single request, do not remember
+//   dismiss  → user closed the popup without choosing → deny once
+// Backwards-compat: data.allow (boolean) is still honoured.
 ipcMain.on('permission-response', (event, data) => {
   var req = _pendingPermRequests[data.dialogId];
   if (!req) return;
   delete _pendingPermRequests[data.dialogId];
-  var allowed = !!data.allow;
-  req.callback(allowed);
-  if (req.domain) {
-    var store = readStorage();
-    if (!store.sitePermissions) store.sitePermissions = {};
-    if (!store.sitePermissions[req.domain]) store.sitePermissions[req.domain] = {};
-    store.sitePermissions[req.domain][req.permission] = allowed;
-    writeStorage(store);
+
+  var decision = data.decision;
+  if (!decision) {
+    // Legacy boolean form.
+    decision = data.allow ? 'allow' : 'block';
   }
+
+  var allowed = (decision === 'allow' || decision === 'session' || decision === 'once');
+
+  // Resolve the Chromium request first so the page doesn't stall.
+  try { req.callback(allowed); } catch(e) {}
+
+  // Persist / cache the decision.
+  if (!req.domain) return;
+  if (decision === 'allow' || decision === 'block') {
+    try {
+      var store = readStorage();
+      if (!store.sitePermissions) store.sitePermissions = {};
+      if (!store.sitePermissions[req.domain]) store.sitePermissions[req.domain] = {};
+      store.sitePermissions[req.domain][req.permission] = (decision === 'allow');
+      writeStorage(store);
+    } catch(e) {}
+  } else if (decision === 'session') {
+    if (!_sessionPermissions[req.domain]) _sessionPermissions[req.domain] = {};
+    _sessionPermissions[req.domain][req.permission] = true;
+  }
+  // 'once' and 'dismiss' are not remembered.
 });
 
 // IPC from preload override (alert/confirm/prompt in webview pages)
@@ -1528,11 +1820,19 @@ ipcMain.handle('dialog-request', (event, data) => {
     if (!mainWindow || mainWindow.isDestroyed()) { resolve(null); return; }
     var dialogId = 'drq-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
     _pendingDialogs[dialogId] = { type: data.type, resolve: resolve };
+    var pageUrl = '';
+    var pageDomain = '';
+    try {
+      pageUrl = event && event.sender && event.sender.getURL ? event.sender.getURL() : '';
+      if (pageUrl) pageDomain = new URL(pageUrl).hostname;
+    } catch(e) {}
     mainWindow.webContents.send('show-webview-dialog', {
       dialogId: dialogId,
       type: data.type,
       message: data.message || '',
-      defaultText: data.defaultText || ''
+      defaultText: data.defaultText || '',
+      url: pageUrl,
+      domain: pageDomain
     });
   });
 });
@@ -1561,10 +1861,37 @@ ipcMain.handle('set-window-opacity', (_, opacity) => {
   const store = readStorage();
   store.windowOpacity = opacity;
   writeStorage(store);
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('window-opacity-changed', Math.max(0.1, Math.min(1, opacity)));
+  if (mainWindow) {
+    try { mainWindow.setOpacity(Math.max(0.1, Math.min(1, opacity))); } catch(e) {}
   }
   return { success: true };
+});
+
+// Translucent chrome mode — frosted glass effect on titlebar/navbar/panels.
+// Three-state: 'auto' (default, only for dark pages) / 'off' / 'always'.
+ipcMain.handle('get-translucent-mode', () => {
+  try {
+    var v = readStorage().translucentMode;
+    if (v === 'auto' || v === 'off' || v === 'always') return v;
+    if (v === true) return 'always'; // back-compat with the old boolean
+    return 'auto'; // default
+  } catch(e) { return 'auto'; }
+});
+ipcMain.handle('set-translucent-mode', (_, val) => {
+  try {
+    var s = readStorage();
+    // Normalise: only accept the three documented values.
+    if (val === 'auto' || val === 'off' || val === 'always') s.translucentMode = val;
+    else if (val === true) s.translucentMode = 'always';
+    else if (val === false) s.translucentMode = 'off';
+    else s.translucentMode = 'auto';
+    writeStorage(s);
+    // Notify the renderer so it can re-evaluate the current page.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('translucent-mode-changed', s.translucentMode);
+    }
+    return { success: true };
+  } catch(e) { return { success: false, error: e.message }; }
 });
 
 ipcMain.handle('get-search-engine', () => {
@@ -1895,6 +2222,21 @@ ipcMain.on('get-all-security-settings-sync', (event) => {
   };
 });
 
+// Synchronous per-site geo override lookup — used by preload-webview at load
+// time. Returns the {lat, lng, accuracy} saved via the Site Info panel, or null.
+ipcMain.on('get-geo-override-sync', (event, domain) => {
+  try {
+    if (!domain) { event.returnValue = null; return; }
+    const store = readStorage();
+    var p = store.sitePermissions && store.sitePermissions[domain];
+    if (p && p.geoOverride && typeof p.geoOverride.lat === 'number') {
+      event.returnValue = p.geoOverride;
+      return;
+    }
+  } catch(e) {}
+  event.returnValue = null;
+});
+
 ipcMain.handle('get-security-setting', (_, key) => {
   const store = readStorage();
   if (!store.security) return false;
@@ -2034,8 +2376,8 @@ ipcMain.handle('complete-setup', (_, settings) => {
   }
   try { if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('theme-updated', settings.theme || store.theme || 'dark');
-    mainWindow.webContents.send('customization-updated', store.customization || {});
   } } catch(e) {}
+  _broadcastCustomization(store.customization || {});
   return { success: true };
 });
 
@@ -2302,16 +2644,50 @@ ipcMain.handle('clear-history', () => {
 });
 
 // ============== SITE PERMISSIONS ==============
+// All permission keys are normalised to camelCase on the way in (see
+// _normalisePermKey), so reads/writes use one canonical form regardless of
+// whether Chromium emitted 'clipboard-read' or 'clipboardRead'.
 ipcMain.handle('get-site-permissions', () => {
   const store = readStorage();
-  return store.sitePermissions || {};
+  var raw = store.sitePermissions || {};
+  var out = {};
+  Object.keys(raw).forEach(function(domain) {
+    var src = raw[domain] || {};
+    var dst = {};
+    Object.keys(src).forEach(function(k) {
+      if (k === 'geoOverride') { dst.geoOverride = src[k]; return; }
+      dst[_normalisePermKey(k)] = src[k];
+    });
+    out[domain] = dst;
+  });
+  return out;
 });
 
 ipcMain.handle('set-site-permission', (_, domain, permission, value) => {
   const store = readStorage();
   if (!store.sitePermissions) store.sitePermissions = {};
   if (!store.sitePermissions[domain]) store.sitePermissions[domain] = {};
-  store.sitePermissions[domain][permission] = value;
+  if (value === undefined || value === null) {
+    delete store.sitePermissions[domain][_normalisePermKey(permission)];
+  } else {
+    store.sitePermissions[domain][_normalisePermKey(permission)] = value;
+  }
+  writeStorage(store);
+  return { success: true };
+});
+
+ipcMain.handle('set-geo-override', (_, domain, coords) => {
+  const store = readStorage();
+  if (!store.sitePermissions) store.sitePermissions = {};
+  if (!store.sitePermissions[domain]) store.sitePermissions[domain] = {};
+  if (coords && typeof coords === 'object') {
+    store.sitePermissions[domain].geoOverride = {
+      lat: Number(coords.lat), lng: Number(coords.lng),
+      accuracy: Number(coords.accuracy) || 50
+    };
+  } else {
+    delete store.sitePermissions[domain].geoOverride;
+  }
   writeStorage(store);
   return { success: true };
 });
@@ -2323,6 +2699,48 @@ ipcMain.handle('remove-site-permissions', (_, domain) => {
     writeStorage(store);
   }
   return { success: true };
+});
+
+// Per-site certificate exception — set from ErrorPage/security.html when the
+// user clicks "Proceed to site (unsafe)". Stored separately from
+// sitePermissions to make it easy to audit/clear security exceptions.
+ipcMain.handle('set-cert-exception', (_, domain, allow) => {
+  const store = readStorage();
+  if (!store.certExceptions) store.certExceptions = {};
+  if (allow) store.certExceptions[domain] = true;
+  else delete store.certExceptions[domain];
+  writeStorage(store);
+  // Refresh the in-memory cache so the verifier picks up the change without
+  // re-reading settings.json on the next request.
+  try { _certExceptionsCache = store.certExceptions; } catch(e) {}
+  return { success: true };
+});
+
+ipcMain.handle('get-cert-exceptions', () => {
+  const store = readStorage();
+  return store.certExceptions || {};
+});
+
+// HTTP-consent — when the user opens an http:// site we route them through
+// ErrorPage/security.html first. Once they click "Proceed" we remember the
+// hostname so subsequent visits do not nag them.
+ipcMain.handle('set-http-consent', (_, domain, allow) => {
+  const store = readStorage();
+  if (!store.httpConsents) store.httpConsents = {};
+  if (allow) store.httpConsents[domain] = true;
+  else delete store.httpConsents[domain];
+  writeStorage(store);
+  return { success: true };
+});
+
+ipcMain.handle('get-http-consent', (_, domain) => {
+  const store = readStorage();
+  return !!(store.httpConsents && store.httpConsents[domain]);
+});
+
+ipcMain.handle('get-all-http-consents', () => {
+  const store = readStorage();
+  return store.httpConsents || {};
 });
 
 // ============== COOKIES ==============
@@ -2661,9 +3079,18 @@ ipcMain.handle('get-customization-settings', () => {
 
 ipcMain.handle('save-customization-settings', (_, settings) => {
   const store = readStorage();
+  // Persist uploaded background as a file BEFORE storing, so settings.json
+  // never holds a huge base64 blob (which writeStorage would truncate → the
+  // wallpaper disappears after reload).
+  if (settings && typeof settings === 'object') {
+    if (typeof settings.customBackgroundImage === 'string' &&
+        settings.customBackgroundImage.indexOf('data:') === 0) {
+      settings.customBackgroundImage = _dataUrlToBgFile(settings.customBackgroundImage);
+    }
+  }
   store.customization = { ...(store.customization || {}), ...settings };
   writeStorage(store);
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('customization-updated', store.customization);
+  _broadcastCustomization(store.customization);
   return { success: true };
 });
 
@@ -2695,6 +3122,17 @@ ipcMain.handle('get-mainpage-data-sync', () => {
 ipcMain.on('set-mainpage-data', (_, snapshot) => {
   try {
     const store = readStorage();
+    // Persist any embedded base64 data URLs as files FIRST. Without this, a
+    // custom wallpaper uploaded on MainPage gets stored as a giant data URL,
+    // writeStorage's 100 KB cap truncates it, and the wallpaper is lost on
+    // reload (and never syncs to Settings/Library).
+    if (snapshot && typeof snapshot === 'object') {
+      Object.keys(snapshot).forEach(function(k) {
+        if (typeof snapshot[k] === 'string' && snapshot[k].indexOf('data:') > -1) {
+          snapshot[k] = _replaceDataUrlsInCss(snapshot[k]);
+        }
+      });
+    }
     store.mainPage = snapshot || {};
     if (snapshot && snapshot.startpozi_background) {
       var bg = snapshot.startpozi_background;
@@ -2709,11 +3147,9 @@ ipcMain.on('set-mainpage-data', (_, snapshot) => {
       store.customization.mainPageBackgroundRepeat = snapshot.startpozi_backgroundRepeat || '';
       store.customization.mainPageBackgroundPosition = snapshot.startpozi_backgroundPosition || '';
       store.customization.mainPageBackgroundAttachment = snapshot.startpozi_backgroundAttachment || '';
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('customization-updated', store.customization);
-      }
     }
     writeStorage(store);
+    _broadcastCustomization(store.customization);
   } catch(e) {}
 });
 
@@ -2950,30 +3386,72 @@ ipcMain.handle('create-incognito-tab', (_, url) => {
   return { success: true };
 });
 
+// Wipe everything an incognito tab accumulated during its session.
+// Called from renderer.js closeIncognitoTab() — automatically, no UI prompt.
+// Mirrors what "Break loupe" does to the default session, but scoped to the
+// tab's private partition so cookies/cache/localStorage are gone forever.
+ipcMain.handle('clear-incognito-partition', async (_, partition) => {
+  try {
+    if (!partition || typeof partition !== 'string') return { success: false };
+    var ses = session.fromPartition(partition);
+    // 1. Cookies — also remove manually in case httpOnly ones are missed.
+    try {
+      var cookies = await ses.cookies.get({});
+      for (var i = 0; i < cookies.length; i++) {
+        try {
+          await ses.cookies.remove(cookies[i].url || ('http://' + cookies[i].domain), cookies[i].name);
+        } catch(e) {}
+      }
+    } catch(e) {}
+    // 2. Cache + storage + auth cache + service workers + data for all hosts.
+    try {
+      await ses.clearCache();
+      await ses.clearStorageData({
+        storages: ['appcache', 'filesystem', 'indexdb', 'localstorage',
+                   'shadercache', 'websql', 'serviceworkers', 'cookies']
+      });
+      await ses.clearAuthCache();
+      await ses.clearHostResolverCache();
+    } catch(e) {}
+    // 3. Drop the in-memory tracking entry so the partition is forgotten.
+    delete _incognitoPartitions[partition];
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // ============== PASSWORDS ==============
 ipcMain.handle('get-passwords', () => {
   const store = readStorage();
+  if (store.passwordVault && store.masterAuth) {
+    if (!_vaultKey) return { locked: true };
+    try { return _decryptVault(store.passwordVault, _vaultKey); }
+    catch(e) { return { locked: true }; }
+  }
   return store.passwords || [];
 });
 
 ipcMain.handle('add-password', (_, pw) => {
   const store = readStorage();
-  const passwords = store.passwords || [];
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
   pw.id = 'pw-' + Date.now();
   pw.createdAt = Date.now();
   passwords.push(pw);
-  store.passwords = passwords;
+  if (!_writePasswords(store, passwords)) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
   return { success: true };
 });
 
 ipcMain.handle('update-password', (_, id, pwData) => {
   const store = readStorage();
-  const passwords = store.passwords || [];
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
   const idx = passwords.findIndex(p => p.id === id);
   if (idx !== -1) {
     passwords[idx] = { ...passwords[idx], ...pwData };
-    store.passwords = passwords;
+    if (!_writePasswords(store, passwords)) return { success: false, locked: true, message: 'Vault is locked' };
     writeStorage(store);
     return { success: true };
   }
@@ -2982,15 +3460,17 @@ ipcMain.handle('update-password', (_, id, pwData) => {
 
 ipcMain.handle('delete-password', (_, id) => {
   const store = readStorage();
-  const passwords = store.passwords || [];
-  store.passwords = passwords.filter(p => p.id !== id);
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
+  const filtered = passwords.filter(p => p.id !== id);
+  if (!_writePasswords(store, filtered)) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
   return { success: true };
 });
 
 ipcMain.handle('clear-passwords', () => {
   const store = readStorage();
-  store.passwords = [];
+  if (!_writePasswords(store, [])) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
   return { success: true };
 });
@@ -2998,18 +3478,19 @@ ipcMain.handle('clear-passwords', () => {
 // Alias for clear-passwords (Settings.html calls clearAllPasswords)
 ipcMain.handle('clear-all-passwords', () => {
   const store = readStorage();
-  store.passwords = [];
+  if (!_writePasswords(store, [])) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
   return { success: true };
 });
 
 ipcMain.handle('toggle-password-favorite', (_, id, favorite) => {
   const store = readStorage();
-  const passwords = store.passwords || [];
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
   const idx = passwords.findIndex(p => p.id === id);
   if (idx !== -1) {
     passwords[idx].favorite = favorite;
-    store.passwords = passwords;
+    if (!_writePasswords(store, passwords)) return { success: false, locked: true, message: 'Vault is locked' };
     writeStorage(store);
     return { success: true };
   }
@@ -3018,11 +3499,12 @@ ipcMain.handle('toggle-password-favorite', (_, id, favorite) => {
 
 ipcMain.handle('update-password-last-used', (_, id) => {
   const store = readStorage();
-  const passwords = store.passwords || [];
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
   const idx = passwords.findIndex(p => p.id === id);
   if (idx !== -1) {
     passwords[idx].lastUsed = Date.now();
-    store.passwords = passwords;
+    if (!_writePasswords(store, passwords)) return { success: false, locked: true, message: 'Vault is locked' };
     writeStorage(store);
     return { success: true };
   }
@@ -3032,7 +3514,9 @@ ipcMain.handle('update-password-last-used', (_, id) => {
 ipcMain.handle('export-passwords', async () => {
   try {
     const store = readStorage();
-    const passwords = (store.passwords || []).map(p => ({
+    const decrypted = _readPasswordsDecrypted(store);
+    if (decrypted === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
+    const passwords = decrypted.map(p => ({
       site: p.site, username: p.username, password: p.password, notes: p.notes || '', totpSecret: p.totpSecret || ''
     }));
     const result = await dialog.showSaveDialog(mainWindow, {
@@ -3067,7 +3551,8 @@ ipcMain.handle('import-passwords', async () => {
     const filePath = result.filePaths[0];
     const content = fs.readFileSync(filePath, 'utf-8');
     const store = readStorage();
-    if (!store.passwords) store.passwords = [];
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
     let imported = 0;
     if (filePath.endsWith('.csv')) {
       const lines = content.split('\n').slice(1);
@@ -3083,7 +3568,7 @@ ipcMain.handle('import-passwords', async () => {
         }
         parts.push(current);
         if (parts.length >= 3 && parts[0]) {
-          store.passwords.push({
+          passwords.push({
             id: 'pw-' + Date.now() + '-' + imported,
             site: parts[0], username: parts[1], password: parts[2],
             notes: parts[3] || '', totpSecret: parts[4] || '', createdAt: Date.now()
@@ -3096,7 +3581,7 @@ ipcMain.handle('import-passwords', async () => {
       const items = Array.isArray(data) ? data : (data.passwords || []);
       items.forEach(p => {
         if (!p.site && !p.url) return;
-        store.passwords.push({
+        passwords.push({
           id: 'pw-' + Date.now() + '-' + imported,
           site: p.site || p.url || '', username: p.username || '',
           password: p.password || '', notes: p.notes || '',
@@ -3105,6 +3590,7 @@ ipcMain.handle('import-passwords', async () => {
         imported++;
       });
     }
+    if (!_writePasswords(store, passwords)) return { success: false, message: 'Vault is locked' };
     writeStorage(store);
     return { success: true, message: `Imported ${imported} passwords` };
   } catch(e) {
@@ -3115,7 +3601,8 @@ ipcMain.handle('import-passwords', async () => {
 ipcMain.handle('check-breached', async () => {
   try {
     const store = readStorage();
-    const passwords = store.passwords || [];
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
     let breachedCount = 0;
     for (const p of passwords) {
       const sha1 = crypto.createHash('sha1').update(p.password).digest('hex').toUpperCase();
@@ -3145,7 +3632,8 @@ ipcMain.handle('check-breached', async () => {
 
 ipcMain.handle('security-analysis', () => {
   const store = readStorage();
-  const passwords = store.passwords || [];
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
   const weak = [];
   const duplicates = [];
   const old = [];
@@ -3189,7 +3677,8 @@ ipcMain.handle('security-analysis', () => {
 ipcMain.handle('import-from-ga', (_, content) => {
   try {
     const store = readStorage();
-    if (!store.passwords) store.passwords = [];
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, imported: 0, errors: ['Vault is locked. Unlock it first.'] };
     let imported = 0;
     const data = JSON.parse(content);
     const items = Array.isArray(data) ? data : (data.accounts || data.entries || []);
@@ -3197,7 +3686,7 @@ ipcMain.handle('import-from-ga', (_, content) => {
       const secret = item.secret || item.otpSecret || '';
       const name = item.name || item.issuer || item.label || '';
       if (!name && !secret) return;
-      store.passwords.push({
+      passwords.push({
         id: 'pw-' + Date.now() + '-' + imported,
         site: name, username: item.email || '', password: '',
         notes: 'Import from Google Authenticator', totpSecret: secret,
@@ -3206,6 +3695,7 @@ ipcMain.handle('import-from-ga', (_, content) => {
       });
       imported++;
     });
+    if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
     return { success: true, imported, errors: [] };
   } catch(e) {
@@ -3216,7 +3706,8 @@ ipcMain.handle('import-from-ga', (_, content) => {
 ipcMain.handle('import-txt-passwords', (_, content) => {
   try {
     const store = readStorage();
-    if (!store.passwords) store.passwords = [];
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, imported: 0, errors: ['Vault is locked. Unlock it first.'] };
     let imported = 0;
     const errors = [];
     const lines = content.split('\n');
@@ -3226,14 +3717,14 @@ ipcMain.handle('import-txt-passwords', (_, content) => {
       const sep = line.includes('\t') ? '\t' : (line.includes('|') ? '|' : ',');
       const parts = line.split(sep).map(s => s.trim());
       if (parts.length >= 3 && parts[0]) {
-        store.passwords.push({
+        passwords.push({
           id: 'pw-' + Date.now() + '-' + imported,
           site: parts[0], username: parts[1], password: parts[2],
           notes: parts.slice(3).join(' ') || '', createdAt: Date.now()
         });
         imported++;
       } else if (parts.length >= 2 && parts[0]) {
-        store.passwords.push({
+        passwords.push({
           id: 'pw-' + Date.now() + '-' + imported,
           site: parts[0], username: '', password: parts[1],
           notes: '', createdAt: Date.now()
@@ -3243,6 +3734,7 @@ ipcMain.handle('import-txt-passwords', (_, content) => {
         errors.push(`Line ${idx + 1}: invalid format`);
       }
     });
+    if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
     return { success: true, imported, errors };
   } catch(e) {
@@ -3284,33 +3776,503 @@ ipcMain.handle('scan-qr', async () => {
 });
 
 // ============== PRIVACY ==============
-let masterPassword = null;
+// ============== VAULT (encrypted password store) ==============
+// Passwords are encrypted with AES-256-GCM. The key is derived from the
+// user's master password via scrypt with a per-user random salt. The key
+// is kept in memory only for the current session and never persisted.
+const VAULT_KDF = { N: 16384, r: 8, p: 1, maxmem: 96 * 1024 * 1024 };
+const VAULT_KEYLEN = 32; // AES-256
+let _vaultKey = null;    // cached derived key (in-memory only)
+
+function _deriveKey(password, saltBuf) {
+  return crypto.scryptSync(String(password), saltBuf, VAULT_KEYLEN, VAULT_KDF);
+}
+
+function _verifierOf(keyBuf) {
+  return crypto.createHash('sha256').update(keyBuf).digest('base64');
+}
+
+function _constEqBase64(a, b) {
+  // timing-safe comparison for base64 verifier strings
+  try {
+    const ba = Buffer.from(String(a), 'base64');
+    const bb = Buffer.from(String(b), 'base64');
+    if (ba.length !== bb.length) return false;
+    return crypto.timingSafeEqual(ba, bb);
+  } catch(e) {
+    return false;
+  }
+}
+
+function _encryptVault(data, keyBuf) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyBuf, iv);
+  const pt = Buffer.from(JSON.stringify(data), 'utf8');
+  const ct = Buffer.concat([cipher.update(pt), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    v: 1,
+    alg: 'aes-256-gcm',
+    kdf: 'scrypt',
+    iv: iv.toString('base64'),
+    ct: ct.toString('base64'),
+    tag: tag.toString('base64')
+  };
+}
+
+function _decryptVault(vault, keyBuf) {
+  const iv = Buffer.from(vault.iv, 'base64');
+  const ct = Buffer.from(vault.ct, 'base64');
+  const tag = Buffer.from(vault.tag, 'base64');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', keyBuf, iv);
+  decipher.setAuthTag(tag);
+  const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
+  return JSON.parse(pt.toString('utf8'));
+}
+
+// Read the decrypted passwords array. Returns null when the vault is locked.
+function _readPasswordsDecrypted(store) {
+  if (store.passwordVault && store.masterAuth) {
+    if (!_vaultKey) return null;
+    try { return _decryptVault(store.passwordVault, _vaultKey); }
+    catch(e) { return null; }
+  }
+  return store.passwords || [];
+}
+
+// Persist the passwords array — encrypts when a vault exists.
+// Returns true on success, false when the vault is locked.
+function _writePasswords(store, passwords) {
+  if (store.passwordVault && store.masterAuth) {
+    if (!_vaultKey) return false;
+    store.passwordVault = _encryptVault(passwords, _vaultKey);
+    delete store.passwords;
+  } else {
+    store.passwords = passwords;
+  }
+  return true;
+}
 
 ipcMain.handle('has-master-password', () => {
-  return { success: true, has: !!masterPassword };
+  const store = readStorage();
+  return { success: true, has: !!(store.passwordVault && store.masterAuth) };
+});
+
+ipcMain.handle('is-vault-unlocked', () => {
+  const store = readStorage();
+  // No vault configured — there is nothing to lock, treat as accessible.
+  if (!(store.passwordVault && store.masterAuth)) {
+    return { success: true, unlocked: true, configured: false };
+  }
+  return { success: true, unlocked: !!_vaultKey, configured: true };
+});
+
+ipcMain.handle('unlock-vault', (_, pw) => {
+  const store = readStorage();
+  if (!store.masterAuth || !store.passwordVault) {
+    return { success: false, message: 'No master password is set' };
+  }
+  try {
+    const salt = Buffer.from(store.masterAuth.salt, 'base64');
+    const key = _deriveKey(pw, salt);
+    const verifier = _verifierOf(key);
+    if (!_constEqBase64(verifier, store.masterAuth.verifier)) {
+      return { success: false, message: 'Wrong master password' };
+    }
+    // Confirm the key actually decrypts the vault (defense in depth).
+    _decryptVault(store.passwordVault, key);
+    _vaultKey = key;
+    return { success: true };
+  } catch(e) {
+    return { success: false, message: 'Wrong master password' };
+  }
+});
+
+ipcMain.handle('lock-vault', () => {
+  _vaultKey = null;
+  return { success: true };
 });
 
 ipcMain.handle('verify-master-password', (_, pw) => {
-  return { success: true, valid: masterPassword === pw };
+  // Backwards-compatible verification. Also caches the key on success so
+  // existing UIs that verify before operating keep working.
+  const store = readStorage();
+  if (!store.masterAuth) return { success: true, valid: false };
+  try {
+    const salt = Buffer.from(store.masterAuth.salt, 'base64');
+    const key = _deriveKey(pw, salt);
+    const verifier = _verifierOf(key);
+    const valid = _constEqBase64(verifier, store.masterAuth.verifier);
+    if (valid) _vaultKey = key;
+    return { success: true, valid };
+  } catch(e) {
+    return { success: true, valid: false };
+  }
 });
+
+// Sets up a brand-new master password and encrypts any existing plaintext
+// passwords into a new vault. Shared by set-master-password and the
+// not-yet-configured branch of change-master-password.
+function _doSetMasterPassword(store, pw) {
+  const salt = crypto.randomBytes(16);
+  const key = _deriveKey(pw, salt);
+  const verifier = _verifierOf(key);
+  const existing = store.passwords || [];
+  store.passwordVault = _encryptVault(existing, key);
+  store.masterAuth = { v: 1, kdf: 'scrypt', salt: salt.toString('base64'), verifier: verifier };
+  delete store.passwords;
+  // The moment a master password exists, secure Settings and the Backup
+  // section by default (user can still turn them off later with the password).
+  // This prevents the "set a password but protection stayed off" gap.
+  store.libraryProtection = Object.assign({}, _defaultLibraryProtection(), store.libraryProtection || {}, {
+    protectSettings: true,
+    protectBackup: true
+  });
+  writeStorage(store);
+  _vaultKey = key;
+  return { success: true, message: 'Master password set. ' + existing.length + ' passwords encrypted.' };
+}
 
 ipcMain.handle('set-master-password', (_, pw) => {
   if (!pw || pw.length < 4) {
     return { success: false, message: 'Password must be at least 4 characters' };
   }
-  masterPassword = pw;
-  return { success: true, message: 'Master password set' };
+  const store = readStorage();
+  if (store.passwordVault && store.masterAuth) {
+    return { success: false, message: 'Master password already set. Use change-master-password.' };
+  }
+  try {
+    return _doSetMasterPassword(store, pw);
+  } catch(e) {
+    return { success: false, message: 'Failed to set master password: ' + e.message };
+  }
 });
 
 ipcMain.handle('change-master-password', (_, oldPw, newPw) => {
-  if (masterPassword && oldPw !== masterPassword) {
-    return { success: false, message: 'Wrong old password' };
+  const store = readStorage();
+  if (!store.masterAuth || !store.passwordVault) {
+    // No vault configured yet — treat as an initial set.
+    if (typeof newPw === 'undefined' || newPw === null) {
+      return { success: false, message: 'No master password is set' };
+    }
+    if (!newPw || newPw.length < 4) {
+      return { success: false, message: 'New password must be at least 4 characters' };
+    }
+    try { return _doSetMasterPassword(store, newPw); }
+    catch(e) { return { success: false, message: 'Failed to set master password: ' + e.message }; }
   }
   if (!newPw || newPw.length < 4) {
     return { success: false, message: 'New password must be at least 4 characters' };
   }
-  masterPassword = newPw;
-  return { success: true, message: 'Master password changed' };
+  try {
+    const oldSalt = Buffer.from(store.masterAuth.salt, 'base64');
+    const oldKey = _deriveKey(oldPw, oldSalt);
+    const oldVerifier = _verifierOf(oldKey);
+    if (!_constEqBase64(oldVerifier, store.masterAuth.verifier)) {
+      return { success: false, message: 'Wrong old password' };
+    }
+    const plaintext = _decryptVault(store.passwordVault, oldKey);
+    const newSalt = crypto.randomBytes(16);
+    const newKey = _deriveKey(newPw, newSalt);
+    const newVerifier = _verifierOf(newKey);
+    store.passwordVault = _encryptVault(plaintext, newKey);
+    store.masterAuth = { v: 1, kdf: 'scrypt', salt: newSalt.toString('base64'), verifier: newVerifier };
+    writeStorage(store);
+    _vaultKey = newKey;
+    return { success: true, message: 'Master password changed' };
+  } catch(e) {
+    return { success: false, message: 'Failed to change master password' };
+  }
+});
+
+ipcMain.handle('remove-master-password', (_, pw) => {
+  // Removes the master password and stores passwords as plaintext again.
+  const store = readStorage();
+  if (!store.masterAuth || !store.passwordVault) {
+    return { success: false, message: 'No master password is set' };
+  }
+  try {
+    const salt = Buffer.from(store.masterAuth.salt, 'base64');
+    const key = _deriveKey(pw, salt);
+    const verifier = _verifierOf(key);
+    if (!_constEqBase64(verifier, store.masterAuth.verifier)) {
+      return { success: false, message: 'Wrong master password' };
+    }
+    const plaintext = _decryptVault(store.passwordVault, key);
+    store.passwords = plaintext;
+    delete store.passwordVault;
+    delete store.masterAuth;
+    writeStorage(store);
+    _vaultKey = null;
+    return { success: true, message: 'Master password removed' };
+  } catch(e) {
+    return { success: false, message: 'Wrong master password' };
+  }
+});
+
+// ============== LIBRARY PROTECTION ==============
+// Gates access to Library.html (history, bookmarks, downloads, cookies,
+// passwords) behind the user's master password. Toggleable in Settings →
+// Library protection.
+//
+// The same master password also powers (all optional, all in the same panel):
+//   protectSettings — require auth to open Settings at all
+//   protectBackup   — require re-auth every time the Backup section is opened
+//   appLock         — lock the whole browser on startup (one unlock per launch)
+// "Single password everywhere" means the SAME master password is used in every
+// gate — NOT that unlocking one unlocks the others. Each protected zone keeps
+// its own in-memory flag and asks for the password on first entry (resets on
+// quit). This matches the Library's existing behaviour and is what the user
+// expects: clicking the lock must never let you through without the password.
+let _libraryUnlocked = false;   // Library entry
+let _appUnlocked = false;       // browser startup lock
+let _settingsUnlocked = false;  // Settings entry
+let _backupUnlocked = false;    // Backup section (unused for gating — always asks)
+
+function _defaultLibraryProtection() {
+  return {
+    passwordRequired: true,    // protect Library
+    biometricRequired: false,
+    enhancedProtection: false,
+    protectSettings: false,    // require auth to open Settings
+    protectBackup: false,      // re-auth on entering Backup section
+    appLock: false             // lock whole browser on startup
+  };
+}
+
+// Cross-platform biometric auth.
+//   macOS  → systemPreferences.promptTouchID (Touch ID)
+//   Linux  → fprintd-verify (needs an enrolled fingerprint + polkit)
+//   Win/other → unavailable, caller falls back to the password prompt
+async function _biometricAuth(reason) {
+  try {
+    const sp = require('electron').systemPreferences;
+    if (sp && sp.canPromptTouchID && sp.canPromptTouchID()) {
+      await sp.promptTouchID(reason || 'Unlock StartPOZI');
+      return { success: true };
+    }
+  } catch(e) { return { success: false, message: 'Biometric canceled' }; }
+  if (process.platform === 'linux') {
+    try {
+      const { execFile } = require('child_process');
+      const code = await new Promise(function(resolve) {
+        execFile('fprintd-verify', [], { timeout: 30000, stdio: ['ignore', 'ignore', 'ignore'] }, function(err) {
+          // fprintd-verify exits 0 on a matching print, non-zero otherwise.
+          resolve(err ? (typeof err.code === 'number' ? err.code : 1) : 0);
+        });
+      });
+      if (code === 0) return { success: true };
+      return { success: false, message: 'Fingerprint not recognized' };
+    } catch(e) {
+      return { success: false, message: 'fprintd is not available' };
+    }
+  }
+  return { success: false, message: 'Biometric authentication is not available on this platform' };
+}
+
+// Is biometric available on this machine (for UI hints / toggle enabling)?
+function _biometricAvailable() {
+  try {
+    const sp = require('electron').systemPreferences;
+    if (sp && sp.canPromptTouchID && sp.canPromptTouchID()) return true;
+  } catch(e) {}
+  if (process.platform === 'linux') {
+    // fprintd-verify exists → assume a reader is configured.
+    try { return fs.existsSync('/usr/bin/fprintd-verify') || fs.existsSync('/usr/local/bin/fprintd-verify'); }
+    catch(e) { return false; }
+  }
+  return false;
+}
+
+// One-time migration: when a master password exists, "Protection" (Settings)
+// and "Backup" should be ON by default. Before these toggles existed, the
+// stored value was false — that was the code's default, not an explicit user
+// choice, so it's safe to flip. The _secureDefaultsApplied flag means this
+// only runs once; after it, the user's explicit ON/OFF choices are respected.
+function _applySecureDefaultsIfNeeded() {
+  try {
+    const store = readStorage();
+    if (!store.masterAuth || !store.passwordVault) return;
+    let lp = store.libraryProtection || (store.libraryProtection = {});
+    if (lp._secureDefaultsApplied) return;
+    let changed = false;
+    if (!lp.protectSettings) { lp.protectSettings = true; changed = true; }
+    if (!lp.protectBackup) { lp.protectBackup = true; changed = true; }
+    lp._secureDefaultsApplied = true;
+    if (changed) writeStorage(store);
+  } catch(e) {}
+}
+
+function _verifyMasterPw(store, pw) {
+  if (!store.masterAuth) return false;
+  try {
+    const salt = Buffer.from(store.masterAuth.salt, 'base64');
+    const key = _deriveKey(pw, salt);
+    const verifier = _verifierOf(key);
+    return _constEqBase64(verifier, store.masterAuth.verifier);
+  } catch(e) { return false; }
+}
+
+ipcMain.handle('get-library-protection', () => {
+  const store = readStorage();
+  const lp = store.libraryProtection || _defaultLibraryProtection();
+  return Object.assign({}, _defaultLibraryProtection(), lp, {
+    biometricAvailable: _biometricAvailable(),
+    hasMasterPassword: !!(store.masterAuth && store.passwordVault)
+  });
+});
+
+// ===== Library =====
+ipcMain.handle('check-library-protection', () => {
+  const store = readStorage();
+  const lp = store.libraryProtection || _defaultLibraryProtection();
+  const hasMaster = !!(store.masterAuth && store.passwordVault);
+  return {
+    needsAuth: (lp.passwordRequired || lp.biometricRequired) && hasMaster && !_libraryUnlocked,
+    passwordRequired: lp.passwordRequired,
+    biometricRequired: lp.biometricRequired,
+    enhancedProtection: lp.enhancedProtection,
+    hasMasterPassword: hasMaster,
+    alreadyUnlocked: _libraryUnlocked
+  };
+});
+ipcMain.handle('verify-library-access', (_, password) => {
+  const store = readStorage();
+  if (!store.masterAuth || !store.passwordVault) {
+    return { success: false, message: 'No master password is set. Set one in the password manager first.' };
+  }
+  if (_verifyMasterPw(store, password)) { _libraryUnlocked = true; return { success: true }; }
+  return { success: false, message: 'Wrong password' };
+});
+ipcMain.handle('library-biometric-auth', async () => {
+  const res = await _biometricAuth('Unlock StartPOZI Library');
+  if (res && res.success) _libraryUnlocked = true;
+  return res;
+});
+ipcMain.handle('lock-library', () => { _libraryUnlocked = false; return { success: true }; });
+
+// ===== Settings (require auth to open Settings) =====
+ipcMain.handle('check-settings-protection', () => {
+  const store = readStorage();
+  const lp = store.libraryProtection || _defaultLibraryProtection();
+  const hasMaster = !!(store.masterAuth && store.passwordVault);
+  return {
+    needsAuth: !!lp.protectSettings && hasMaster && !_settingsUnlocked,
+    biometricRequired: !!lp.biometricRequired,
+    biometricAvailable: _biometricAvailable(),
+    hasMasterPassword: hasMaster,
+    alreadyUnlocked: _settingsUnlocked
+  };
+});
+ipcMain.handle('verify-settings-access', (_, password) => {
+  const store = readStorage();
+  if (!store.masterAuth) return { success: false, message: 'No master password is set' };
+  if (_verifyMasterPw(store, password)) { _settingsUnlocked = true; return { success: true }; }
+  return { success: false, message: 'Wrong password' };
+});
+ipcMain.handle('settings-biometric-auth', async () => {
+  const res = await _biometricAuth('Unlock StartPOZI Settings');
+  if (res && res.success) _settingsUnlocked = true;
+  return res;
+});
+
+// ===== Backup section (re-auth every time it is opened) =====
+ipcMain.handle('check-backup-protection', () => {
+  const store = readStorage();
+  const lp = store.libraryProtection || _defaultLibraryProtection();
+  const hasMaster = !!(store.masterAuth && store.passwordVault);
+  // Always ask when enabled — the user explicitly wants a re-entry each time.
+  return {
+    needsAuth: !!lp.protectBackup && hasMaster,
+    biometricRequired: !!lp.biometricRequired,
+    biometricAvailable: _biometricAvailable(),
+    hasMasterPassword: hasMaster
+  };
+});
+ipcMain.handle('verify-backup-access', (_, password) => {
+  const store = readStorage();
+  if (!store.masterAuth) return { success: false, message: 'No master password is set' };
+  if (_verifyMasterPw(store, password)) { _backupUnlocked = true; return { success: true }; }
+  return { success: false, message: 'Wrong password' };
+});
+ipcMain.handle('lock-backup', () => { _backupUnlocked = false; return { success: true }; });
+
+// ===== Protection section gate (require master password to even SEE the
+// panel where the protection toggles / master-password controls live —
+// otherwise anyone who reaches Settings could just turn protection off) =====
+ipcMain.handle('check-protection-access', () => {
+  const store = readStorage();
+  const hasMaster = !!(store.masterAuth && store.passwordVault);
+  // Always ask when a master password exists (first-run setup stays open).
+  return {
+    needsAuth: hasMaster,
+    biometricRequired: !!(store.libraryProtection && store.libraryProtection.biometricRequired),
+    biometricAvailable: _biometricAvailable(),
+    hasMasterPassword: hasMaster
+  };
+});
+ipcMain.handle('verify-protection-access', (_, password) => {
+  const store = readStorage();
+  if (!store.masterAuth) return { success: false, message: 'No master password is set' };
+  if (_verifyMasterPw(store, password)) return { success: true };
+  return { success: false, message: 'Wrong password' };
+});
+
+// ===== Browser startup lock (appLock) =====
+ipcMain.handle('check-app-lock', () => {
+  const store = readStorage();
+  const lp = store.libraryProtection || _defaultLibraryProtection();
+  const hasMaster = !!(store.masterAuth && store.passwordVault);
+  return {
+    needsAuth: !!lp.appLock && hasMaster && !_appUnlocked,
+    biometricRequired: !!lp.biometricRequired,
+    biometricAvailable: _biometricAvailable(),
+    hasMasterPassword: hasMaster,
+    alreadyUnlocked: _appUnlocked
+  };
+});
+ipcMain.handle('verify-app-lock', (_, password) => {
+  const store = readStorage();
+  if (!store.masterAuth) return { success: false, message: 'No master password is set' };
+  if (_verifyMasterPw(store, password)) { _appUnlocked = true; return { success: true }; }
+  return { success: false, message: 'Wrong password' };
+});
+ipcMain.handle('app-biometric-auth', async () => {
+  const res = await _biometricAuth('Unlock StartPOZI Browser');
+  if (res && res.success) _appUnlocked = true;
+  return res;
+});
+
+ipcMain.handle('set-library-protection', (_, settings, password) => {
+  const store = readStorage();
+  const current = store.libraryProtection || _defaultLibraryProtection();
+  settings = settings || {};
+  const next = Object.assign({}, _defaultLibraryProtection(), current, {
+    passwordRequired: settings.passwordRequired !== false,
+    biometricRequired: !!settings.biometricRequired,
+    enhancedProtection: !!settings.enhancedProtection,
+    protectSettings: !!settings.protectSettings,
+    protectBackup: !!settings.protectBackup,
+    appLock: !!settings.appLock
+  });
+  // Turning a protection OFF requires the master password to prevent
+  // unauthorised tampering. Turning things ON never requires it.
+  const disablingSecurity = (current.passwordRequired && !next.passwordRequired) ||
+                            (current.enhancedProtection && !next.enhancedProtection) ||
+                            (current.protectSettings && !next.protectSettings) ||
+                            (current.protectBackup && !next.protectBackup) ||
+                            (current.appLock && !next.appLock);
+  if (disablingSecurity) {
+    if (!store.masterAuth) {
+      return { success: false, message: 'No master password is set' };
+    }
+    if (!_verifyMasterPw(store, password || '')) {
+      return { success: false, message: 'Wrong password' };
+    }
+  }
+  store.libraryProtection = next;
+  writeStorage(store);
+  return { success: true };
 });
 
 ipcMain.handle('clear-selected-data', async (_, types, timeRange) => {
@@ -3621,6 +4583,181 @@ ipcMain.handle('clear-custom-theme', () => {
   return { success: true };
 });
 
+// ============== .SKIT SCRIPT PACKAGES ==============
+// Format: ZIP archive (.skit) containing script.json + script.js (or .ts/.py).
+// Installed packages live in <userData>/skits/<id>/ and register in store.scripts.
+function getSkitsDir() { return path.join(electronApp.getPath('userData'), 'skits'); }
+function sanitizeSkitId(name) {
+  return String(name || 'untitled').toLowerCase()
+    .replace(/[^a-z0-9_\-]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled';
+}
+function readSkitMeta(skitDir) {
+  try { return JSON.parse(fs.readFileSync(path.join(skitDir, 'script.json'), 'utf-8')); }
+  catch(e) { return null; }
+}
+
+// Import a .skit archive from a file path
+ipcMain.handle('skit-import', async (_, filePath) => {
+  if (!AdmZip) return { success: false, error: 'adm-zip not available' };
+  try {
+    var zip = new AdmZip(filePath);
+    var jsonEntry = zip.getEntry('script.json');
+    if (!jsonEntry) return { success: false, error: 'script.json not found in archive' };
+    var meta = JSON.parse(jsonEntry.getData().toString('utf-8'));
+
+    // Determine the main script file
+    var mainFile = meta.main || 'script.js';
+    var codeEntry = zip.getEntry(mainFile);
+    if (!codeEntry) {
+      // Try common names
+      ['script.js', 'index.js', 'main.js'].forEach(function(f) {
+        if (!codeEntry) codeEntry = zip.getEntry(f);
+      });
+    }
+    if (!codeEntry) return { success: false, error: 'Main script file not found in archive' };
+    var code = codeEntry.getData().toString('utf-8');
+
+    var skitId = sanitizeSkitId(meta.name || meta.id || path.basename(filePath, '.skit'));
+    var skitsDir = getSkitsDir();
+    var skitDir = path.join(skitsDir, skitId);
+    try { if (fs.existsSync(skitDir)) fs.rmSync(skitDir, { recursive: true, force: true }); } catch(e) {}
+    fs.mkdirSync(skitDir, { recursive: true });
+
+    meta.id = skitId;
+    meta.installedAt = Date.now();
+    fs.writeFileSync(path.join(skitDir, 'script.json'), JSON.stringify(meta, null, 2), 'utf-8');
+    fs.writeFileSync(path.join(skitDir, mainFile), code, 'utf-8');
+    // Extract any extra files
+    zip.getEntries().forEach(function(entry) {
+      var en = entry.entryName;
+      if (en === 'script.json' || en === mainFile) return;
+      if (/\.(js|ts|py|css|json|txt)$/i.test(en) && en.indexOf('..') === -1) {
+        try {
+          var entryDir = path.dirname(path.join(skitDir, en));
+          if (!fs.existsSync(entryDir)) fs.mkdirSync(entryDir, { recursive: true });
+          fs.writeFileSync(path.join(skitDir, en), entry.getData().toString('utf-8'), 'utf-8');
+        } catch(e) {}
+      }
+    });
+
+    // Register in the existing scripts array so injection picks it up
+    var store = readStorage();
+    if (!store.scripts) store.scripts = [];
+    var existingIdx = store.scripts.findIndex(function(s) { return s.skitId === skitId; });
+    var scriptEntry = {
+      id: 'skit-' + skitId,
+      skitId: skitId,
+      name: meta.name || skitId,
+      description: meta.description || '',
+      code: code,
+      match: meta.match || '*://*/*',
+      runAt: meta.runAt || 'document-idle',
+      runInFrames: !!meta.runInFrames,
+      enabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    if (existingIdx !== -1) {
+      scriptEntry.enabled = store.scripts[existingIdx].enabled;
+      scriptEntry.createdAt = store.scripts[existingIdx].createdAt;
+      store.scripts[existingIdx] = scriptEntry;
+    } else {
+      store.scripts.push(scriptEntry);
+    }
+    writeStorage(store);
+
+    return { success: true, skit: { id: skitId, name: meta.name || skitId, description: meta.description || '', version: meta.version || '1.0', author: meta.author || '', enabled: true } };
+  } catch(e) {
+    return { success: false, error: String(e.message || e) };
+  }
+});
+
+// List all installed .skit packages
+ipcMain.handle('skit-list', () => {
+  var skitsDir = getSkitsDir();
+  var list = [];
+  try {
+    if (fs.existsSync(skitsDir)) {
+      fs.readdirSync(skitsDir).forEach(function(dir) {
+        var meta = readSkitMeta(path.join(skitsDir, dir));
+        if (meta) {
+          var store = readStorage();
+          var scriptEntry = (store.scripts || []).find(function(s) { return s.skitId === dir; });
+          list.push({
+            id: dir,
+            name: meta.name || dir,
+            description: meta.description || '',
+            version: meta.version || '1.0',
+            author: meta.author || '',
+            type: meta.type || 'js',
+            enabled: scriptEntry ? scriptEntry.enabled : false
+          });
+        }
+      });
+    }
+  } catch(e) {}
+  return { success: true, skits: list };
+});
+
+// Enable / disable a .skit package
+ipcMain.handle('skit-toggle', (_, skitId, enabled) => {
+  try {
+    var store = readStorage();
+    var scriptEntry = (store.scripts || []).find(function(s) { return s.skitId === skitId; });
+    if (scriptEntry) {
+      scriptEntry.enabled = !!enabled;
+      writeStorage(store);
+      return { success: true };
+    }
+    return { success: false, error: 'Script not registered' };
+  } catch(e) { return { success: false, error: String(e.message || e) }; }
+});
+
+// Delete a .skit package
+ipcMain.handle('skit-delete', (_, skitId) => {
+  try {
+    var skitsDir = getSkitsDir();
+    var skitDir = path.join(skitsDir, skitId);
+    if (fs.existsSync(skitDir)) fs.rmSync(skitDir, { recursive: true, force: true });
+    var store = readStorage();
+    store.scripts = (store.scripts || []).filter(function(s) { return s.skitId !== skitId; });
+    writeStorage(store);
+    return { success: true };
+  } catch(e) { return { success: false, error: String(e.message || e) }; }
+});
+
+// Export a .skit package
+ipcMain.handle('skit-export', async (_, skitId) => {
+  if (!AdmZip) return { success: false, error: 'adm-zip not available' };
+  try {
+    var skitsDir = getSkitsDir();
+    var skitDir = path.join(skitsDir, skitId);
+    if (!fs.existsSync(skitDir)) return { success: false, error: 'Package not found' };
+    var meta = readSkitMeta(skitDir) || {};
+    var result = await dialog.showSaveDialog({
+      defaultPath: (skitId + '.skit'),
+      filters: [{ name: 'Script Archive', extensions: ['skit'] }]
+    });
+    if (result.canceled || !result.filePath) return { success: false, error: 'Cancelled' };
+    var zip = new AdmZip();
+    zip.addLocalFile(path.join(skitDir, 'script.json'));
+    var mainFile = meta.main || 'script.js';
+    if (fs.existsSync(path.join(skitDir, mainFile))) zip.addLocalFile(path.join(skitDir, mainFile));
+    zip.writeZip(result.filePath);
+    return { success: true, path: result.filePath };
+  } catch(e) { return { success: false, error: String(e.message || e) }; }
+});
+
+// File picker for .skit
+ipcMain.handle('skit-pick-file', async () => {
+  var result = await dialog.showOpenDialog({
+    filters: [{ name: 'Script Archive', extensions: ['skit'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  return result.filePaths[0];
+});
+
 // ============== SINGLE PASSWORD BREACH CHECK ==============
 ipcMain.handle('check-password-breached', (_, password) => {
   // Stub — real implementation would use HIBP API (k-anonymity)
@@ -3630,7 +4767,7 @@ ipcMain.handle('check-password-breached', (_, password) => {
 // ============== CHECK ALL PASSWORDS BREACHED ==============
 ipcMain.handle('check-all-passwords-breached', () => {
   const store = readStorage();
-  const passwords = store.passwords || [];
+  const passwords = _readPasswordsDecrypted(store) || [];
   return {
     success: true,
     breachedCount: 0,
@@ -3759,7 +4896,9 @@ ipcMain.handle('extract-totp-from-qr', (_, qrData) => {
 ipcMain.handle('autofill-password', (_, id) => {
   try {
     const store = readStorage();
-    const pw = (store.passwords || []).find(p => p.id === id);
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, error: 'Vault is locked' };
+    const pw = passwords.find(p => p.id === id);
     if (!pw) return { success: false, error: 'Password not found' };
     if (mainWindow) {
       mainWindow.webContents.send('autofill-credentials', { username: pw.username, password: pw.password, site: pw.site || '' });
@@ -3773,10 +4912,12 @@ ipcMain.handle('autofill-password', (_, id) => {
 ipcMain.handle('get-matching-passwords', (_, url) => {
   try {
     const store = readStorage();
-    if (!url) return { success: true, passwords: store.passwords || [] };
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, locked: true, passwords: [] };
+    if (!url) return { success: true, passwords: passwords };
     let targetHost;
     try { targetHost = new URL(url).hostname.replace(/^www\./, ''); } catch { targetHost = url; }
-    const matches = (store.passwords || []).filter(p => {
+    const matches = passwords.filter(p => {
       if (!p.site) return false;
       try {
         const siteHost = new URL(p.site.startsWith('http') ? p.site : 'https://' + p.site).hostname.replace(/^www\./, '');
@@ -3793,7 +4934,8 @@ ipcMain.handle('get-matching-passwords', (_, url) => {
 ipcMain.handle('import-ga-export', (_, content) => {
   try {
     const store = readStorage();
-    if (!store.passwords) store.passwords = [];
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, imported: 0, errors: ['Vault is locked. Unlock it first.'] };
     let imported = 0;
     const data = JSON.parse(content);
     const items = Array.isArray(data) ? data : (data.accounts || data.entries || []);
@@ -3801,7 +4943,7 @@ ipcMain.handle('import-ga-export', (_, content) => {
       const secret = item.secret || item.otpSecret || '';
       const name = item.name || item.issuer || item.label || '';
       if (!name && !secret) return;
-      store.passwords.push({
+      passwords.push({
         id: 'pw-' + Date.now() + '-' + imported,
         site: name, username: item.email || '', password: '',
         notes: 'Import from Google Authenticator', totpSecret: secret,
@@ -3810,6 +4952,7 @@ ipcMain.handle('import-ga-export', (_, content) => {
       });
       imported++;
     });
+    if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
     return { success: true, imported, errors: [] };
   } catch(e) {
@@ -3820,7 +4963,8 @@ ipcMain.handle('import-ga-export', (_, content) => {
 ipcMain.handle('import-txt-file', (_, content) => {
   try {
     const store = readStorage();
-    if (!store.passwords) store.passwords = [];
+    const passwords = _readPasswordsDecrypted(store);
+    if (passwords === null) return { success: false, imported: 0, errors: ['Vault is locked. Unlock it first.'] };
     let imported = 0;
     const errors = [];
     const lines = content.split('\n');
@@ -3830,7 +4974,7 @@ ipcMain.handle('import-txt-file', (_, content) => {
       const sep = line.includes('\t') ? '\t' : (line.includes('|') ? '|' : ',');
       const parts = line.split(sep).map(s => s.trim());
       if (parts.length >= 2 && parts[0]) {
-        store.passwords.push({
+        passwords.push({
           id: 'pw-' + Date.now() + '-' + imported,
           site: parts[0], username: parts.length >= 3 ? parts[1] : '',
           password: parts.length >= 3 ? parts[2] : parts[1],
@@ -3841,6 +4985,7 @@ ipcMain.handle('import-txt-file', (_, content) => {
         errors.push(`Line ${idx + 1}: invalid format`);
       }
     });
+    if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
     return { success: true, imported, errors };
   } catch(e) {
@@ -4536,11 +5681,16 @@ function _gatherBackupData() {
     date: new Date().toISOString(),
     platform: process.platform
   };
+  // Never leak the plaintext store's sensitive auth material into the top
+  // level of the backup; the vault travels inside data.settings and is also
+  // surfaced under data.passwordVault so the restore UI can pick it up.
   data.settings = store;
   if (store.history) data.history = store.history;
   if (store.scripts) data.scripts = store.scripts;
   if (store.bookmarks) data.bookmarks = store.bookmarks;
   if (store.passwords) data.passwords = store.passwords;
+  if (store.passwordVault) data.passwordVault = store.passwordVault;
+  if (store.masterAuth) data.masterAuth = store.masterAuth;
   if (store.security) data.security = store.security;
   if (store.siteThemes) data.siteThemes = store.siteThemes;
   if (store.blockedLog) data.blockedLog = store.blockedLog;
@@ -4550,22 +5700,51 @@ function _gatherBackupData() {
   return data;
 }
 
-function _encryptBuffer(buf, password) {
+const BACKUP_LEGACY_SALT = 'startpozi-backup-salt';
+
+function _encryptBuffer(buf, password, salt) {
   var crypto2 = require('crypto');
-  var key = crypto2.scryptSync(password, 'startpozi-backup-salt', 32);
+  var useSalt = salt || crypto2.randomBytes(16);
+  var key = crypto2.scryptSync(password, useSalt, 32);
   var iv = crypto2.randomBytes(16);
   var cipher = crypto2.createCipheriv('aes-256-cbc', key, iv);
   var encrypted = Buffer.concat([iv, cipher.update(buf), cipher.final()]);
-  return encrypted;
+  // Prepend the salt so the same salt is reused for decryption. Old backups
+  // (iv + ciphertext with a static salt) are still readable via the fallback
+  // path in _decryptBuffer.
+  return Buffer.concat([useSalt, encrypted]);
 }
 
-function _decryptBuffer(buf, password) {
+function _decryptBuffer(buf, password, manifestSalt) {
   var crypto2 = require('crypto');
-  var key = crypto2.scryptSync(password, 'startpozi-backup-salt', 32);
-  var iv = buf.slice(0, 16);
-  var data = buf.slice(16);
-  var decipher = crypto2.createDecipheriv('aes-256-cbc', key, iv);
-  return Buffer.concat([decipher.update(data), decipher.final()]);
+  // New format: salt(16) + iv(16) + ciphertext. Old format: iv(16) + ciphertext.
+  // Try the new format when we have at least 32 bytes of header, and fall back
+  // to the legacy static salt otherwise.
+  if (manifestSalt) {
+    var saltB = Buffer.isBuffer(manifestSalt) ? manifestSalt : Buffer.from(manifestSalt, 'base64');
+    var ivB = buf.slice(0, 16);
+    var dataB = buf.slice(16);
+    var keyB = crypto2.scryptSync(password, saltB, 32);
+    var decipherB = crypto2.createDecipheriv('aes-256-cbc', keyB, ivB);
+    return Buffer.concat([decipherB.update(dataB), decipherB.final()]);
+  }
+  if (buf.length >= 32) {
+    try {
+      var salt = buf.slice(0, 16);
+      var iv = buf.slice(16, 32);
+      var data = buf.slice(32);
+      var key = crypto2.scryptSync(password, salt, 32);
+      var decipher = crypto2.createDecipheriv('aes-256-cbc', key, iv);
+      return Buffer.concat([decipher.update(data), decipher.final()]);
+    } catch(e) {
+      // fall through to legacy attempt
+    }
+  }
+  var lkey = crypto2.scryptSync(password, BACKUP_LEGACY_SALT, 32);
+  var liv = buf.slice(0, 16);
+  var ldata = buf.slice(16);
+  var ldecipher = crypto2.createDecipheriv('aes-256-cbc', lkey, liv);
+  return Buffer.concat([ldecipher.update(ldata), ldecipher.final()]);
 }
 
 ipcMain.handle('backup-export', async (_, usePassword, password) => {
@@ -4646,7 +5825,18 @@ ipcMain.handle('backup-import', async (_, filePath, password, options) => {
     if (options.history && data.history) store.history = data.history;
     if (options.scripts && data.scripts) store.scripts = data.scripts;
     if (options.bookmarks && data.bookmarks) store.bookmarks = data.bookmarks;
-    if (options.passwords && data.passwords) store.passwords = data.passwords;
+    if (options.passwords) {
+      // Prefer the encrypted vault when present; fall back to plaintext.
+      if (data.passwordVault) {
+        store.passwordVault = data.passwordVault;
+        if (data.masterAuth) store.masterAuth = data.masterAuth;
+        delete store.passwords;
+        // Imported vault is locked by default until the user unlocks it.
+        _vaultKey = null;
+      } else if (data.passwords) {
+        store.passwords = data.passwords;
+      }
+    }
     if (options.siteThemes && data.siteThemes) store.siteThemes = data.siteThemes;
     if (options.blockedLog && data.blockedLog) store.blockedLog = data.blockedLog;
     if (options.sponsorblock && data.sponsorblock) store.sponsorBlockStats = data.sponsorblock;
@@ -4747,7 +5937,7 @@ ipcMain.handle('backup-auto', async () => {
 });
 
 // ============== PROXY & TOR ==============
-var _proxySettings = { enabled: false, type: 'http', host: '', port: '', bridges: '' };
+var _proxySettings = { enabled: false, type: 'http', host: '', port: '', bridges: '', bypassDomains: [], forceDomains: [] };
 var _proxyConfigPath = path.join(app.getPath('userData'), 'proxy.json');
 
 try {
@@ -4762,17 +5952,11 @@ var _torConfigDir = path.join(app.getPath('userData'), 'tor-data');
 var _torCookiePath = path.join(_torConfigDir, 'control_auth_cookie');
 var _torBootstrap = 0;        // 0..100, bootstrap progress
 var _torLastNewnym = 0;       // timestamp of last NEWNYM (Tor throttle 10s)
+var _torLastBridges = null;   // last bridge set startTor was called with — used to detect changes
 
 // Current proxy-URL (single source of truth for all sessions)
 function _proxyUrl() {
   if (!_proxySettings.enabled) return null;
-  // Host/port NOT hardcoded — Tor can listen anywhere:
-  //   127.0.0.1:9050 (standard `tor`)
-  //   127.0.0.1:9150 (Tor Browser Bundle)
-  //   any custom port via SocksPort in torrc
-  //   unix socket (SocksPort unix:/path)
-  //   remote machine on the LAN
-  // The user specifies host/port in settings.
   if (!_proxySettings.host) return null;
   var ptype = _proxySettings.type === 'tor' ? 'socks5' : _proxySettings.type;
   var url = ptype + '://' + _proxySettings.host;
@@ -4780,24 +5964,80 @@ function _proxyUrl() {
   return url;
 }
 
-// Applies the proxy to ONE session
+// Proxy URL regardless of the "enabled" flag (used for the force-list when proxy is off)
+function _proxyUrlForced() {
+  if (!_proxySettings.host) return null;
+  var ptype = _proxySettings.type === 'tor' ? 'socks5' : _proxySettings.type;
+  var url = ptype + '://' + _proxySettings.host;
+  if (_proxySettings.port) url += ':' + _proxySettings.port;
+  return url;
+}
+
+// Convert proxy settings to a PAC "PROXY/SOCKS" string
+function _pacProxyStr(s) {
+  if (!s || !s.host) return 'DIRECT';
+  var addr = s.port ? (s.host + ':' + s.port) : s.host;
+  var ptype = (s.type === 'tor') ? 'socks5' : s.type;
+  if (ptype === 'socks5') return 'SOCKS5 ' + addr;
+  if (ptype === 'socks4') return 'SOCKS4 ' + addr;
+  return 'PROXY ' + addr; // http / https
+}
+
+// Build a PAC script. bypassDomains always win (DIRECT), forceDomains go through proxy.
+function _buildPacScript(s, forceDomains, bypassDomains, defaultProxy) {
+  var pacProxy = _pacProxyStr(s);
+  var lines = ['function FindProxyForURL(url, host) {'];
+  function addChecks(domains, action) {
+    (domains || []).forEach(function (d) {
+      var clean = String(d).trim().replace(/["'\\\n]/g, '');
+      if (!clean) return;
+      if (clean.indexOf('*') >= 0) {
+        lines.push('  if (shExpMatch(host, "' + clean + '")) return "' + action + '";');
+      } else {
+        // exact domain + all subdomains
+        lines.push('  if (host == "' + clean + '" || shExpMatch(host, "*.' + clean + '")) return "' + action + '";');
+      }
+    });
+  }
+  addChecks(bypassDomains, 'DIRECT');   // bypass wins
+  addChecks(forceDomains, pacProxy);    // force uses proxy
+  lines.push('  return "' + (defaultProxy ? pacProxy : 'DIRECT') + '";');
+  lines.push('}');
+  return lines.join('\n');
+}
+
+function _normalizeDomainList(v) {
+  if (Array.isArray(v)) return v.map(function (d) { return String(d).trim(); }).filter(Boolean);
+  if (typeof v === 'string') return v.split('\n').map(function (d) { return d.trim(); }).filter(Boolean);
+  return [];
+}
+
+// Applies the proxy to ONE session — supports bypass + force lists
 function _applyProxyToSessionObj(ses) {
   if (!ses) return Promise.resolve();
-  var url = _proxyUrl();
-  if (url) {
-    return ses.setProxy({ proxyRules: url }).then(function() {
-      try { ses.closeAllConnections(); } catch(e) {}
-    }).catch(function() {});
+  var bypass = _normalizeDomainList(_proxySettings.bypassDomains);
+  var force = _normalizeDomainList(_proxySettings.forceDomains);
+  var enabled = _proxySettings.enabled && _proxySettings.host;
+  var cfg;
+
+  if (enabled) {
+    // Proxy ON → everything proxied, bypass list exempted
+    var rules = { proxyRules: _proxyUrl() };
+    if (bypass.length > 0) rules.proxyBypassRules = bypass.join(';');
+    cfg = rules;
+  } else if (force.length > 0 && _proxySettings.host) {
+    // Proxy OFF but force-list exists → only these domains go through proxy
+    cfg = { pacScript: _buildPacScript(_proxySettings, force, bypass, false) };
   } else {
-    return ses.setProxy({ mode: 'direct' }).then(function() {
-      try { ses.closeAllConnections(); } catch(e) {}
-    }).catch(function() {});
+    cfg = { mode: 'direct' };
   }
+
+  return ses.setProxy(cfg).then(function () {
+    try { ses.closeAllConnections(); } catch (e) {}
+  }).catch(function () {});
 }
 
 // Applies the proxy to ALL sessions: default + main window + all webviews + incognito.
-// Without this Tor/proxy only worked for the browser UI, but NOT for the loaded sites
-// (webview tags use separate partition-sessions).
 async function applyProxyToSession() {
   var promises = [];
   try { promises.push(_applyProxyToSessionObj(session.defaultSession)); } catch(e) {}
@@ -4816,7 +6056,10 @@ async function applyProxyToSession() {
 // Called from web-contents-created for EVERY new webview — applies
 // the current proxy settings, so incognito/new tabs also go through Tor.
 function _ensureProxyOnSession(ses) {
-  if (!ses || !_proxyUrl()) return;
+  if (!ses) return;
+  // Apply whenever there's something to apply: enabled proxy OR a force-list
+  var force = _normalizeDomainList(_proxySettings.forceDomains);
+  if (!_proxyUrl() && !(force.length > 0 && _proxySettings.host)) return;
   _applyProxyToSessionObj(ses);
 }
 
@@ -4872,72 +6115,121 @@ function _broadcastTorProgress(pct) {
 
 function startTor(bridges) {
   return new Promise(function(resolve, reject) {
-    if (_torProcess) { resolve({ running: true, bootstrap: _torBootstrap }); return; }
-    try { fs.mkdirSync(_torConfigDir, { recursive: true }); } catch(e) {}
-    var torrc = _makeTorrc(bridges);
-    var torrcPath = path.join(_torConfigDir, 'torrc');
-    fs.writeFileSync(torrcPath, torrc);
-
-    var torBin = process.platform === 'win32' ? 'tor.exe' : 'tor';
-    var { spawn } = require('child_process');
-    try {
-      _torProcess = spawn(torBin, ['-f', torrcPath], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false
-      });
-    } catch(e) {
-      reject(new Error('Failed to start Tor: ' + e.message));
-      return;
-    }
-
-    var started = false;
-    _torBootstrap = 0;
-
-    _torProcess.stdout.on('data', function(data) {
-      var msg = data.toString();
-      // Parse bootstrap progress: "Bootstrapped 45% (done): Loading relay descriptors"
-      var m = msg.match(/Bootstrapped (\d+)%/);
-      if (m) _broadcastTorProgress(parseInt(m[1], 10));
-
-      if (_torBootstrap >= 100 && !started) {
-        started = true;
-        resolve({ running: true, bootstrap: 100 });
+    // If Tor is already running with the SAME bridge set, return immediately.
+    // If the bridge set CHANGED we must stop the old process first so the
+    // new bridges are actually picked up — otherwise the user could never
+    // switch bridges without quitting the browser.
+    if (_torProcess) {
+      if (_torLastBridges === bridges) {
+        resolve({ running: true, bootstrap: _torBootstrap });
+        return;
       }
-      // "Bootstrapped 100%" — ready
-      if (!started && msg.indexOf('Bootstrapped 100%') >= 0) {
-        started = true;
-        _broadcastTorProgress(100);
-        resolve({ running: true, bootstrap: 100 });
-      }
-    });
-    _torProcess.stderr.on('data', function(data) {
-      var msg = data.toString();
-      // Common errors
-      if (!started && msg.indexOf('Could not bind') >= 0) {
-        started = true;
-        reject(new Error('Port ' + _torPort + ' is busy. Tor may already be running elsewhere.'));
-      }
-      if (!started && msg.indexOf('Error') >= 0 && msg.indexOf('obfs4proxy') >= 0) {
-        started = true;
-        reject(new Error('obfs4proxy not found. Install: sudo apt install obfs4proxy (Linux) / brew install obfs4proxy (macOS).'));
-      }
-    });
-    _torProcess.on('error', function() {
-      _torProcess = null;
-      if (!started) { started = true; reject(new Error(_torNotFoundMessage())); }
-    });
-    _torProcess.on('exit', function() {
+      // Bridges differ — kill the old tor. Wait for the 'exit' event (or a
+      // short timeout) BEFORE spawning the new one, otherwise the new tor
+      // fails with "Could not bind" because the SOCKS port is still held by
+      // the dying process.
+      var oldProc = _torProcess;
       _torProcess = null;
       _torBootstrap = 0;
-    });
-    // Timeout: with bridges Tor connects slower (up to 1-2 minutes). We give 30s.
-    setTimeout(function() {
-      if (!started) {
-        started = true;
-        resolve({ running: !!_torProcess, bootstrap: _torBootstrap });
+      try { oldProc.kill(); } catch(e) {}
+      var respawnStart = Date.now();
+      var onOldExit = function() {
+        var elapsed = Date.now() - respawnStart;
+        // Small grace period so the OS actually releases the port.
+        var wait = elapsed < 400 ? (400 - elapsed) : 0;
+        setTimeout(function() { _doStartTor(bridges, resolve, reject); }, wait);
+      };
+      if (oldProc.exitCode !== null || oldProc.signalCode !== null) {
+        // Already exited.
+        onOldExit();
+      } else {
+        oldProc.once('exit', onOldExit);
+        // Fallback — if tor ignores SIGTERM, force after 1.5s.
+        setTimeout(function() {
+          try { oldProc.kill('SIGKILL'); } catch(e) {}
+        }, 1500);
+        // Last-resort — start anyway after 2s even if exit never fires.
+        setTimeout(function() {
+          if (!_torProcess) _doStartTor(bridges, resolve, reject);
+        }, 2200);
       }
-    }, 30000);
+      return;
+    }
+    _doStartTor(bridges, resolve, reject);
   });
+}
+
+// Actual spawn — split out so the bridge-change path can re-enter after kill.
+function _doStartTor(bridges, resolve, reject) {
+  if (_torProcess) { resolve({ running: true, bootstrap: _torBootstrap }); return; }
+  _torLastBridges = bridges;
+  try { fs.mkdirSync(_torConfigDir, { recursive: true }); } catch(e) {}
+  var torrc = _makeTorrc(bridges);
+  var torrcPath = path.join(_torConfigDir, 'torrc');
+  fs.writeFileSync(torrcPath, torrc);
+
+  var torBin = process.platform === 'win32' ? 'tor.exe' : 'tor';
+  var { spawn } = require('child_process');
+  try {
+    _torProcess = spawn(torBin, ['-f', torrcPath], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: false
+    });
+  } catch(e) {
+    reject(new Error('Failed to start Tor: ' + e.message));
+    return;
+  }
+
+  var started = false;
+  _torBootstrap = 0;
+  var usesBridges = !!bridges;
+  // Bridged connections can take 1-2 minutes; give them more room.
+  var timeoutMs = usesBridges ? 120000 : 30000;
+
+  _torProcess.stdout.on('data', function(data) {
+    var msg = data.toString();
+    var m = msg.match(/Bootstrapped (\d+)%/);
+    if (m) _broadcastTorProgress(parseInt(m[1], 10));
+
+    if (_torBootstrap >= 100 && !started) {
+      started = true;
+      resolve({ running: true, bootstrap: 100 });
+    }
+    if (!started && msg.indexOf('Bootstrapped 100%') >= 0) {
+      started = true;
+      _broadcastTorProgress(100);
+      resolve({ running: true, bootstrap: 100 });
+    }
+  });
+  _torProcess.stderr.on('data', function(data) {
+    var msg = data.toString();
+    if (!started && msg.indexOf('Could not bind') >= 0) {
+      started = true;
+      reject(new Error('Port ' + _torPort + ' is busy. Stop the current Tor first or wait a few seconds.'));
+    }
+    if (!started && msg.indexOf('Error') >= 0 && msg.indexOf('obfs4proxy') >= 0) {
+      started = true;
+      reject(new Error('obfs4proxy not found. Install: sudo apt install obfs4proxy (Linux) / brew install obfs4proxy (macOS).'));
+    }
+    // Surface bridge / transport / connection errors so the user has a clue.
+    if (!started && /\[err\]|\[warn\]/i.test(msg) && /bridge|transport|connection refused|timed out|unable to connect/i.test(msg)) {
+      console.log('[tor]', msg.trim());
+    }
+  });
+  _torProcess.on('error', function() {
+    _torProcess = null;
+    if (!started) { started = true; reject(new Error(_torNotFoundMessage())); }
+  });
+  _torProcess.on('exit', function() {
+    _torProcess = null;
+    _torBootstrap = 0;
+  });
+  setTimeout(function() {
+    if (!started) {
+      started = true;
+      resolve({ running: !!_torProcess, bootstrap: _torBootstrap, timeout: true });
+    }
+  }, timeoutMs);
 }
 
 function stopTor() {
@@ -4946,6 +6238,9 @@ function stopTor() {
     _torProcess = null;
     _torBootstrap = 0;
   }
+  // Forget the previous bridge set so the next Start actually respawns tor
+  // instead of returning the cached "already running" state.
+  _torLastBridges = null;
 }
 
 // Identity change (NEWNYM) via the control port — new Tor circuits, new IP.
@@ -5407,6 +6702,31 @@ if (_proxySettings.enabled) {
   });
 }
 
+// Tor auto-start: if the user enabled "Use Tor by default with auto-start",
+// launch the built-in Tor and apply the SOCKS5 proxy on boot.
+(function () {
+  var _wantTorAutostart = false;
+  try { _wantTorAutostart = !!readStorage().torAutoStart; } catch(e) {}
+  if (_wantTorAutostart) {
+    app.whenReady().then(function () {
+      setTimeout(function () {
+        // Set the proxy type to Tor SOCKS5 and apply, then start the binary.
+        _proxySettings.enabled = true;
+        _proxySettings.type = 'tor';
+        if (!_proxySettings.host) _proxySettings.host = '127.0.0.1';
+        if (!_proxySettings.port) _proxySettings.port = '9050';
+        try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
+        applyProxyToSession();
+        startTor(_proxySettings.bridges || '').then(function (r) {
+          if (r && r.running) {
+            try { mainWindow.webContents.send('tor-bootstrap', r.bootstrap || 0); } catch(e) {}
+          }
+        }).catch(function() {});
+      }, 1500);
+    });
+  }
+})();
+
 app.on('before-quit', function() {
   stopTor();
   try {
@@ -5451,22 +6771,48 @@ ipcMain.handle('set-proxy-settings', function(_, settings) {
     type: settings.type || 'http',
     host: (settings.host || '').trim(),
     port: (settings.port || '').trim(),
-    bridges: settings.bridges || ''
+    bridges: settings.bridges || '',
+    bypassDomains: _normalizeDomainList(settings.bypassDomains),
+    forceDomains: _normalizeDomainList(settings.forceDomains)
   };
   try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
   applyProxyToSession();
   return { success: true };
 });
 
-ipcMain.handle('tor-start', function(_, settings) {
+ipcMain.handle('tor-start', async function(_, settings) {
   _proxySettings.bridges = settings.bridges || '';
   // Persist bridges to proxy.json so they are not lost on restart
   try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
-  return startTor(_proxySettings.bridges);
+  var res = await startTor(_proxySettings.bridges);
+  // Only route browser traffic through Tor when bootstrap actually reached
+  // 100%. If the bridge did not connect in time, applying the proxy would
+  // black-hole every subsequent request.
+  if (res && res.running && res.bootstrap >= 100) {
+    _proxySettings.enabled = true;
+    _proxySettings.type = 'socks5';
+    _proxySettings.host = '127.0.0.1';
+    _proxySettings.port = String(_torPort || 9050);
+    try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
+    try { applyProxyToSession(); } catch(e) {}
+  } else if (res && res.timeout) {
+    // Surface the timeout so the UI can tell the user the bridge did not
+    // connect — instead of silently leaving them with a half-dead Tor.
+    return Object.assign({}, res, {
+      error: 'Tor did not finish bootstrapping with these bridges. Try another bridge or check your network.'
+    });
+  }
+  return res;
 });
 
 ipcMain.handle('tor-stop', function() {
   stopTor();
+  // CRITICAL: also drop the proxy from the session. The previous code only
+  // killed the process, leaving session.proxyRules pointing at 127.0.0.1:9050
+  // — which made every request fail because nothing was listening any more.
+  _proxySettings.enabled = false;
+  try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
+  try { applyProxyToSession(); } catch(e) {}
   return { stopped: true };
 });
 
@@ -5480,6 +6826,119 @@ ipcMain.handle('tor-status', function() {
 
 ipcMain.handle('tor-newnym', function() {
   return torNewIdentity();
+});
+
+// ===== Tor auto-start flag (stored in settings.json) =====
+ipcMain.handle('get-tor-autostart', function() {
+  try { return !!readStorage().torAutoStart; } catch(e) { return false; }
+});
+ipcMain.handle('set-tor-autostart', function(_, val) {
+  try {
+    var s = readStorage();
+    s.torAutoStart = !!val;
+    writeStorage(s);
+    return { success: true };
+  } catch(e) { return { success: false, error: e.message }; }
+});
+
+// ===== Connection test: detects exit IP, country, ISP, Tor status, speed =====
+// Goes through the current proxy/Tor (uses net.fetch which respects session proxy).
+ipcMain.handle('proxy-connection-test', async function() {
+  var netMod = require('electron').net;
+  function fetchWithTimeout(url, ms) {
+    return new Promise(function(resolve, reject) {
+      var done = false;
+      var t = setTimeout(function() {
+        if (!done) { done = true; reject(new Error('timeout')); }
+      }, ms || 12000);
+      try {
+        netMod.fetch(url, { cache: 'no-store', redirect: 'follow' }).then(function(r) {
+          if (done) return;
+          done = true; clearTimeout(t); resolve(r);
+        }).catch(function(e) {
+          if (done) return;
+          done = true; clearTimeout(t); reject(e);
+        });
+      } catch(e) {
+        if (!done) { done = true; clearTimeout(t); reject(e); }
+      }
+    });
+  }
+
+  var mode = 'direct';
+  if (_proxySettings.enabled) {
+    mode = (_proxySettings.type === 'tor') ? 'tor' : 'proxy';
+  }
+  var out = { success: false, mode: mode, isTor: false, ip: null, country: null,
+              countryCode: null, city: null, isp: null, timezone: null,
+              latencyMs: null, speedKbps: null, error: null };
+
+  // 1) IP + Tor detection via check.torproject.org
+  var t0 = Date.now();
+  try {
+    var r1 = await fetchWithTimeout('https://check.torproject.org/api/ip', 12000);
+    if (r1.ok) {
+      var j1 = await r1.json();
+      out.ip = j1.IP || out.ip;
+      out.isTor = !!j1.IsTor;
+    }
+    out.latencyMs = Date.now() - t0;
+  } catch(e) {
+    out.latencyMs = Date.now() - t0;
+    // keep going — try geo lookup which also returns the IP
+  }
+
+  // 2) Geo / ISP via ipapi.co (fallback: ipinfo.io)
+  try {
+    var r2 = await fetchWithTimeout('https://ipapi.co/json/', 12000);
+    if (r2.ok) {
+      var j2 = await r2.json();
+      if (j2 && !j2.error) {
+        if (!out.ip) out.ip = j2.ip;
+        out.country = j2.country_name || out.country;
+        out.countryCode = j2.country_code || out.countryCode;
+        out.city = j2.city || out.city;
+        out.isp = j2.org || j2.asn || out.isp;
+        out.timezone = j2.timezone || out.timezone;
+      }
+    }
+  } catch(e) {
+    // fallback to ipinfo.io
+    try {
+      var r3 = await fetchWithTimeout('https://ipinfo.io/json', 10000);
+      if (r3.ok) {
+        var j3 = await r3.json();
+        if (!out.ip) out.ip = j3.ip;
+        var loc = j3.loc ? j3.loc.split(',') : null;
+        out.country = out.country || (j3.country ? j3.country : null);
+        out.countryCode = out.countryCode || j3.country;
+        out.city = out.city || j3.city;
+        out.isp = out.isp || j3.org;
+        out.timezone = out.timezone || j3.timezone;
+      }
+    } catch(e2) {}
+  }
+
+  // 3) Speed test — download ~512KB from Cloudflare and measure throughput
+  try {
+    var bytes = 524288;
+    var ts = Date.now();
+    var r4 = await fetchWithTimeout('https://speed.cloudflare.com/__down?bytes=' + bytes, 15000);
+    if (r4.ok && r4.body) {
+      var buf = await r4.arrayBuffer();
+      var dt = (Date.now() - ts) / 1000;
+      if (dt > 0 && buf && buf.byteLength > 0) {
+        out.speedKbps = Math.round((buf.byteLength * 8) / 1000 / dt);
+      }
+    }
+  } catch(e) {}
+
+  if (!out.ip && !out.country) {
+    out.error = 'No network response. The proxy/Tor may be down or blocking these requests.';
+  } else {
+    out.success = true;
+  }
+  return out;
 });
 
 ipcMain.handle('translate-text', async function(_, text, from, to) {

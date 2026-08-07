@@ -68,6 +68,22 @@ body {
   -webkit-font-smoothing: antialiased;
   border-radius: 10px;
   overflow: hidden;
+  /* Disable text selection across the chrome UI. Without this, dragging the
+     frameless window (via -webkit-app-region: drag on .titlebar) triggers a
+     blue "text selection" highlight over panels, the omnibox and even the
+     webview area, making the app feel broken. Inputs/textareas and reader
+     content stay selectable via the exceptions below. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Selection whitelist: keep text selection where the user actually needs it. */
+input, textarea,
+[contenteditable="true"],
+[contenteditable=""],
+.reader-article, .reader-content {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .window-blur-bg {
@@ -154,62 +170,114 @@ body.theme-light .window-blur-bg::before {
   flex: 1;
 }
 
-.titlebar-btn {
+/* ===== macOS-style window controls =====
+   Default look: three solid colored circles with no glyphs (clean macOS
+   chrome). On hover the glyph fades+scales in, on press the circle dims and
+   shrinks for a tactile feel. When the window loses focus the circles turn
+   gray (matches the Sequoia "inactive-center" asset state). */
+.mac-btn {
   width: 12px;
   height: 12px;
-  border-radius: 50%;
+  padding: 0;
   border: none;
+  border-radius: 50%;
   cursor: pointer;
-  transition: filter 0.2s;
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  color: #ffffff;
-  font-weight: bold;
-  line-height: 1;
-  text-shadow: 0 0 1px rgba(0,0,0,0.5);
+  transition: transform .09s cubic-bezier(.4, 0, .2, 1),
+              filter .15s ease,
+              background-color .2s ease,
+              box-shadow .15s ease;
+  -webkit-app-region: no-drag;
+}
+.mac-btn:focus { outline: none; }
+.mac-btn:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255,255,255,.35);
 }
 
-.titlebar-btn.close {
-  background: #ff5f57;
-}
+.mac-close    { background: #ff5f57; }
+.mac-minimize { background: #ffbd2e; }
+.mac-maximize { background: #28ca42; }
 
-.titlebar-btn.minimize {
-  background: #ffbd2e;
+.mac-glyph {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 8px;
+  height: 8px;
+  opacity: 0;
+  transform: scale(.55);
+  transition: opacity .13s ease, transform .13s cubic-bezier(.34, 1.56, .64, 1);
+  pointer-events: none;
+  display: block;
 }
+/* Only one of maximize/restore is visible at a time. */
+.mac-glyph-restore { display: none; }
 
-.titlebar-btn.maximize {
-  background: #28ca42;
+/* Reveal the glyph when the button (or the whole cluster) is hovered. */
+.mac-btn:hover .mac-glyph,
+.titlebar-controls:hover .mac-btn:hover .mac-glyph { opacity: 1; transform: scale(1); }
+
+/* Pressed / active state — slight shrink + darker fill, like the
+   "pressed-center" sprites in assets/Window Interface. */
+.mac-btn:active {
+  transform: scale(.84);
+  filter: brightness(.82);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
 }
+.mac-close:active    { background: #e4423a; }
+.mac-minimize:active { background: #dba427; }
+.mac-maximize:active { background: #1faa31; }
 
-.titlebar-btn:hover {
-  filter: brightness(0.85);
-}
+/* Switch the maximize glyph to "restore" once the window is maximized. */
+body.win-maximized .mac-glyph-max     { display: none; }
+body.win-maximized .mac-glyph-restore { display: block; }
 
-body.win-controls .titlebar-controls {
-  gap: 0;
-}
+/* Unfocused window: gray dots, glyphs stay hidden (macOS inactive look). */
+body.win-inactive .mac-close,
+body.win-inactive .mac-minimize,
+body.win-inactive .mac-maximize { background: #5d5d5d; }
+body.win-inactive .mac-glyph    { opacity: 0 !important; }
 
-body.win-controls .titlebar-btn {
+/* ===== Optional rectangular (Windows-like) variant =====
+   Toggled via body.win-controls — keeps the same DOM, just a different skin. */
+body.win-controls .titlebar-controls { gap: 0; }
+body.win-controls .mac-btn {
   width: 46px;
   height: 32px;
   border-radius: 0;
   background: transparent;
-  color: var(--text-primary);
-  font-size: 13px;
-  text-shadow: none;
+  transition: background-color .12s ease;
 }
-
-body.win-controls .titlebar-btn:hover {
-  filter: none;
-  background: rgba(255, 255, 255, 0.1);
+body.win-controls .mac-btn:active { transform: none; filter: none; box-shadow: none; }
+body.win-controls .mac-glyph {
+  position: static;
+  width: 11px;
+  height: 11px;
+  opacity: 1;
+  transform: none;
 }
-
-body.win-controls .titlebar-btn.close:hover {
-  background: #e81123;
-  color: #fff;
+body.win-controls .mac-glyph line,
+body.win-controls .mac-glyph path {
+  stroke: var(--text-primary);
+  fill: var(--text-primary);
 }
+body.win-controls .mac-glyph-max line,
+body.win-controls .mac-glyph-max path,
+body.win-controls .mac-glyph-restore line,
+body.win-controls .mac-glyph-restore path {
+  stroke: var(--text-primary);
+  fill: var(--text-primary);
+}
+body.win-controls .mac-btn:hover { background: rgba(255, 255, 255, 0.1); }
+body.win-controls .mac-close:hover { background: #e81123; }
+body.win-controls .mac-close:hover .mac-glyph path { stroke: #fff; }
+body.win-controls .mac-minimize:hover .mac-glyph line { stroke: var(--text-primary); }
+body.win-controls .mac-maximize:hover .mac-glyph path { fill: var(--text-primary); }
+/* keep the inactive/maximized state rules even in windows mode */
+body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 
 /* Navigation Bar */
 .navbar {
@@ -1180,10 +1248,22 @@ body.win-controls .titlebar-btn.close:hover {
 .browser-content {
   flex: 1;
   position: relative;
-  background: var(--bg-color-alpha);
+  /* Solid white behind webviews — sites that do not set their own
+     background (or set background:transparent) would otherwise show the
+     browser's translucent dark chrome through the transparent window. */
+  background: #ffffff;
   min-height: 0;
   overflow: hidden;
   border-radius: 0 0 10px 10px;
+}
+
+/* Opt-in frosted-glass look. The user enables it in
+   Settings → Customization → Translucent window (off by default).
+   When on, the chrome uses backdrop-blur + translucent backgrounds so the
+   desktop wallpaper shows through. Pages without their own background will
+   also appear see-through (that is the trade-off we warn about). */
+body.translucent-mode .browser-content {
+  background: var(--bg-color-alpha);
 }
 
 .browser-content webview {
@@ -1193,6 +1273,9 @@ body.win-controls .titlebar-btn.close:hover {
   width: 100%;
   height: 100%;
   display: none;
+  /* Webview itself stays transparent — the underlying .browser-content
+     background shows through for pages that do not set their own. */
+  background-color: transparent;
 }
 
 .browser-content webview.active { display: flex; }
@@ -1204,7 +1287,7 @@ body.win-controls .titlebar-btn.close:hover {
 
 /* Loading Progress Bar */
 .loading-bar {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
@@ -2409,6 +2492,276 @@ body.vertical-tabs .vtab-new-btn {
   box-shadow: 0 0 8px rgba(233, 30, 99, 0.5);
 }
 
+/* ============ WEBVIEW DIALOG BANNER (Chrome-style alert/confirm/prompt) ============ */
+/* Slides down from under the omnibox when a page calls alert/confirm/prompt
+   or fires beforeunload. Lives above everything except the permission popup
+   so the lock-icon popover still wins when both are visible. */
+.wv-dialog {
+  position: fixed;
+  top: -260px;                       /* off-screen above the viewport */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
+  max-width: calc(100vw - 24px);
+  z-index: 100000;
+  background: var(--bg-secondary, #2d2d2d);
+  color: var(--text-primary, #fff);
+  border: 1px solid var(--border-color, #3d3d3d);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 3px 10px rgba(0,0,0,0.3);
+  padding: 12px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  transition: top 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.1), opacity 0.18s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+.wv-dialog.open {
+  /* Slide down to just below the omnibox. var(--titlebar-height) + navbar (~40px). */
+  top: 84px;
+  opacity: 1;
+  pointer-events: auto;
+}
+.wv-dialog.closing {
+  top: -260px;
+  opacity: 0;
+  transition: top 0.18s ease-in, opacity 0.15s ease-in;
+}
+.wv-dialog-warn { border-color: rgba(255,180,0,0.45); }
+.wv-dialog-warn .wv-dialog-icon { color: #f5a623; }
+
+.wv-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.wv-dialog-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-hover, rgba(255,255,255,0.08));
+  color: var(--primary-color, #1da1f2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.wv-dialog-titles { flex: 1; min-width: 0; }
+.wv-dialog-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wv-dialog-origin {
+  font-size: 11px;
+  color: var(--text-secondary, #aaa);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wv-dialog-x {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.wv-dialog-x:hover { opacity: 1; background: var(--bg-hover, rgba(255,255,255,0.1)); }
+.wv-dialog-body {
+  color: var(--text-primary, #fff);
+  line-height: 1.45;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.wv-dialog-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #3d3d3d);
+  background: var(--bg-color, #202020);
+  color: var(--text-primary, #fff);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+.wv-dialog-input:focus { border-color: var(--primary-color, #1da1f2); }
+.wv-dialog-suppress {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  user-select: none;
+}
+.wv-dialog-suppress input { cursor: pointer; margin: 0; }
+.wv-dialog-suppress strong { color: var(--text-primary, #fff); font-weight: 600; }
+.wv-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.wv-dialog-btn {
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+.wv-dialog-btn:active { transform: translateY(1px); }
+.wv-dialog-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-color, #3d3d3d);
+  color: var(--text-primary, #fff);
+}
+.wv-dialog-btn-secondary:hover { background: var(--bg-hover, rgba(255,255,255,0.08)); }
+.wv-dialog-btn-primary {
+  background: var(--primary-color, #1da1f2);
+  border: 1px solid var(--primary-color, #1da1f2);
+  color: #fff;
+}
+.wv-dialog-btn-primary:hover { filter: brightness(1.1); }
+
+body.theme-light .wv-dialog {
+  background: #ffffff;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.2), 0 3px 10px rgba(0,0,0,0.08);
+}
+
+/* ============ PERMISSION REQUEST POPUP (anchored to the lock icon) ============ */
+.perm-popup {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Above every other overlay (custom dialogs use 99999). */
+  z-index: 100000;
+  width: 360px;
+  max-width: calc(100vw - 16px);
+  background: var(--bg-secondary, #2d2d2d);
+  color: var(--text-primary, #fff);
+  border: 1px solid var(--border-color, #3d3d3d);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.25);
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.16s ease;
+  font-family: inherit;
+  animation: permPopIn 0.16s ease;
+}
+@keyframes permPopIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+/* When the renderer positions the popup next to the lock, it overrides
+   transform/left/top inline; the animation is skipped to avoid flicker. */
+.perm-popup.anchored { animation: none; }
+.perm-popup.closing { opacity: 0; pointer-events: none; }
+.perm-popup .perm-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--bg-hover, rgba(255,255,255,0.08));
+  color: var(--primary-color, #1da1f2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.perm-popup .perm-body { flex: 1; min-width: 0; }
+.perm-popup .perm-domain {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.perm-popup .perm-text {
+  font-size: 12px;
+  color: var(--text-secondary, #aaa);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+.perm-popup .perm-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #aaa);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.15s, background 0.15s;
+}
+.perm-popup .perm-close:hover { opacity: 1; background: var(--bg-hover, rgba(255,255,255,0.1)); }
+.perm-popup .perm-actions {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 8px;
+  margin-top: 2px;
+}
+.perm-popup .perm-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #3d3d3d);
+  background: transparent;
+  color: var(--text-primary, #fff);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.perm-popup .perm-btn:active { transform: translateY(1px); }
+.perm-popup .perm-btn-block { color: var(--text-secondary, #aaa); }
+.perm-popup .perm-btn-block:hover { background: rgba(255,80,80,0.12); border-color: rgba(255,80,80,0.4); color: #ff6b6b; }
+.perm-popup .perm-btn-once:hover { background: var(--bg-hover, rgba(255,255,255,0.08)); }
+.perm-popup .perm-btn-allow {
+  background: var(--primary-color, #1da1f2);
+  border-color: var(--primary-color, #1da1f2);
+  color: #fff;
+}
+.perm-popup .perm-btn-allow:hover { filter: brightness(1.1); }
+
+body.theme-light .perm-popup {
+  background: #ffffff;
+  box-shadow: 0 10px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
+}
+
 /* ============ Find in All Tabs ============ */
 .findall-overlay {
   position: fixed;
@@ -3334,20 +3687,22 @@ body.compact-mode .ws-btn-name {
 
 .customize-overlay {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  /* Anchor to the top, just below the omnibox (titlebar 40 + navbar 48). */
+  top: 88px;
+  left: 0; right: 0;
   z-index: 99998;
   pointer-events: none;
 }
 .customize-panel {
   background: var(--overlay-bg);
   backdrop-filter: blur(20px);
-  border-top: 1px solid var(--hover-bg);
+  border-bottom: 1px solid var(--hover-bg);
   padding: 14px 20px;
   pointer-events: auto;
-  animation: customizeSlideUp 0.25s ease;
+  animation: customizeSlideDown 0.25s ease;
 }
-@keyframes customizeSlideUp {
-  from { transform: translateY(100%); opacity: 0; }
+@keyframes customizeSlideDown {
+  from { transform: translateY(-100%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 .customize-header {

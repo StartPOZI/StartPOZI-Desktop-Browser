@@ -33,6 +33,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTheme: (theme) => ipcRenderer.invoke('set-theme', theme),
   getWindowOpacity: () => ipcRenderer.invoke('get-window-opacity'),
   setWindowOpacity: (opacity) => ipcRenderer.invoke('set-window-opacity', opacity),
+  getTranslucentMode: () => ipcRenderer.invoke('get-translucent-mode'),
+  setTranslucentMode: (on) => ipcRenderer.invoke('set-translucent-mode', on),
+  onTranslucentModeChanged: (cb) => {
+    const listener = (_, on) => cb(on);
+    ipcRenderer.on('translucent-mode-changed', listener);
+    return () => ipcRenderer.removeListener('translucent-mode-changed', listener);
+  },
   onWindowOpacityChanged: (callback) => {
     ipcRenderer.on('window-opacity-changed', (_, opacity) => callback(opacity));
   },
@@ -79,6 +86,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSitePermissions: () => ipcRenderer.invoke('get-site-permissions'),
   setSitePermission: (domain, permission, value) => ipcRenderer.invoke('set-site-permission', domain, permission, value),
   removeSitePermissions: (domain) => ipcRenderer.invoke('remove-site-permissions', domain),
+  setGeoOverride: (domain, coords) => ipcRenderer.invoke('set-geo-override', domain, coords),
+  setCertException: (domain, allow) => ipcRenderer.invoke('set-cert-exception', domain, allow),
+  getCertExceptions: () => ipcRenderer.invoke('get-cert-exceptions'),
+  setHttpConsent: (domain, allow) => ipcRenderer.invoke('set-http-consent', domain, allow),
+  getHttpConsent: (domain) => ipcRenderer.invoke('get-http-consent', domain),
   getCookies: () => ipcRenderer.invoke('get-cookies'),
   getCookiesForDomain: (domain) => ipcRenderer.invoke('get-cookies-for-domain', domain),
   removeCookie: (url, name) => ipcRenderer.invoke('remove-cookie', url, name),
@@ -201,6 +213,48 @@ contextBridge.exposeInMainWorld('electronAPI', {
   verifyMasterPassword: (pw) => ipcRenderer.invoke('verify-master-password', pw),
   setMasterPassword: (pw) => ipcRenderer.invoke('set-master-password', pw),
 
+  // Vault (encrypted password store)
+  unlockVault: (pw) => ipcRenderer.invoke('unlock-vault', pw),
+  lockVault: () => ipcRenderer.invoke('lock-vault'),
+  isVaultUnlocked: () => ipcRenderer.invoke('is-vault-unlocked'),
+  removeMasterPassword: (pw) => ipcRenderer.invoke('remove-master-password', pw),
+
+  // Library protection (gates Library access behind master password)
+  getLibraryProtection: () => ipcRenderer.invoke('get-library-protection'),
+  setLibraryProtection: (settings, password) => ipcRenderer.invoke('set-library-protection', settings, password),
+  checkLibraryProtection: () => ipcRenderer.invoke('check-library-protection'),
+  verifyLibraryAccess: (pw) => ipcRenderer.invoke('verify-library-access', pw),
+  libraryBiometricAuth: () => ipcRenderer.invoke('library-biometric-auth'),
+  lockLibrary: () => ipcRenderer.invoke('lock-library'),
+
+  // Browser startup lock (appLock) — same master password, unlocks the whole
+  // browser for the session.
+  checkAppLock: () => ipcRenderer.invoke('check-app-lock'),
+  verifyAppLock: (pw) => ipcRenderer.invoke('verify-app-lock', pw),
+  appBiometricAuth: () => ipcRenderer.invoke('app-biometric-auth'),
+
+  // Window state (maximize/focus) — used by the macOS-style controls
+  onWindowStateChanged: (cb) => {
+    const listener = (_, s) => cb(s);
+    ipcRenderer.on('window-state-changed', listener);
+    return () => ipcRenderer.removeListener('window-state-changed', listener);
+  },
+  onWindowFocusChanged: (cb) => {
+    const listener = (_, state) => cb(state);
+    ipcRenderer.on('window-focus-changed', listener);
+    return () => ipcRenderer.removeListener('window-focus-changed', listener);
+  },
+  onWindowMinimized: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('window-minimized', listener);
+    return () => ipcRenderer.removeListener('window-minimized', listener);
+  },
+  onWindowRestored: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('window-restored', listener);
+    return () => ipcRenderer.removeListener('window-restored', listener);
+  },
+
   // Browsing data clearing (Privacy section)
   clearBrowsingData: (options, dataToRemove) => ipcRenderer.invoke('clear-browsing-data', options, dataToRemove),
 
@@ -288,12 +342,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Incognito
   createIncognitoTab: (url) => ipcRenderer.invoke('create-incognito-tab', url),
+  clearIncognitoPartition: (partition) => ipcRenderer.invoke('clear-incognito-partition', partition),
   onIncognitoTab: (callback) => {
     ipcRenderer.on('open-incognito-tab', (_, url) => callback(url));
   },
-
-  // Reader mode extract
-  readerExtract: () => Promise.reject(new Error('Reader mode not implemented')),
 
   showContextMenu: (params) => ipcRenderer.send('show-context-menu', params),
   onContextMenuAction: (callback) => ipcRenderer.on('context-menu-action', (_, action) => callback(action)),
@@ -311,7 +363,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPermissionRequest: (callback) => {
     ipcRenderer.on('permission-request', (_, data) => callback(data));
   },
-  respondPermissionRequest: (dialogId, allow) => ipcRenderer.send('permission-response', { dialogId: dialogId, allow: allow }),
+  // decision ∈ 'allow' | 'block' | 'session' | 'once' | 'dismiss'
+  // Legacy boolean form (allow=true|false) is still accepted by main.
+  respondPermissionRequest: (dialogId, decision) => ipcRenderer.send('permission-response', { dialogId: dialogId, decision: decision }),
+  onPermissionRequestTimeout: (callback) => {
+    ipcRenderer.on('permission-request-timeout', (_, data) => callback(data));
+  },
 
   // Proxy
   getProxySettings: () => ipcRenderer.invoke('get-proxy-settings'),

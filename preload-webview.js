@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTheme: (theme) => ipcRenderer.invoke('set-theme', theme),
   getWindowOpacity: () => ipcRenderer.invoke('get-window-opacity'),
   setWindowOpacity: (opacity) => ipcRenderer.invoke('set-window-opacity', opacity),
+  getTranslucentMode: () => ipcRenderer.invoke('get-translucent-mode'),
+  setTranslucentMode: (on) => ipcRenderer.invoke('set-translucent-mode', on),
   onThemeUpdated: (callback) => {
     ipcRenderer.on('theme-updated', (_, theme) => callback(theme));
   },
@@ -205,6 +207,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
   verifyMasterPassword: (pw) => ipcRenderer.invoke('verify-master-password', pw),
   setMasterPassword: (pw) => ipcRenderer.invoke('set-master-password', pw),
 
+  // Vault (encrypted password store)
+  unlockVault: (pw) => ipcRenderer.invoke('unlock-vault', pw),
+  lockVault: () => ipcRenderer.invoke('lock-vault'),
+  isVaultUnlocked: () => ipcRenderer.invoke('is-vault-unlocked'),
+  removeMasterPassword: (pw) => ipcRenderer.invoke('remove-master-password', pw),
+
+  // Library protection (gates Library access behind master password)
+  getLibraryProtection: () => ipcRenderer.invoke('get-library-protection'),
+  setLibraryProtection: (settings, password) => ipcRenderer.invoke('set-library-protection', settings, password),
+  checkLibraryProtection: () => ipcRenderer.invoke('check-library-protection'),
+  verifyLibraryAccess: (pw) => ipcRenderer.invoke('verify-library-access', pw),
+  libraryBiometricAuth: () => ipcRenderer.invoke('library-biometric-auth'),
+  lockLibrary: () => ipcRenderer.invoke('lock-library'),
+
+  // Settings protection + Backup re-auth + (biometric shared with library).
+  checkSettingsProtection: () => ipcRenderer.invoke('check-settings-protection'),
+  verifySettingsAccess: (pw) => ipcRenderer.invoke('verify-settings-access', pw),
+  settingsBiometricAuth: () => ipcRenderer.invoke('settings-biometric-auth'),
+  checkBackupProtection: () => ipcRenderer.invoke('check-backup-protection'),
+  verifyBackupAccess: (pw) => ipcRenderer.invoke('verify-backup-access', pw),
+  lockBackup: () => ipcRenderer.invoke('lock-backup'),
+  // Protection section gate (the panel with the master-password toggles).
+  checkProtectionAccess: () => ipcRenderer.invoke('check-protection-access'),
+  verifyProtectionAccess: (pw) => ipcRenderer.invoke('verify-protection-access', pw),
+
+  // Window state (maximize/focus) — used by the macOS-style controls
+  onWindowStateChanged: (cb) => {
+    const listener = (_, s) => cb(s);
+    ipcRenderer.on('window-state-changed', listener);
+    return () => ipcRenderer.removeListener('window-state-changed', listener);
+  },
+  onWindowFocusChanged: (cb) => {
+    const listener = (_, s) => cb(s);
+    ipcRenderer.on('window-focus-changed', listener);
+    return () => ipcRenderer.removeListener('window-focus-changed', listener);
+  },
+
   // Browsing data clearing (Privacy section)
   clearBrowsingData: (options, dataToRemove) => ipcRenderer.invoke('clear-browsing-data', options, dataToRemove),
 
@@ -297,6 +336,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSitePermissions: () => ipcRenderer.invoke('get-site-permissions'),
   setSitePermission: (domain, permission, value) => ipcRenderer.invoke('set-site-permission', domain, permission, value),
   removeSitePermissions: (domain) => ipcRenderer.invoke('remove-site-permissions', domain),
+  setGeoOverride: (domain, coords) => ipcRenderer.invoke('set-geo-override', domain, coords),
+  setCertException: (domain, allow) => ipcRenderer.invoke('set-cert-exception', domain, allow),
+  getCertExceptions: () => ipcRenderer.invoke('get-cert-exceptions'),
+  setHttpConsent: (domain, allow) => ipcRenderer.invoke('set-http-consent', domain, allow),
+  getHttpConsent: (domain) => ipcRenderer.invoke('get-http-consent', domain),
 
   // Cookies
   getCookies: () => ipcRenderer.invoke('get-cookies'),
@@ -330,8 +374,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Translate (used by hover-translate injection)
   translateText: (text, from, to) => ipcRenderer.invoke('translate-text', text, from, to),
 
-  // Main page data sync (used by injected bridge in main world)
-  getMainPageDataSync: () => ipcRenderer.invoke('get-mainpage-data-sync'),
+  // Main page data sync (used by injected bridge in main world).
+  // MUST be synchronous: MainPage/script.js consumes the return value inline
+  // (var data = getMainPageDataSync(); Object.keys(data)...). ipcRenderer.invoke
+  // returns a Promise, which broke the settings → MainPage restore (wallpapers,
+  // toggles...). The matching handler in main.js uses event.returnValue, which
+  // only works with sendSync.
+  getMainPageDataSync: () => ipcRenderer.sendSync('get-mainpage-data-sync'),
   setMainPageData: (snapshot) => ipcRenderer.send('set-mainpage-data', snapshot),
 
   // Optimization settings changed event
@@ -408,7 +457,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===== Tor auto-detection — for Settings.html =====
   detectTor: () => ipcRenderer.invoke('detect-tor'),
   ensureTorForOnion: () => ipcRenderer.invoke('ensure-tor-for-onion'),
-  getSnowflakePreset: () => ipcRenderer.invoke('get-snowflake-preset')
+  getSnowflakePreset: () => ipcRenderer.invoke('get-snowflake-preset'),
+
+  // ===== Proxy & Tor control — for Settings.html =====
+  getProxySettings: () => ipcRenderer.invoke('get-proxy-settings'),
+  setProxySettings: (settings) => ipcRenderer.invoke('set-proxy-settings', settings),
+  torStart: (settings) => ipcRenderer.invoke('tor-start', settings),
+  torStop: () => ipcRenderer.invoke('tor-stop'),
+  torCheck: () => ipcRenderer.invoke('tor-check'),
+  torStatus: () => ipcRenderer.invoke('tor-status'),
+  torNewNym: () => ipcRenderer.invoke('tor-newnym'),
+  onTorBootstrap: (callback) => {
+    var listener = (_, pct) => callback(pct);
+    ipcRenderer.on('tor-bootstrap', listener);
+    return () => { try { ipcRenderer.removeListener('tor-bootstrap', listener); } catch(e) {} };
+  },
+  // Tor auto-start on browser launch
+  getTorAutoStart: () => ipcRenderer.invoke('get-tor-autostart'),
+  setTorAutoStart: (val) => ipcRenderer.invoke('set-tor-autostart', val),
+  // Connection diagnostics (exit IP, country, ISP, speed) — goes through proxy/Tor
+  proxyConnectionTest: () => ipcRenderer.invoke('proxy-connection-test'),
+
+  // ===== .skit script packages (like .thmz but for scripts) =====
+  skitImport: (filePath) => ipcRenderer.invoke('skit-import', filePath),
+  skitList: () => ipcRenderer.invoke('skit-list'),
+  skitToggle: (skitId, enabled) => ipcRenderer.invoke('skit-toggle', skitId, enabled),
+  skitDelete: (skitId) => ipcRenderer.invoke('skit-delete', skitId),
+  skitExport: (skitId) => ipcRenderer.invoke('skit-export', skitId),
+  skitPickFile: () => ipcRenderer.invoke('skit-pick-file')
 });
 
 var _optSettings = {};
@@ -418,6 +494,73 @@ try {
   _optSettings = (_all && _all.optimization) || {};
   if (_all && _all.vim) _vimSettings = _all.vim;
 } catch(e) {}
+
+// Per-site geolocation override (lat/lng set via the Site Info panel).
+// Returned to the page as fake coordinates instead of the real location.
+var _geoOverride = null;
+try {
+  var _host = location.hostname;
+  if (_host) {
+    var _geoResp = ipcRenderer.sendSync('get-geo-override-sync', _host);
+    if (_geoResp && typeof _geoResp === 'object' && typeof _geoResp.lat === 'number') {
+      _geoOverride = _geoResp;
+    }
+  }
+} catch(e) {}
+
+// Page dialog bridge (alert/confirm/prompt).
+// In some Electron builds the main process's contents.on('dialog') listener
+// does not fire for <webview> tags, so we install a backup path: the page
+// talks to us (isolated preload) via postMessage, we relay via ipcRenderer.
+// This makes the banner show up regardless of which path delivered the event.
+(function installPageDialogBridge() {
+  try {
+    // Isolated-world side: receive requests from the page, forward to main.
+    window.addEventListener('message', function(e) {
+      var d = e.data;
+      if (!d || !d.__spzDialogReq || !d.id) return;
+      try {
+        ipcRenderer.invoke('dialog-request', {
+          type: d.type,
+          message: d.message || '',
+          defaultText: d.defaultText || ''
+        }).then(function(result) {
+          try {
+            window.postMessage({ __spzDialogResp: true, id: d.id, result: result }, '*');
+          } catch(_) {}
+        }).catch(function() {
+          try {
+            window.postMessage({ __spzDialogResp: true, id: d.id, result: null }, '*');
+          } catch(_) {}
+        });
+      } catch(err) {
+        try {
+          window.postMessage({ __spzDialogResp: true, id: d.id, result: null }, '*');
+        } catch(_) {}
+      }
+    });
+
+    // Main-world side: override window.alert/confirm/prompt. The override is
+    // async-friendly (alert returns void, confirm/prompt return default values),
+    // because we cannot block JS execution. This matches how Chrome handles
+    // the same APIs on cross-origin iframes.
+    var overrideCode = '(function(){' +
+      'if(window.__spzDialogPatched)return;window.__spzDialogPatched=true;' +
+      'function _req(payload,cb){' +
+        'var id="d"+Math.random().toString(36).slice(2,10);' +
+        'function h(ev){if(ev.data&&ev.data.__spzDialogResp&&ev.data.id===id){window.removeEventListener("message",h);cb(ev.data.result);}}' +
+        'window.addEventListener("message",h);' +
+        'window.postMessage({__spzDialogReq:true,id:id,type:payload.type,message:payload.message||"",defaultText:payload.defaultText||""},"*");' +
+      '}' +
+      'try{window.alert=function(m){_req({type:"alert",message:String(m==null?"":m)},function(){});return undefined;};}catch(e){}' +
+      'try{window.confirm=function(m){_req({type:"confirm",message:String(m==null?"":m)},function(){});return false;};}catch(e){}' +
+      'try{window.prompt=function(m,d){_req({type:"prompt",message:String(m==null?"":m),defaultText:String(d==null?"":d)},function(){});return null;};}catch(e){}' +
+    '})();';
+    if (webFrame && webFrame.executeJavaScript) {
+      webFrame.executeJavaScript(overrideCode).catch(function() {});
+    }
+  } catch(e) {}
+})();
 
 (function injectSecurityScripts() {
   try {
@@ -476,6 +619,37 @@ try {
         'try{Object.defineProperty(_np,"userAgent",{get:function(){return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}});}catch(e){}' +
         'try{Object.defineProperty(_np,"appVersion",{get:function(){return "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}});}catch(e){}' +
         'try{Object.defineProperty(_np,"languages",{get:function(){return ["en-US","en"];}});}catch(e){}' +
+        // sendBeacon — fire-and-forget tracking pings (analytics, ads). Noop silently.
+        'try{Navigator.prototype.sendBeacon=function(){return true;};}catch(e){}' +
+        // Battery Status API — strong fingerprint vector (level+charging+times).
+        // Return a stable, generic profile so the value is identical across users.
+        'try{Object.defineProperty(_np,"getBattery",{value:function(){return Promise.resolve({' +
+          'charging:true,chargingTime:0,dischargingTime:Infinity,level:1,' +
+          'addEventListener:function(){},removeEventListener:function(){}' +
+          '});},configurable:true,writable:true});}catch(e){}' +
+        // MediaDevices.enumerateDevices — returns camera/mic list with stable IDs.
+        // Normalise to a single anonymous audioinput so the fingerprint is constant.
+        'try{if(navigator.mediaDevices&&navigator.mediaDevices.enumerateDevices){' +
+          'var _origEnum=navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);' +
+          'navigator.mediaDevices.enumerateDevices=function(){' +
+          '  return _origEnum().then(function(list){return list.map(function(d){' +
+          '    return {kind:d.kind,deviceId:"",groupId:"",label:""};});}).catch(function(){return [];});' +
+          '};' +
+        '}}catch(e){}' +
+        'try{if(navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints){' +
+          'navigator.mediaDevices.getSupportedConstraints=function(){return {"echoCancellation":true,"noiseSuppression":true,"autoGainControl":true};};' +
+        '}}catch(e){}' +
+        // AudioContext fingerprinting — sites render a silent oscillator and read
+        // the float output, which varies per CPU/audio stack. Add tiny noise to
+        // the least significant bits of getChannelData / copyFromChannel output.
+        'try{var _ac=window.OfflineAudioContext||window.webkitOfflineAudioContext;' +
+        'if(_ac){var _origGetChannel=AudioBuffer.prototype.getChannelData;' +
+        'AudioBuffer.prototype.getChannelData=function(){' +
+          'var d=_origGetChannel.apply(this,arguments);' +
+          'if(d&&d.length>100){for(var i=0;i<d.length;i+=Math.max(1000,Math.floor(d.length/4))){d[i]=d[i]+(Math.random()-0.5)*1.0e-7;}}' +
+          'return d;' +
+        '};}' +
+        '}catch(e){}' +
         '})();';
     }
     if (sec.blockWebGL) {
@@ -531,7 +705,38 @@ try {
         'document.addEventListener("paste",function(e){e.preventDefault();},true);' +
         '})();';
     }
-    if (sec.blockGeolocation) {
+    // Geolocation handling — three modes:
+    //   1. Per-site geo override set in Site Info panel → return fake coords
+    //      via success callback (the page sees a plausible location).
+    //   2. blockGeolocation on (no override) → deny via error callback.
+    //   3. Otherwise → leave the browser's native geolocation alone.
+    if (_geoOverride) {
+      var _gLat = _geoOverride.lat, _gLng = _geoOverride.lng, _gAcc = _geoOverride.accuracy || 50;
+      code += '(function(){' +
+        'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&16)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|16,enumerable:false,configurable:true});}catch(e){}' +
+        'var _lat=' + _gLat + ',_lng=' + _gLng + ',_acc=' + _gAcc + ';' +
+        'function _mkPos(){' +
+        '  var ts=Date.now();' +
+        '  var coords={' +
+        '    latitude:_lat+(Math.random()-0.5)*0.0002,' +
+        '    longitude:_lng+(Math.random()-0.5)*0.0002,' +
+        '    accuracy:_acc+Math.floor(Math.random()*10),' +
+        '    altitude:null,altitudeAccuracy:null,heading:null,speed:null' +
+        '  };' +
+        '  return {coords:coords,timestamp:ts};' +
+        '}' +
+        'function _GeoError(code,msg){this.code=code;this.message=msg;this.PERMISSION_DENIED=1;this.POSITION_UNAVAILABLE=2;this.TIMEOUT=3;}' +
+        'if(navigator.geolocation){' +
+        '  Object.defineProperty(Navigator.prototype,"geolocation",{get:function(){' +
+        '    return {' +
+        '      getCurrentPosition:function(s,e,o){setTimeout(function(){if(s){s(_mkPos());}else if(e){e(new _GeoError(2,"Position unavailable"));}},Math.max(10,Math.min((o&&o.timeout)||5000)));},' +
+        '      watchPosition:function(s,e,o){var id=Math.floor(Math.random()*1e6);setTimeout(function(){if(s){s(_mkPos());}},Math.max(10,Math.min((o&&o.timeout)||5000)));return id;},' +
+        '      clearWatch:function(){}' +
+        '    };' +
+        '  },configurable:true,enumerable:true});' +
+        '}' +
+        '})();';
+    } else if (sec.blockGeolocation) {
       code += '(function(){' +
         'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&16)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|16,enumerable:false,configurable:true});}catch(e){}' +
         'if(navigator.geolocation){' +

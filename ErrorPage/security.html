@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connection is not secure</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#1a1a2e;color:#e0e0e0;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  overflow-x:hidden;user-select:none;
+  /* Subtle warm vignette — feels "dangerous" without being alarming. */
+  background:radial-gradient(circle at 50% 20%, rgba(255,180,0,0.06) 0%, transparent 55%), #1a1a2e;
+}
+
+.section{display:flex;flex-direction:column;align-items:center;padding:42px 20px 16px;text-align:center;position:relative;z-index:2;max-width:560px}
+
+/* ===== Magnifier with warning triangle inside ===== */
+.magnifier{position:relative;width:120px;height:120px;margin-bottom:18px}
+.magnifier svg{width:100%;height:100%}
+.m-ring{fill:none;stroke:#6c7a96;stroke-width:10;stroke-linecap:round}
+.m-shine{fill:none;stroke:rgba(255,255,255,0.2);stroke-width:4;stroke-linecap:round}
+.m-handle{fill:none;stroke:#6c7a96;stroke-width:10;stroke-linecap:round}
+/* Warning triangle — amber fill, dark border, animated pop-in. */
+.tri-fill{fill:#f5a623;filter:drop-shadow(0 0 8px rgba(245,166,35,0.55))}
+.tri-stroke{fill:none;stroke:#ffc94d;stroke-width:2.5;stroke-linejoin:round}
+.excl{fill:#1a1a2e}
+.excl-dot{fill:#1a1a2e}
+
+.m-ring{animation:popIn .4s ease-out both;transform-origin:center}
+.m-handle{animation:popIn .4s .1s ease-out both;transform-origin:center}
+.tri-grp{opacity:0;transform-origin:50px 48px;animation:triIn .55s .45s cubic-bezier(.2,1.4,.4,1) forwards}
+.excl-bar{animation:exclPulse 1.8s 1.1s ease-in-out infinite}
+@keyframes popIn{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}
+@keyframes triIn{0%{opacity:0;transform:scale(.3) rotate(-8deg)}60%{opacity:1;transform:scale(1.12) rotate(2deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes exclPulse{0%,100%{opacity:1}50%{opacity:.55}}
+.shake-anim{animation:shake .4s .35s ease-out}
+@keyframes shake{0%,100%{transform:translate(0)}20%{transform:translate(-4px,1px)}40%{transform:translate(3px,-1px)}60%{transform:translate(-2px,1px)}80%{transform:translate(2px,0)}}
+
+.title{font-size:24px;font-weight:700;color:#ffb84d;margin-bottom:8px;opacity:0;animation:fadeUp .4s 1s ease-out forwards}
+.subtitle{font-size:14px;color:#c0c8d4;max-width:460px;line-height:1.55;margin-bottom:14px;opacity:0;animation:fadeUp .4s 1.1s ease-out forwards}
+.url-box{
+  display:inline-block;font-size:12px;color:#8892a4;
+  padding:6px 14px;border-radius:20px;
+  background:rgba(255,184,77,0.08);border:1px solid rgba(255,184,77,0.25);
+  word-break:break-all;max-width:460px;margin-bottom:18px;
+  opacity:0;animation:fadeUp .4s 1.15s ease-out forwards;
+}
+.reason{font-size:13px;color:#a0a8b4;line-height:1.5;margin-bottom:18px;max-width:460px;opacity:0;animation:fadeUp .4s 1.2s ease-out forwards}
+.reason strong{color:#ffb84d}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== Actions ===== */
+.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;opacity:0;animation:fadeUp .4s 1.3s ease-out forwards}
+.btn{
+  padding:9px 22px;border-radius:8px;font-size:13px;font-weight:600;
+  cursor:pointer;font-family:inherit;border:none;
+  transition:transform .15s,box-shadow .15s,background .15s;
+}
+.btn-primary{
+  background:linear-gradient(135deg,#4a5568,#5a6478);color:#fff;
+}
+.btn-primary:hover{transform:scale(1.04);box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.btn-danger{
+  background:transparent;color:#ffb84d;border:1px solid rgba(255,184,77,.5);
+}
+.btn-danger:hover{background:rgba(255,184,77,.1);transform:scale(1.04)}
+.btn:active{transform:scale(.97)}
+
+/* ===== Advanced disclosure (Chrome-style "Details") ===== */
+.details-toggle{
+  margin-top:18px;font-size:12px;color:#5a6478;cursor:pointer;
+  border:none;background:transparent;font-family:inherit;
+  text-decoration:underline;text-align:center;
+  opacity:0;animation:fadeUp .4s 1.4s ease-out forwards;
+}
+.details-toggle:hover{color:#8892a4}
+.details-body{
+  display:none;margin-top:14px;padding:14px 18px;border-radius:10px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+  font-size:12px;color:#8892a4;line-height:1.55;text-align:left;
+  max-width:460px;width:100%;
+}
+.details-body.visible{display:block;animation:fadeUp .25s ease-out}
+.details-body strong{color:#ffb84d}
+
+/* ===== Spinner while the user is waiting on navigation ===== */
+.spinner{
+  display:none;width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(255,184,77,.25);border-top-color:#ffb84d;
+  animation:spin .7s linear infinite;margin-left:8px;vertical-align:-2px;
+}
+.btn.loading .spinner{display:inline-block}
+.btn.loading .btn-text{opacity:.7}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== Footer note ===== */
+.footer-note{
+  margin-top:30px;font-size:11px;color:#3a3a5c;text-align:center;
+  max-width:480px;line-height:1.5;padding:0 20px;
+}
+</style>
+<script src="../i18n.js"></script>
+</head>
+<body>
+<div class="section">
+  <div class="magnifier shake-anim">
+    <svg viewBox="0 0 120 120">
+      <circle class="m-ring" cx="50" cy="48" r="30"/>
+      <path class="m-shine" d="M38 34 Q42 30 48 32"/>
+      <line class="m-handle" x1="72" y1="70" x2="100" y2="100"/>
+      <!-- Warning triangle inside the magnifier glass -->
+      <g class="tri-grp">
+        <path class="tri-fill" d="M50 30 L72 68 L28 68 Z"/>
+        <path class="tri-stroke" d="M50 30 L72 68 L28 68 Z"/>
+        <rect class="excl excl-bar" x="48" y="42" width="4" height="14" rx="2"/>
+        <circle class="excl excl-dot" cx="50" cy="61" r="2.4"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="title" id="title">Your connection is not private</div>
+  <div class="subtitle" id="subtitle">Attackers might be trying to steal your information from this site, for example passwords, messages or credit cards.</div>
+  <div class="url-box" id="urlBox"></div>
+  <div class="reason" id="reason"></div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="backBtn"><span class="btn-text">Back to safety</span></button>
+    <button class="btn btn-danger" id="proceedBtn"><span class="btn-text">Proceed to site (unsafe)</span><span class="spinner"></span></button>
+  </div>
+
+  <button class="details-toggle" id="detailsToggle">Show details</button>
+  <div class="details-body" id="detailsBody">
+    <div id="detailsText"></div>
+  </div>
+
+  <div class="footer-note">
+    StartPOZI Browser · The connection uses HTTP or has an invalid certificate.<br>
+    Never enter passwords or payment details on sites you do not fully trust.
+  </div>
+</div>
+
+<script>
+(function(){
+  var p = new URLSearchParams(location.search);
+  var url = p.get('url') || '';
+  var reason = p.get('reason') || '';
+  var code = p.get('code') || '';
+  var desc = p.get('desc') || '';
+  var backUrl = p.get('back') || '';
+
+  // Map the reason code to a friendly explanation.
+  var REASONS = {
+    http:        { title: 'This site is not secure',
+                   subtitle: 'This site uses an unencrypted HTTP connection. Anything you send — passwords, messages, card numbers — could be read by anyone on your network (Wi-Fi, ISP, employer).',
+                   detail: 'HTTPS adds encryption so that what you send can only be read by the website. StartPOZI recommends HTTPS for every site that handles private data.' },
+    expired:     { title: 'Your connection is not private',
+                   subtitle: 'The security certificate for this site has expired. Attackers might be trying to impersonate the site to steal your information.',
+                   detail: 'Certificates are issued for a limited time and must be renewed. An expired certificate may simply mean the site owner forgot to renew — or that someone is impersonating the site.' },
+    notyet:      { title: 'Your connection is not private',
+                   subtitle: 'This site\'s certificate is not yet valid. The site may be misconfigured or your computer\'s clock may be wrong.',
+                   detail: 'Certificates have a "valid from" date. If your system clock is set in the past, even valid certificates can fail. Check your date and time settings.' },
+    selfsigned:  { title: 'Your connection is not private',
+                   subtitle: 'This site uses a self-signed certificate that StartPOZI does not trust. The connection may be secure, but you cannot be certain you are connected to the real site.',
+                   detail: 'A self-signed certificate was not issued by a recognised authority. This is common on internal company sites and routers, but also on phishing pages.' },
+    hostname:    { title: 'Your connection is not private',
+                   subtitle: 'The certificate was issued for a different domain. The site you are seeing may be impersonating another site.',
+                   detail: 'The certificate lists the hostnames it is valid for. The address you opened does not match any of them — a common sign of a phishing attack.' },
+    revoked:     { title: 'Your connection is not private',
+                   subtitle: 'This site\'s certificate has been revoked by its issuer. Continuing is dangerous.',
+                   detail: 'Revocation means the issuer explicitly invalidated the certificate (often after a breach). Modern browsers will refuse to load the site.' },
+    weak:        { title: 'Your connection is not private',
+                   subtitle: 'This site uses an outdated encryption algorithm that is no longer considered secure.',
+                   detail: 'Older ciphers and short keys can be broken by modern hardware. A properly configured server should use modern TLS.' },
+    unknown:     { title: 'Your connection is not private',
+                   subtitle: 'StartPOZI cannot verify the identity of this site. Anyone could be intercepting the connection.',
+                   detail: 'The certificate could not be validated. This may be a server misconfiguration or a man-in-the-middle attack.' }
+  };
+
+  var info = REASONS[reason] || REASONS.unknown;
+  document.getElementById('title').textContent = info.title;
+  document.getElementById('subtitle').textContent = info.subtitle;
+  document.getElementById('reason').innerHTML = '<strong>Reason:</strong> ' + info.detail;
+  document.getElementById('urlBox').textContent = url ? decodeURIComponent(url) : '';
+
+  document.getElementById('detailsText').innerHTML =
+    '<div><strong>URL:</strong> ' + (url ? decodeURIComponent(url) : '—') + '</div>' +
+    '<div style="margin-top:6px"><strong>Reason code:</strong> ' + (reason || 'unknown') + '</div>' +
+    (code ? '<div style="margin-top:6px"><strong>Chromium error:</strong> ' + code + '</div>' : '') +
+    (desc ? '<div style="margin-top:6px"><strong>Description:</strong> ' + desc + '</div>' : '');
+
+  var detailsToggle = document.getElementById('detailsToggle');
+  var detailsBody = document.getElementById('detailsBody');
+  detailsToggle.addEventListener('click', function(){
+    var open = detailsBody.classList.toggle('visible');
+    detailsToggle.textContent = open ? 'Hide details' : 'Show details';
+  });
+
+  // Back to safety — go back in history, or fall back to a new-tab page.
+  document.getElementById('backBtn').addEventListener('click', function(){
+    if (window.electronAPI && window.electronAPI._retryUrl && backUrl) {
+      window.electronAPI._retryUrl(backUrl);
+    } else if (history.length > 1) {
+      history.back();
+    } else if (window.electronAPI && window.electronAPI.openInCurrentTab) {
+      window.electronAPI.openInCurrentTab('startpozi://newtab');
+    } else {
+      location.href = '../../MainPage/index.html';
+    }
+  });
+
+  // Proceed anyway — record a per-site exception so the certificate verifier
+  // (main.js setCertificateVerifyProc) lets it through next time.
+  // For HTTP we use a separate httpConsents map.
+  var proceedBtn = document.getElementById('proceedBtn');
+  proceedBtn.addEventListener('click', function(){
+    if (!url) return;
+    proceedBtn.classList.add('loading');
+    var host = '';
+    try { host = new URL(decodeURIComponent(url)).hostname; } catch(e) {}
+
+    function goTo() {
+      if (window.electronAPI && window.electronAPI._retryUrl) {
+        window.electronAPI._retryUrl(url);
+      } else {
+        try { location.href = decodeURIComponent(url); } catch(e) {}
+      }
+    }
+
+    if (!host) { goTo(); return; }
+    // Pick the right exception store based on the failure reason.
+    var saveFn = null;
+    if (reason === 'http') {
+      saveFn = window.electronAPI && window.electronAPI.setHttpConsent;
+    } else {
+      saveFn = window.electronAPI && window.electronAPI.setCertException;
+    }
+    if (saveFn) {
+      saveFn(host, true).then(goTo).catch(function(){
+        // Fallback — at least try to navigate directly.
+        try { location.href = decodeURIComponent(url); } catch(e) {}
+      });
+    } else {
+      goTo();
+    }
+  });
+})();
+</script>
+</body>
+</html>

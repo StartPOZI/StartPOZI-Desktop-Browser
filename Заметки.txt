@@ -1,0 +1,37 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  Введи	Откроется
+about:settings / about:preferences	Settings.html
+about:library	Library.html
+about:newtab / about:home	MainPage
+about:history	Library → History
+about:bookmarks	Library → Bookmarks
+about:downloads	Library → Downloads
+about:passwords	Library → Passwords
+about:cookies	Library → Cookies
+about:tor / about:proxy	Settings → Proxy
+about:security	Settings → Security
+about:scripts	Settings → Scripts
+about:hotkeys / about:vim	Settings → Hotkeys
+about:themes / about:customization	Settings → Customization
+about:profiles	Settings → Profiles
+about:backup	Settings → Backup
+about:taskmanager / about:tasks	TaskManager.html
+about:blank	как было
+
+
+

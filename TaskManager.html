@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task manager</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+
+  body.theme-dark {
+    --bg-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --overlay-bg: rgba(20,20,30,0.48);
+    --overlay-filter: blur(60px) saturate(180%) brightness(1.7);
+    --card-bg: rgba(40,40,55,0.5);
+    --card-border: rgba(255,255,255,0.12);
+    --text: #fff;
+    --secondary: rgba(255,255,255,0.6);
+    --row-hover: rgba(255,255,255,0.07);
+    --btn-bg: rgba(255,255,255,0.12);
+    --btn-border: 1px solid rgba(255,255,255,0.18);
+    --btn-hover: rgba(255,255,255,0.22);
+    --danger: #ff5252;
+    --warn: #ffb86c;
+    --ok: #4CAF50;
+    --accent: #667eea;
+    --header-bg: rgba(0,0,0,0.25);
+    --badge-active: rgba(102,126,234,0.25);
+    --badge-sleep: rgba(150,150,160,0.2);
+    --badge-wl: rgba(76,175,80,0.2);
+    --bar-bg: rgba(255,255,255,0.1);
+  }
+  body.theme-light {
+    --bg-image: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+    --overlay-bg: rgba(245,245,250,0.55);
+    --overlay-filter: blur(60px) saturate(160%) brightness(1.1);
+    --card-bg: rgba(255,255,255,0.6);
+    --card-border: rgba(0,0,0,0.1);
+    --text: #1a1a2e;
+    --secondary: rgba(0,0,0,0.55);
+    --row-hover: rgba(0,0,0,0.05);
+    --btn-bg: rgba(0,0,0,0.06);
+    --btn-border: 1px solid rgba(0,0,0,0.12);
+    --btn-hover: rgba(0,0,0,0.12);
+    --danger: #d32f2f;
+    --warn: #e65100;
+    --ok: #2e7d32;
+    --accent: #5a6fd8;
+    --header-bg: rgba(0,0,0,0.06);
+    --badge-active: rgba(102,126,234,0.18);
+    --badge-sleep: rgba(120,120,130,0.18);
+    --badge-wl: rgba(76,175,80,0.18);
+    --bar-bg: rgba(0,0,0,0.08);
+  }
+
+  body {
+    background:var(--bg-image);
+    background-attachment:fixed;
+    background-size:cover;
+    background-position:center;
+    color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  body.custom-bg {
+    background: var(--custom-bg) !important;
+    background-size: var(--custom-bg-size, cover) !important;
+    background-position: var(--custom-bg-pos, center) !important;
+    background-repeat: var(--custom-bg-repeat, no-repeat) !important;
+    background-attachment: var(--custom-bg-attach, fixed) !important;
+  }
+  .card {
+    background:var(--card-bg);
+    backdrop-filter:var(--overlay-filter);
+    -webkit-backdrop-filter:var(--overlay-filter);
+    border:1px solid var(--card-border);
+    border-radius:18px;
+    width:100%; max-width:1100px; height:100%;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,0.35);
+  }
+  .header {
+    padding:18px 22px;
+    border-bottom:1px solid var(--card-border);
+    background:var(--header-bg);
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-wrap:wrap;
+  }
+  .header h1 { font-size:18px; font-weight:600; display:flex; align-items:center; gap:10px; }
+  .header h1 svg { width:22px; height:22px; }
+  .summary { display:flex; gap:18px; align-items:center; font-size:13px; color:var(--secondary); flex-wrap:wrap; }
+  .summary b { color:var(--text); font-weight:600; }
+  .actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .btn {
+    background:var(--btn-bg); border:var(--btn-border); color:var(--text);
+    padding:7px 14px; border-radius:9px; font-size:12.5px; cursor:pointer;
+    transition:background 0.15s; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+  }
+  .btn:hover { background:var(--btn-hover); }
+  .btn svg { width:14px; height:14px; }
+  .btn-danger { color:var(--danger); }
+
+  .table-wrap { flex:1; overflow-y:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  thead th {
+    position:sticky; top:0; z-index:1;
+    background:var(--header-bg);
+    backdrop-filter:blur(10px);
+    text-align:left; padding:11px 14px;
+    font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:0.5px;
+    color:var(--secondary); border-bottom:1px solid var(--card-border);
+    cursor:pointer; user-select:none; white-space:nowrap;
+  }
+  thead th .sort { opacity:0.5; font-size:10px; margin-left:3px; }
+  thead th.sorted .sort { opacity:1; }
+  tbody tr { border-bottom:1px solid rgba(255,255,255,0.05); transition:background 0.1s; }
+  tbody tr:hover { background:var(--row-hover); }
+  tbody td { padding:10px 14px; vertical-align:middle; }
+  .col-title { min-width:240px; }
+  .col-mem, .col-cpu { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .col-actions { text-align:right; white-space:nowrap; width:1%; }
+
+  .title-cell { display:flex; align-items:center; gap:10px; min-width:0; }
+  .favicon { width:18px; height:18px; border-radius:4px; flex-shrink:0; background-size:contain; background-repeat:no-repeat; background-position:center; background-color:rgba(255,255,255,0.08); }
+  .favicon.placeholder { display:flex; align-items:center; justify-content:center; color:var(--secondary); font-size:10px; }
+  .title-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .title-text .t-name { font-weight:500; color:var(--text); }
+  .title-text .t-url { font-size:11px; color:var(--secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .badges { display:flex; gap:5px; flex-wrap:wrap; }
+  .badge { font-size:10px; padding:2px 7px; border-radius:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; white-space:nowrap; }
+  .badge.active { background:var(--badge-active); color:var(--accent); }
+    .badge.sleep { background:var(--badge-sleep); color:var(--secondary); }
+    .badge.frozen { background:rgba(121,134,203,0.22); color:#90a4ff; }
+  .badge.wl { background:var(--badge-wl); color:var(--ok); }
+  .badge.pin { background:rgba(255,184,108,0.18); color:var(--warn); }
+
+  .mem-bar { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+  .mem-bar .bar { width:54px; height:5px; background:var(--bar-bg); border-radius:3px; overflow:hidden; }
+  .mem-bar .bar > span { display:block; height:100%; background:var(--accent); border-radius:3px; }
+  .mem-bar .bar.hot > span { background:var(--danger); }
+  .mem-bar .bar.warm > span { background:var(--warn); }
+
+  .act-btn {
+    background:transparent; border:none; color:var(--secondary); cursor:pointer;
+    padding:5px; border-radius:6px; display:inline-flex; transition:background 0.12s,color 0.12s;
+  }
+  .act-btn:hover { background:var(--btn-hover); color:var(--text); }
+  .act-btn.danger:hover { color:var(--danger); }
+  .act-btn svg { width:15px; height:15px; }
+
+  .section-head td {
+    background:rgba(0,0,0,0.18); font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:0.6px; color:var(--secondary); padding:8px 14px;
+  }
+
+  .empty { padding:48px; text-align:center; color:var(--secondary); font-size:14px; }
+  .refresh-dot { width:8px; height:8px; border-radius:50%; background:var(--ok); display:inline-block; animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .hint { font-size:11px; color:var(--secondary); }
+
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background:rgba(128,128,140,0.4); border-radius:6px; }
+  ::-webkit-scrollbar-thumb:hover { background:rgba(128,128,140,0.6); }
+</style>
+<script src="i18n.js"></script>
+</head>
+<body class="theme-dark">
+<div class="card">
+  <div class="header">
+    <h1>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3z" opacity="0"/><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="14" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="10" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg>
+      Task manager
+    </h1>
+    <div class="summary" id="summary">
+      <span><span class="refresh-dot"></span> updates every 3 s</span>
+      <span>Total RAM: <b id="totalMem">—</b></span>
+      <span>CPU: <b id="totalCpu">—</b></span>
+      <span>Tabs: <b id="tabCount">—</b></span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="sleepAllBtn" title="Put all inactive tabs to sleep (except whitelist)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        Put all to sleep except current
+      </button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table id="tmTable">
+      <thead>
+        <tr>
+          <th class="col-title" data-sort="title">Tab / process <span class="sort">▼</span></th>
+          <th data-sort="hostname">Domain <span class="sort"></span></th>
+          <th>Status</th>
+          <th class="col-mem" data-sort="memoryKB">Memory <span class="sort">▼</span></th>
+          <th class="col-cpu" data-sort="cpu">CPU <span class="sort"></span></th>
+          <th class="col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tmBody"></tbody>
+    </table>
+    <div class="empty" id="emptyState" style="display:none;">Collecting data…</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var api = window.electronAPI || {};
+  var SORT = { key: 'memoryKB', dir: -1 };
+  var lastData = null;
+
+  function _t(s) {
+    if (window.i18n && window.i18n.t) return window.i18n.t(s);
+    return s;
+  }
+
+  // Theme
+  if (api.getTheme) {
+    api.getTheme().then(function(t) {
+      document.body.className = 'theme-' + (t === 'light' ? 'light' : 'dark');
+    });
+  }
+  if (api.onThemeUpdated) {
+    api.onThemeUpdated(function(t) {
+      document.body.className = 'theme-' + (t === 'light' ? 'light' : 'dark');
+    });
+  }
+
+  // ===== Background from customization settings (as in Library.html) =====
+  function applyWallpaper(cust) {
+    if (!cust || !cust.mainPageBackground) return;
+    document.documentElement.style.setProperty('--custom-bg', cust.mainPageBackground);
+    if (cust.mainPageBackgroundSize) document.documentElement.style.setProperty('--custom-bg-size', cust.mainPageBackgroundSize);
+    if (cust.mainPageBackgroundPosition) document.documentElement.style.setProperty('--custom-bg-pos', cust.mainPageBackgroundPosition);
+    if (cust.mainPageBackgroundRepeat) document.documentElement.style.setProperty('--custom-bg-repeat', cust.mainPageBackgroundRepeat);
+    if (cust.mainPageBackgroundAttachment) document.documentElement.style.setProperty('--custom-bg-attach', cust.mainPageBackgroundAttachment);
+    document.body.classList.add('custom-bg');
+  }
+  if (api.getCustomizationSettings) {
+    api.getCustomizationSettings().then(function(r) { if (r && r.settings) applyWallpaper(r.settings); });
+  }
+  if (api.onCustomizationUpdated) {
+    api.onCustomizationUpdated(function(settings) {
+      // reset the class so the default returns when there is no background
+      document.body.classList.remove('custom-bg');
+      applyWallpaper(settings);
+    });
+  }
+
+  function fmtMem(kb) {
+    if (kb == null || kb < 0 || isNaN(kb)) return '—';
+    if (kb < 1024) return kb + ' KB';
+    var mb = kb / 1024;
+    if (mb < 1024) return (Math.round(mb * 10) / 10) + ' MB';
+    return (Math.round((mb / 1024) * 100) / 100) + ' GB';
+  }
+  function fmtCpu(c) {
+    if (c == null) return '—';
+    return (Math.round(c * 10) / 10) + '%';
+  }
+  function hostnameOf(url) {
+    if (!url) return '';
+    try { return new URL(url).hostname; } catch(e) { return ''; }
+  }
+  function memClass(kb, maxKb) {
+    if (!maxKb) maxKb = 200 * 1024;
+    var pct = Math.min(1, kb / maxKb);
+    if (pct > 0.6) return 'hot';
+    if (pct > 0.3) return 'warm';
+    return '';
+  }
+
+  function el(tag, cls, html) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+
+  function buildRow(r, maxMem) {
+    var tr = el('tr');
+    tr.dataset.sort_title = (r.title || r.hostname || '').toLowerCase();
+    tr.dataset.sort_hostname = (r.hostname || '').toLowerCase();
+    tr.dataset.sort_memoryKB = r.memoryKB || 0;
+    tr.dataset.sort_cpu = r.cpu || 0;
+
+    // title cell
+    var tdTitle = el('td');
+    var tc = el('div', 'title-cell');
+    var fav = el('div', 'favicon');
+    if (r.kind === 'tab') {
+      var favSrc = r.favicon || '';
+      // favicon arrives as a URL (http/data/file/blob) or as a css url(...)
+      if (favSrc.indexOf('url(') === 0) {
+        fav.style.backgroundImage = favSrc;
+      } else if (favSrc) {
+        fav.style.backgroundImage = 'url("' + favSrc.replace(/"/g, '%22') + '")';
+      } else {
+        fav.className = 'favicon placeholder';
+        var h = r.hostname || '';
+        fav.textContent = h ? h.charAt(0).toUpperCase() : '•';
+      }
+    } else {
+      fav.className = 'favicon placeholder';
+      fav.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+    }
+    tc.appendChild(fav);
+    var tt = el('div', 'title-text');
+    var name = r.title || (r.kind === 'tab' ? _t('Untitled') : (r.title || r.type || _t('Process')));
+    tt.appendChild(el('div', 't-name', escapeHtml(name)));
+    var sub = '';
+    if (r.kind === 'tab') sub = r.url || '';
+    else sub = r.type ? ('PID ' + (r.pid || '?') + ' · ' + _t(r.type)) : ('PID ' + (r.pid || '?'));
+    tt.appendChild(el('div', 't-url', escapeHtml(sub)));
+    tc.appendChild(tt);
+    tdTitle.appendChild(tc);
+    tr.appendChild(tdTitle);
+
+    // domain
+    tr.appendChild(el('td', null, escapeHtml(r.hostname || (r.kind === 'process' ? r.type : '') || '')));
+
+    // status badges
+    var tdB = el('td');
+    var bd = el('div', 'badges');
+    if (r.kind === 'tab') {
+      if (r.isActive) bd.appendChild(el('span', 'badge active', _t('active')));
+      if (r.isSleeping) bd.appendChild(el('span', 'badge sleep', _t('sleep')));
+      if (r.isFrozen) bd.appendChild(el('span', 'badge frozen', _t('frozen')));
+      if (r.isWhitelisted) bd.appendChild(el('span', 'badge wl', _t('awake')));
+      if (r.isPinned) bd.appendChild(el('span', 'badge pin', _t('pinned')));
+    } else {
+      bd.appendChild(el('span', 'badge sleep', escapeHtml(_t(r.type || 'process'))));
+    }
+    tdB.appendChild(bd);
+    tr.appendChild(tdB);
+
+    // memory
+    var tdM = el('td', 'col-mem');
+    var mb = el('div', 'mem-bar');
+    var bar = el('div', 'bar ' + memClass(r.memoryKB || 0, maxMem));
+    var pct = maxMem ? Math.min(100, Math.round((r.memoryKB / maxMem) * 100)) : 0;
+    bar.appendChild(el('span', null)).style.width = pct + '%';
+    mb.appendChild(bar);
+    mb.appendChild(el('span', null, fmtMem(r.memoryKB)));
+    tdM.appendChild(mb);
+    tr.appendChild(tdM);
+
+    // cpu
+    tr.appendChild(el('td', 'col-cpu', fmtCpu(r.cpu)));
+
+    // actions
+    var tdA = el('td', 'col-actions');
+    if (r.kind === 'tab') {
+      tdA.appendChild(actBtn(_t('Go'), 'M5 12h14M12 5l7 7-7 7', function(){ send('activate', r.tabId); }));
+      tdA.appendChild(actBtn(_t('Reload'), 'M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15', function(){ send('reload', r.tabId); }));
+      if (!r.isSleeping && !r.isActive) {
+        tdA.appendChild(actBtn(_t('Sleep'), 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z', function(){ send('sleep', r.tabId); }));
+      }
+      tdA.appendChild(actBtn(_t('Close'), 'M18 6L6 18M6 6l12 12', function(){ send('close', r.tabId); }, true));
+    } else {
+      tdA.appendChild(el('span', 'hint', 'PID ' + (r.pid || '?')));
+    }
+    tr.appendChild(tdA);
+    return tr;
+  }
+
+  function actBtn(title, path, onClick, danger) {
+    var b = el('button', 'act-btn' + (danger ? ' danger' : ''));
+    b.title = title;
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="' + path + '"/></svg>';
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  function send(action, tabId) {
+    if (api.taskManagerAction) api.taskManagerAction(action, tabId);
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+    });
+  }
+
+  var _lastRenderSig = '';
+  function render(data) {
+    lastData = data;
+    var tabs = data.tabs || [];
+    var procs = data.processes || [];
+
+    // Skip render if structure + values are unchanged
+    var sig = tabs.length + ':' + procs.length + ':' +
+      tabs.map(function(r){ return r.id + r.cpu + r.memoryKB + r.isSleeping + r.isFrozen; }).join('|') + ':' +
+      procs.map(function(r){ return r.pid + r.cpu + r.memoryKB; }).join('|');
+    if (sig === _lastRenderSig) {
+      // Update only the totals
+      var totals = data.totals || {};
+      document.getElementById('totalMem').textContent = fmtMem(totals.memoryKB || 0);
+      document.getElementById('totalCpu').textContent = fmtCpu(totals.cpu);
+      return;
+    }
+    _lastRenderSig = sig;
+
+    var body = document.getElementById('tmBody');
+    var empty = document.getElementById('emptyState');
+    body.innerHTML = '';
+
+    var tabs = data.tabs || [];
+    var procs = data.processes || [];
+    if (!tabs.length && !procs.length) {
+      empty.style.display = 'block';
+      empty.textContent = 'No data';
+    } else {
+      empty.style.display = 'none';
+    }
+
+    // max memory for the scale
+    var maxMem = 0;
+    tabs.concat(procs).forEach(function(r) { if (r.memoryKB > maxMem) maxMem = r.memoryKB; });
+    if (!maxMem) maxMem = 200 * 1024;
+
+    var all = [];
+    if (tabs.length) {
+      all.push({ __section: _t('Tabs') + ' (' + tabs.length + ')' });
+      tabs.forEach(function(r) { all.push(r); });
+    }
+    if (procs.length) {
+      all.push({ __section: _t('Browser processes') + ' (' + procs.length + ')' });
+      procs.forEach(function(r) { all.push(r); });
+    }
+
+    all.forEach(function(r) {
+      if (r.__section) {
+        var tr = el('tr');
+        var td = el('td', 'section-head', r.__section);
+        td.colSpan = 6;
+        tr.appendChild(td);
+        body.appendChild(tr);
+        return;
+      }
+      body.appendChild(buildRow(r, maxMem));
+    });
+
+    // summary
+    var totals = data.totals || {};
+    document.getElementById('totalMem').textContent = fmtMem(totals.memoryKB || 0);
+    document.getElementById('totalCpu').textContent = fmtCpu(totals.cpu);
+    document.getElementById('tabCount').textContent = tabs.length;
+  }
+
+  function sortRows() {
+    if (!lastData) return;
+    var key = SORT.key;
+    var dir = SORT.dir;
+    lastData.tabs.sort(function(a, b) {
+      return cmp(get(a, key), get(b, key)) * dir;
+    });
+    lastData.processes.sort(function(a, b) {
+      return cmp(get(a, key), get(b, key)) * dir;
+    });
+    render(lastData);
+  }
+  function get(r, key) {
+    if (key === 'title') return (r.title || r.hostname || '').toLowerCase();
+    if (key === 'hostname') return (r.hostname || '').toLowerCase();
+    return r[key] || 0;
+  }
+  function cmp(a, b) {
+    if (typeof a === 'number' && typeof b === 'number') return a < b ? -1 : a > b ? 1 : 0;
+    return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
+  }
+
+  // sort headers
+  document.querySelectorAll('thead th[data-sort]').forEach(function(th) {
+    th.addEventListener('click', function() {
+      var key = th.dataset.sort;
+      if (SORT.key === key) SORT.dir = -SORT.dir;
+      else { SORT.key = key; SORT.dir = (key === 'memoryKB' || key === 'cpu') ? -1 : 1; }
+      document.querySelectorAll('thead th').forEach(function(t) {
+        t.classList.remove('sorted');
+        var s = t.querySelector('.sort'); if (s) s.textContent = '';
+      });
+      th.classList.add('sorted');
+      var s = th.querySelector('.sort'); if (s) s.textContent = SORT.dir < 0 ? '▼' : '▲';
+      sortRows();
+    });
+  });
+
+  // sleep-all
+  var saBtn = document.getElementById('sleepAllBtn');
+  if (saBtn) {
+    saBtn.addEventListener('click', function() {
+      if (!lastData) return;
+      (lastData.tabs || []).forEach(function(r) {
+        if (!r.isActive && !r.isSleeping && !r.isWhitelisted && r.tabId) {
+          send('sleep', r.tabId);
+        }
+      });
+    });
+  }
+
+  // poll
+  var _refreshSeq = 0;
+  function refresh() {
+    if (!api.getTaskManagerData) return;
+    _refreshSeq++;
+    var mySeq = _refreshSeq;
+    api.getTaskManagerData().then(function(data) {
+      if (mySeq !== _refreshSeq) return;
+      if (data) {
+        // keep sorting on update
+        var key = SORT.key, dir = SORT.dir;
+        if (data.tabs) data.tabs.sort(function(a, b) { return cmp(get(a, key), get(b, key)) * dir; });
+        if (data.processes) data.processes.sort(function(a, b) { return cmp(get(a, key), get(b, key)) * dir; });
+        render(data);
+      }
+    });
+  }
+  refresh();
+  setInterval(refresh, 3000);
+})();
+</script>
+</body>
+</html>

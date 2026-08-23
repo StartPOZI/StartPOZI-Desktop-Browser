@@ -1,50 +1,673 @@
+   <!-- StartPOZI Browser v1.0 -->
+ <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ZhukBrowser</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StartPOZI Browser</title>
+  <meta name="description" content="StartPOZI Browser.">
+    <meta name="keywords" content="startpozi, spi, Privacy, desktop, StartPOZI, Pro">
+    <meta name="author" content="StartPOZI">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="vendor/font-awesome/css/all.min.css">
+  <!-- Content Security Policy for the browser chrome.
+       External page content is never trusted here: scripts may only load
+       from local files, inline event handlers are banned, and remote
+       connections are blocked. This neutralises any XSS that could otherwise
+       reach the privileged electronAPI surface exposed by the preload. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <script src="vendor/jsqr/jsQR.min.js"></script>
 </head>
 <body>
-  <div class="container">
-    <div class="custom-titlebar macos" id="customTitlebar">
-      <div class="window-controls">
-        <button id="min-btn" title="Свернуть"></button>
-        <button id="max-btn" title="На весь экран"></button>
-        <button id="close-btn" title="Закрыть"></button>
+  <!-- Custom Title Bar -->
+  <div class="titlebar">
+    <div class="workspace-zone" id="workspaceZone">
+      <button class="workspace-btn" id="workspaceBtn" title="Workspaces">
+        <span class="ws-btn-icon" id="wsBtnIcon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+        <span class="ws-btn-name" id="wsBtnName"></span>
+      </button>
+    </div>
+    <div class="tabs-bar" id="tabsBar">
+      <button class="nav-btn tab-new-btn" id="newTabBtn" title="New tab">+</button>
+      <div class="tabs-bar-btns" id="tabsBarBtns"></div>
+    </div>
+    <div class="titlebar-controls" id="titlebarControls">
+      <button class="mac-btn mac-minimize" id="winMinimize" type="button" title="Minimize" aria-label="Minimize">
+        <svg class="mac-glyph" viewBox="0 0 8 8" aria-hidden="true"><line x1="1" y1="4" x2="7" y2="4" stroke="rgba(0,0,0,.55)" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button class="mac-btn mac-maximize" id="winMaximize" type="button" title="Maximize" aria-label="Maximize">
+        <svg class="mac-glyph mac-glyph-max" viewBox="0 0 8 8" aria-hidden="true"><path d="M1 1 L4 1 L1 4 Z M7 7 L4 7 L7 4 Z" fill="rgba(0,0,0,.55)"/></svg>
+        <svg class="mac-glyph mac-glyph-restore" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L4 4 L1 4 Z M4 7 L4 4 L7 4 Z" fill="rgba(0,0,0,.55)"/></svg>
+      </button>
+      <button class="mac-btn mac-close" id="winClose" type="button" title="Close" aria-label="Close">
+        <svg class="mac-glyph" viewBox="0 0 8 8" aria-hidden="true"><path d="M1.2 1.2 L6.8 6.8 M6.8 1.2 L1.2 6.8" stroke="rgba(0,0,0,.55)" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="workspace-panel" id="workspacePanel">
+    <div class="ws-panel-header">Workspaces</div>
+    <div class="ws-panel-list" id="wsPanelList"></div>
+    <div class="ws-panel-footer">
+      <button class="ws-panel-add" id="wsPanelAdd">+ New workspace</button>
+    </div>
+  </div>
+
+  <!-- Navigation Bar -->
+  <div class="navbar">
+    <div class="nav-spacer left"></div>
+    
+    <div class="search-container">
+      <div class="nav-controls">
+        <button class="nav-btn" id="libraryBtn" title="Library">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </button>
+        <button class="nav-btn" id="homeBtn" title="Home"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+        <button class="nav-btn" id="backBtn" title="Back"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="nav-btn" id="forwardBtn" title="Forward"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <button class="nav-btn" id="reloadBtn" title="Reload"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+      </div>
+    
+      <div class="url-bar">
+        <button class="url-icon-btn" id="urlIconBtn" title="Site information">
+          <i class="fas fa-lock url-icon"></i>
+        </button>
+        <input type="text" id="urlInput" placeholder="Search or enter address" spellcheck="false" autocomplete="off">
+        <button class="url-note-btn" id="pageNoteBtn" title="Page note" style="display:none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </button>
+        <button class="url-reveal-btn" id="urlRevealBtn" title="Show URL">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
       </div>
     </div>
-    <div class="tabs" id="tabsContainerTabs">
-      <button id="addTab">+</button>
+
+    <div class="nav-actions right">
+      <button class="nav-btn" id="downloadsBtn" title="Downloads">
+        <svg class="dl-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <svg class="dl-progress-ring" width="28" height="28" viewBox="0 0 28 28" style="display:none;">
+          <circle class="dl-ring-bg" cx="14" cy="14" r="12" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2.5"/>
+          <circle class="dl-ring-fill" cx="14" cy="14" r="12" fill="none" stroke="var(--primary-color)" stroke-width="2.5" stroke-linecap="round"
+            stroke-dasharray="75.4" stroke-dashoffset="75.4" transform="rotate(-90 14 14)"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="autofillBtn" title="Passwords">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0110 0v4"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="adblockBtn" title="Ad blocker">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="settingsBtn" title="Settings" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button class="nav-btn" id="scriptsBtn" title="Scripts" style="position:relative;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="darkModeBtn" title="Force dark mode" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="mediaBtn" title="Media controls" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="eqBtn" title="Equalizer" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/>
+        </svg>
+      </button>
+      <button class="nav-btn" id="qrScanBtn" title="QR scanner" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="21" y1="14" x2="21" y2="14.01"/><line x1="21" y1="21" x2="21" y2="21.01"/><line x1="17" y1="18" x2="17" y2="18.01"/>
+        </svg>
+      </button>
+
+      <button class="nav-btn" id="splitBtn" title="Split screen" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+      </button>
+      <button class="nav-btn" id="newTabBarBtn" title="New tab" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <button class="nav-btn" id="bookmarksBtn" title="Bookmarks" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button class="nav-btn" id="historyBtn" title="History" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </button>
+      <button class="nav-btn" id="readerBtn" title="Reader mode" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </button>
+      <button class="nav-btn" id="ttsBtn" title="Read aloud" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      </button>
+      <button class="nav-btn" id="screenshotBtn" title="Screenshot" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <button class="nav-btn" id="incognitoBtn" title="Incognito" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      </button>
+      <button class="nav-btn" id="translateBtn" title="Translate" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>
+      </button>
+      <button class="nav-btn" id="findAllBtn" title="Search tabs" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><circle cx="17.5" cy="17.5" r="2.5"/><line x1="19.27" y1="19.27" x2="22" y2="22"/></svg>
+      </button>
+      <button class="nav-btn" id="autoscrollBtn" title="Autoscroll" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><polyline points="18 8 12 2 6 8"/><polyline points="6 16 12 22 18 16"/></svg>
+      </button>
+      <button class="nav-btn break-loupe-btn" id="breakLoupeBtn" title="Break magnifier — delete all cookies (except internal pages)" style="display:none">
+        <svg class="bl-magnifier" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <svg class="bl-slash" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="3" x2="21" y2="21"/></svg>
+      </button>
+      <div id="customToolbarButtons"></div>
+
+      <button class="nav-btn hamburger-btn" id="hamburgerBtn" title="Menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="hamburger-menu" id="hamburgerMenu">
+        <div class="hm-item" id="hmSettings"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Settings</div>
+        <div class="hm-divider"></div>
+        <div class="hm-item" id="hmLibrary"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Library</div>
+        <div class="hm-item" id="hmBookmarks"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>Bookmarks</div>
+        <div class="hm-item" id="hmHistory"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span>History</div>
+        <div class="hm-item" id="hmDownloads"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Downloads</div>
+        <div class="hm-item" id="hmAutofill"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Passwords</div>
+        <div class="hm-item" id="hmAdblock"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>Ad blocker</div>
+        <div class="hm-item" id="hmScripts"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>Scripts</div>
+        <div class="hm-divider"></div>
+        <div class="hm-item" id="hmDark"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>Dark mode<span class="hm-check" id="hmDarkCheck"></span></div>
+        <div class="hm-item" id="hmReader"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Reader mode</div>
+        <div class="hm-item" id="hmTts"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>Read aloud</div>
+        <div class="hm-item" id="hmMedia"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>Media controls</div>
+        <div class="hm-item" id="hmEq"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg></span>Equalizer</div>
+        <div class="hm-item" id="hmHoverTr"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg></span>Hover translate<span class="hm-check" id="hmHoverTrCheck"></span></div>
+        <div class="hm-divider"></div>
+        <div class="hm-item" id="hmQr"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg></span>QR scanner<span class="hm-check" id="hmQrCheck"></span></div>
+        <div class="hm-item" id="hmSplit"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg></span>Split screen<span class="hm-check" id="hmSplitCheck"></span></div>
+        <div class="hm-item" id="hmScreenshot"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>Screenshot</div>
+        <div class="hm-item" id="hmFindAll"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Search tabs</div>
+        <div class="hm-item" id="hmAutoscroll"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>Autoscroll</div>
+        <div class="hm-item" id="hmNewWindow"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/></svg></span>New window</div>
+        <div class="hm-item" id="hmIncognito"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg></span>Incognito tab</div>
+        <div class="hm-item" id="hmBreakLoupe"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="9" y1="9" x2="13" y2="13"/></svg></span>Break magnifier</div>
+      </div>
     </div>
-    <div class="toolbar">
-      <div class="nav-buttons">
-        <button id="back"><</button>
-        <button id="forward">></button>
-        <button id="refresh">ⓒ</button>
+
+    <div class="nav-spacer right"></div>
+  </div>
+
+  <!-- Adblock Panel -->
+  <div class="adblock-panel" id="adblockPanel">
+    <div class="ab-panel-header">
+      <div class="ab-panel-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Ad blocker
       </div>
-      <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="Введите запрос для StartPOZI...">
-        <button id="searchBtn">🔍</button>
-      </div>
-      <div class="menu">
-        <button id="menuBtn">☰</button>
-        <div class="dropdown" id="dropdown">
-          <div class="menu-item">Закладки</div>
-          <div class="menu-item">Загрузки</div>
-          <div class="menu-item">История</div>
-          <div class="menu-item">О нас</div>
-          <div class="menu-item">Настройки</div>
-          <div class="menu-item" id="exit">Выйти</div>
-        </div>
-      </div>
+      <label class="ab-toggle"><input type="checkbox" id="abToggle" checked><span class="ab-slider"></span></label>
     </div>
-    <div class="tabs-container" id="tabsContainer">
-      <div class="tab-content active" id="tab-1760814193350-3q92tow0r" data-tab-id="tab-1760814193350-3q92tow0r">
-        <webview useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" allowpopups="" webpreferences="contextIsolation=no,sandbox=no"></webview>
+    <div class="ab-panel-stats" id="abPanelStats">
+      <div class="ab-stat"><span class="ab-stat-num" id="abBlocked">0</span><span class="ab-stat-label">Ads</span></div>
+      <div class="ab-stat"><span class="ab-stat-num" id="abTrackers">0</span><span class="ab-stat-label">Trackers</span></div>
+      <div class="ab-stat"><span class="ab-stat-num" id="abTotal">0</span><span class="ab-stat-label">Total</span></div>
+    </div>
+    <div class="ab-panel-site" id="abPanelSite">
+      <span id="abSiteName">—</span>
+      <button class="ab-site-toggle" id="abSiteToggle">Disable for this site</button>
+    </div>
+  </div>
+
+  <!-- Autofill Panel -->
+  <div class="autofill-panel" id="autofillPanel">
+    <div class="af-panel-header">
+      <span class="af-panel-title">Passwords for this site</span>
+    </div>
+    <div class="af-panel-list" id="afPanelList"></div>
+    <div class="af-panel-empty" id="afPanelEmpty">No saved passwords</div>
+  </div>
+
+  <!-- Download Panel -->
+  <div class="download-panel" id="downloadPanel">
+    <div class="dl-panel-header">
+      <span class="dl-panel-title">Downloads</span>
+      <button class="dl-panel-clear" id="dlClearAll" title="Clear list">Clear all</button>
+    </div>
+    <div class="dl-panel-list" id="dlPanelList"></div>
+    <div class="dl-panel-empty" id="dlPanelEmpty">No downloads</div>
+  </div>
+
+  <!-- Scripts Panel -->
+  <div class="scripts-panel" id="scriptsPanel">
+    <div class="sc-panel-header">
+      <span class="sc-panel-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Scripts
+      </span>
+      <button class="sc-panel-add" id="scPanelAdd" title="New script">+ New</button>
+    </div>
+    <div class="sc-panel-list" id="scPanelList"></div>
+    <div class="sc-panel-empty" id="scPanelEmpty">No scripts</div>
+    <div class="sc-panel-footer">
+      <button class="sc-panel-settings" id="scPanelSettings">Open in settings</button>
+    </div>
+  </div>
+
+  <!-- Media Controls Panel -->
+  <div class="media-panel" id="mediaPanel">
+    <div class="mc-panel-header">
+      <span class="mc-panel-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Media
+      </span>
+    </div>
+    <div class="mc-panel-list" id="mcPanelList"></div>
+    <div class="mc-panel-empty" id="mcPanelEmpty">No active media</div>
+  </div>
+
+  <!-- Read Aloud (TTS) Panel -->
+  <div class="tts-panel" id="ttsPanel">
+    <div class="tts-header">
+      <span class="tts-title">Read aloud</span>
+      <span class="tts-pos" id="ttsPos"></span>
+      <button class="tts-close" id="ttsCloseBtn" title="Stop and close">&times;</button>
+    </div>
+    <div class="tts-current" id="ttsCurrent"></div>
+    <div class="tts-controls">
+      <button class="tts-btn" id="ttsPrevBtn" title="Previous sentence">&#9194;</button>
+      <button class="tts-btn tts-btn-main" id="ttsPlayBtn" title="Play / pause">&#9654;</button>
+      <button class="tts-btn" id="ttsNextBtn" title="Next sentence">&#9193;</button>
+      <button class="tts-btn" id="ttsStopBtn" title="Stop">&#9632;</button>
+    </div>
+    <div class="tts-settings">
+      <select id="ttsRate" title="Speed">
+        <option value="0.75">0.75×</option>
+        <option value="1">1×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
+      </select>
+      <select id="ttsEngine" title="Speech engine">
+        <option value="auto">Auto</option>
+        <option value="system">System voices</option>
+        <option value="offline">Offline (built-in)</option>
+      </select>
+      <select id="ttsVoice" title="Voice"></select>
+    </div>
+  </div>
+
+  <!-- Equalizer Panel -->
+  <div class="eq-panel" id="eqPanel">
+    <div class="eq-header">
+      <span class="eq-title">&#127925; Equalizer</span>
+      <label class="eq-toggle"><input type="checkbox" id="eqToggle" checked><span class="eq-toggle-slider"></span></label>
+    </div>
+    <div class="eq-presets">
+      <select id="eqPreset">
+        <option value="flat">Flat</option>
+        <option value="bass">Bass Boost</option>
+        <option value="treble">Treble Boost</option>
+        <option value="rock">Rock</option>
+        <option value="pop">Pop</option>
+        <option value="jazz">Jazz</option>
+        <option value="classical">Classical</option>
+        <option value="vocal">Vocal</option>
+        <option value="electronic">Electronic</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+    <div class="eq-bands" id="eqBands"></div>
+    <div class="eq-preamp">
+      <span class="eq-preamp-label">Gain</span>
+      <input type="range" id="eqPreamp" min="-12" max="12" value="0" step="0.5">
+      <span class="eq-preamp-value" id="eqPreampVal">0 dB</span>
+    </div>
+  </div>
+
+  <!-- Hover Translate Panel -->
+  <div class="ht-panel" id="htPanel">
+    <div class="eq-header">
+      <span class="eq-title">&#128214; Hover translate</span>
+      <label class="eq-toggle"><input type="checkbox" id="htToggle"><span class="eq-toggle-slider"></span></label>
+    </div>
+    <div class="ht-body">
+      <div class="ht-row">
+        <label class="ht-label">Translation language</label>
+        <select id="htLang" class="ht-select">
+          <option value="ru">Русский</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="de">Deutsch</option>
+          <option value="fr">Français</option>
+          <option value="it">Italiano</option>
+          <option value="uk">Українська</option>
+          <option value="pl">Polski</option>
+          <option value="zh">中文</option>
+          <option value="ja">日本語</option>
+        </select>
+      </div>
+      <div class="ht-row">
+        <label class="ht-label">Trigger</label>
+        <select id="htTrigger" class="ht-select">
+          <option value="hover">On hover</option>
+          <option value="ctrl">Ctrl + hover</option>
+          <option value="alt">Alt + hover</option>
+        </select>
+      </div>
+      <div class="ht-row ht-row-range">
+        <label class="ht-label">Delay</label>
+        <input type="range" id="htDelay" min="200" max="1500" value="600" step="100" class="ht-range">
+        <span class="ht-delay-val" id="htDelayVal">600 ms</span>
       </div>
     </div>
   </div>
+
+  <!-- Site Info Panel (from lock icon) -->
+  <div class="site-info-panel" id="siteInfoPanel"><div class="si-panel-header">
+      <span class="si-panel-title" id="siPanelDomain">—</span>
+    </div>
+    <div class="si-panel-body" id="siPanelBody"></div>
+  </div>
+
+  <!-- Page Note Panel (from note icon in the url bar) -->
+  <div class="site-info-panel" id="pageNotePanel">
+    <div class="si-panel-header">
+      <span class="si-panel-title" id="pnPanelDomain">—</span>
+      <span class="pn-char-count" id="pnCharCount"></span>
+    </div>
+    <div class="pn-panel-body">
+      <textarea id="pnTextarea" placeholder="Your note for this page..." spellcheck="false"></textarea>
+      <div class="pn-actions">
+        <button class="pn-btn pn-btn-ghost" id="pnDelete">Delete</button>
+        <button class="pn-btn pn-btn-primary" id="pnSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Browser Content -->
+    <div class="browser-content">
+    <!-- Loading Progress Bar — lives inside browser-content so it sits
+         directly under the navbar/tabs panel, above the page. -->
+    <div class="loading-bar" id="loadingBar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+    <div class="split-divider" id="splitDivider">
+        <div class="split-divider-handle"></div>
+      </div>
+    </div>
+
+  <!-- Find Bar -->
+  <div class="find-bar" id="findBar">
+    <input type="text" id="findInput" placeholder="Find on page..." spellcheck="false">
+    <span class="find-count" id="findCount"></span>
+    <button class="find-btn" id="findPrev" title="Previous">&#9650;</button>
+    <button class="find-btn" id="findNext" title="Next">&#9660;</button>
+    <button class="find-btn find-close" id="findClose" title="Close">&#10005;</button>
+  </div>
+
+  <!-- Find in All Tabs -->
+  <div class="findall-overlay" id="findallOverlay">
+    <div class="findall-container">
+      <div class="findall-header">
+        <input type="text" id="findallInput" placeholder="Search all tabs..." spellcheck="false">
+        <span class="findall-count" id="findallCount"></span>
+        <button class="findall-close" id="findallClose" title="Close">&#10005;</button>
+      </div>
+      <div class="findall-results" id="findallResults">
+        <div class="findall-empty">Enter a query to search all tabs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Autoscroll indicator -->
+  <div class="autoscroll-indicator" id="autoscrollIndicator">
+    <span class="autoscroll-icon">&#9660;</span>
+    <span class="autoscroll-label" id="autoscrollLabel">Autoscroll</span>
+    <button class="autoscroll-btn" id="autoscrollFaster" title="Faster">&#9654;&#9654;</button>
+    <button class="autoscroll-btn" id="autoscrollSlower" title="Slower">&#9664;&#9664;</button>
+    <button class="autoscroll-stop" id="autoscrollStop" title="Stop">&#9632;</button>
+  </div>
+
+  <!-- Quick Commands -->
+  <div class="qc-overlay" id="qcOverlay">
+    <div class="qc-container">
+      <input type="text" id="qcInput" placeholder="Command (:cmd), chain (|) or search..." spellcheck="false">
+      <div class="qc-body">
+        <div class="qc-list" id="qcList"></div>
+        <div class="qc-preview" id="qcPreview"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reading Mode Overlay -->
+  <div class="reader-overlay" id="readerOverlay">
+    <div class="reader-toolbar">
+      <div class="reader-toolbar-left">
+        <button class="reader-btn" id="readerClose" title="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Back</button>
+      </div>
+      <div class="reader-toolbar-center">
+        <span class="reader-title" id="readerTitle"></span>
+      </div>
+      <div class="reader-toolbar-right">
+        <select id="readerFontSelect" title="Font">
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Merriweather', serif">Merriweather</option>
+          <option value="'PT Serif', serif">PT Serif</option>
+          <option value="system-ui, sans-serif">System</option>
+        </select>
+        <button class="reader-btn" id="readerFontMinus" title="Decrease">A−</button>
+        <span class="reader-size-label" id="readerSizeLabel">18</span>
+        <button class="reader-btn" id="readerFontPlus" title="Increase">A+</button>
+        <button class="reader-btn" id="readerThemeToggle" title="Theme">◐</button>
+      </div>
+    </div>
+    <div class="reader-content" id="readerContent"></div>
+  </div>
+
+  <!-- Bookmarks Sidebar -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <div class="bookmarks-sidebar" id="bookmarksSidebar">
+    <div class="sidebar-header">
+      <span>Bookmarks</span>
+      <div class="sidebar-header-actions">
+        <button class="sidebar-btn" id="sidebarAddFolder" title="New folder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>
+        <button class="sidebar-btn" id="sidebarClose" title="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+    <div class="sidebar-search">
+      <input type="text" id="sidebarSearch" placeholder="Search bookmarks..." spellcheck="false">
+    </div>
+    <div class="sidebar-list" id="sidebarList"></div>
+    <div class="sidebar-empty" id="sidebarEmpty">No bookmarks</div>
+  </div>
+
+  <!-- Custom Dialog (for webview alert/confirm/prompt and internal use) -->
+  <div class="dialog-overlay" id="dialogOverlay">
+    <div class="dialog-box" id="dialogBox">
+      <div class="dialog-icon" id="dialogIcon"></div>
+      <div class="dialog-message" id="dialogMessage"></div>
+      <input type="text" class="dialog-input" id="dialogInput">
+      <div class="dialog-buttons" id="dialogButtons">
+        <button class="dialog-btn dialog-cancel" id="dialogCancel">Cancel</button>
+        <button class="dialog-btn dialog-ok" id="dialogOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Incognito mode chooser: separate window vs replace current window -->
+  <div class="dialog-overlay" id="incognitoModeOverlay" style="display:none;">
+    <div class="dialog-box" id="incognitoModeBox">
+      <div class="dialog-icon" id="incognitoModeIcon">🕵</div>
+      <div class="dialog-message" id="incognitoModeMessage">How should Incognito open?</div>
+      <div class="dialog-buttons" id="incognitoModeButtons" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <button class="dialog-btn dialog-ok" id="incognitoNewWindow">Open in a new window</button>
+        <button class="dialog-btn dialog-ok" id="incognitoReplaceWindow">Replace the current window</button>
+        <button class="dialog-btn dialog-cancel" id="incognitoModeCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace Create Modal -->
+  <div class="ws-create-overlay" id="wsCreateModal">
+    <div class="ws-create-content">
+      <div class="ws-create-header">
+        <span>New workspace</span>
+        <button class="ws-create-close" id="wsCreateClose">&#10005;</button>
+      </div>
+      <div class="ws-create-body">
+        <label class="ws-create-label">Name</label>
+        <input type="text" id="wsCreateName" placeholder="My workspace" spellcheck="false">
+        <label class="ws-create-label">Icon</label>
+        <div class="ws-icon-grid" id="wsIconGrid"></div>
+        <label class="ws-create-label">Color</label>
+        <div class="ws-color-grid" id="wsColorGrid"></div>
+      </div>
+      <div class="ws-create-actions">
+        <button class="ws-create-cancel" id="wsCreateCancel">Cancel</button>
+        <button class="ws-create-ok" id="wsCreateOk">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="url-suggestions-overlay" id="urlSuggestionsOverlay">
+    <div class="url-suggestions" id="urlSuggestions"></div>
+  </div>
+
+  <!-- Screenshot Tool Overlay -->
+  <div class="ss-overlay" id="ssOverlay">
+    <div class="ss-overlay-bg" id="ssBg"></div>
+    <div class="ss-toolbar" id="ssToolbar">
+      <button class="ss-tool-btn active" data-tool="rect" title="Rectangle">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      </button>
+      <button class="ss-tool-btn" data-tool="arrow" title="Arrow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+      <button class="ss-tool-btn" data-tool="line" title="Line">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+      </button>
+      <button class="ss-tool-btn" data-tool="freehand" title="Pencil">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/></svg>
+      </button>
+      <button class="ss-tool-btn" data-tool="text" title="Text">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+      </button>
+      <button class="ss-tool-btn" data-tool="blur" title="Blur">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </button>
+      <button class="ss-tool-btn" data-tool="crop" title="Crop">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/></svg>
+      </button>
+      <div class="ss-sep"></div>
+      <input type="color" class="ss-color-input" id="ssColor" value="#ff0000" title="Color">
+      <div class="ss-sep"></div>
+      <button class="ss-width-btn" data-width="2" title="Thin line"><div class="ss-width-dot" style="width:4px;height:4px;"></div></button>
+      <button class="ss-width-btn active" data-width="3" title="Medium line"><div class="ss-width-dot" style="width:7px;height:7px;"></div></button>
+      <button class="ss-width-btn" data-width="6" title="Thick line"><div class="ss-width-dot" style="width:10px;height:10px;"></div></button>
+      <div class="ss-sep"></div>
+      <button class="ss-action-btn cancel" id="ssCancel">Cancel</button>
+      <button class="ss-action-btn clipboard" id="ssClipboard">Copy</button>
+      <button class="ss-action-btn save" id="ssSave">Save</button>
+    </div>
+    <div class="ss-canvas-wrap drawing" id="ssCanvasWrap">
+      <canvas id="ssCanvas"></canvas>
+    </div>
+    <input type="text" class="ss-text-input" id="ssTextInput" placeholder="Enter text...">
+    <div class="ss-hint" id="ssHint">Pick a tool and draw on the screenshot</div>
+  </div>
+
+  <!-- OCR Tool Overlay: capture an area → recognized text -->
+  <div class="ocr-overlay" id="ocrOverlay" style="display:none">
+    <canvas id="ocrCanvas"></canvas>
+    <div class="ocr-hint" id="ocrHint">Select an area to recognize text · Esc to cancel</div>
+    <div class="ocr-result" id="ocrResult" style="display:none">
+      <div class="ocr-result-header">
+        <span>Recognized text</span>
+        <span id="ocrStatus" style="font-size:11px;color:var(--text-secondary,#9a9aa8);"></span>
+      </div>
+      <textarea id="ocrTextarea" spellcheck="false"></textarea>
+      <div class="ocr-result-actions">
+        <button class="pn-btn pn-btn-ghost" id="ocrClose">Close</button>
+        <button class="pn-btn pn-btn-ghost" id="ocrRetry">Reselect</button>
+        <button class="pn-btn pn-btn-primary" id="ocrCopy">Copy text</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="customize-overlay" id="customizeOverlay" style="display:none">
+    <div class="customize-panel">
+      <div class="customize-header">
+        <span class="customize-title">Customize toolbar</span>
+        <div class="customize-actions">
+          <button class="customize-btn reset" id="customizeReset">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12"/><path d="M3 3v9h9"/></svg>
+            Reset
+          </button>
+          <button class="customize-btn done" id="customizeDone">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Done
+          </button>
+        </div>
+      </div>
+      <div class="customize-pool" id="customizePool">
+        <div class="customize-pool-hint">Drag buttons onto the toolbar above, or double-click to add</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-hide hotspot: a thin invisible strip across the top of the window.
+       It sits ABOVE the <webview> (z-index 99), so the renderer can detect the
+       cursor entering the top edge even though pointer events over the webview
+       itself never reach the parent document. mouseenter on this strip reveals
+       the chrome. -->
+  <div id="autohideHotspot" style="position:fixed;top:0;left:0;right:0;height:8px;z-index:99;background:transparent;cursor:default;"></div>
+
+  <!-- Browser startup lock (appLock). Covers everything, including webviews,
+       until the master password / fingerprint is entered. -->
+  <div id="appLockScreen" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d0d12;background-image:linear-gradient(135deg,rgba(29,161,242,0.15),rgba(118,75,162,0.15));display:none;align-items:center;justify-content:center;-webkit-app-region:no-drag;">
+    <div style="width:340px;max-width:calc(100vw - 32px);background:rgba(28,28,38,0.85);backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,0.1);border-radius:18px;padding:28px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 70px rgba(0,0,0,0.6);text-align:center;">
+      <div style="margin:0 auto;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#1da1f2,#764ba2);display:flex;align-items:center;justify-content:center;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div style="font-size:18px;font-weight:700;color:#fff;">StartPOZI is locked</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:-6px;">Enter your master password to continue.</div>
+      <input type="password" id="appLockInput" placeholder="Master password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:14px;outline:none;">
+      <div id="appLockError" style="color:#ff5f57;font-size:12px;min-height:14px;"></div>
+      <button id="appLockBtn" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#1da1f2,#764ba2);color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Unlock</button>
+      <button id="appLockBioBtn" style="display:none;width:100%;padding:10px;border:1px solid rgba(255,255,255,0.15);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:13px;cursor:pointer;display:none;align-items:center;justify-content:center;gap:8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/><path d="M5 19.5C5.5 18 6 15 6 12c0-.7.12-1.37.34-2"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M12 2a10 10 0 0 0-10 10c0 4.14 2.5 7.69 6.06 9.21"/><path d="M16 21c-3.43 0-6.5-2.5-7-6"/><path d="M22 16.5c0-3.5-3-6.5-6.5-6.5"/><circle cx="12" cy="12" r="2"/></svg>
+        Use fingerprint
+      </button>
+    </div>
+  </div>
+
+  <!-- Hotkeys overlay: a translucent cheat-sheet toggled by holding a
+       modifier key or pressing '?'. Populated by renderer.js. -->
+  <div id="hotkeysOverlay" style="display:none;position:fixed;inset:0;z-index:2147483640;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);-webkit-app-region:no-drag;align-items:center;justify-content:center;">
+    <div style="max-width:680px;width:calc(100vw - 64px);max-height:80vh;overflow:auto;background:var(--card-bg,rgba(28,28,38,0.95));border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-size:18px;font-weight:700;color:var(--text-color,#fff);">Keyboard shortcuts</div>
+        <div style="font-size:11px;color:var(--secondary-text,#aaa);">Release the modifier or press Esc to close</div>
+      </div>
+      <div style="font-size:11px;color:var(--secondary-text,#aaa);margin-bottom:14px;padding:8px 10px;background:var(--input-bg,rgba(255,255,255,0.05));border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:8px;line-height:1.5;">⚠ The overlay opens only when focus is on the browser frame (address bar / toolbar / a tab). It does not trigger while focus is inside a web page — click the frame first.</div>
+      <div id="hotkeysOverlayGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:13px;"></div>
+    </div>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="cookie-blocker-payload.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

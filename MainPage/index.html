@@ -1,0 +1,246 @@
+<!-- StartPOZI - New tab system -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New tab</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="img/favicon.ico">
+    <meta name="description" content="New tab - StartPOZI Browser start page.">
+    <meta name="keywords" content="New tab, New Tab, New, Home, Start page, Home Page, Start Page">
+    <meta name="author" content="StartPOZI">
+    <style>
+        .logo-img { height: 60px; width: auto; user-select: none; pointer-events: none; }
+        .logo-img.tile-logo { height: 48px; }
+        .icon-svg {
+            width: 24px;
+            height: 24px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+    </style>
+<script src="../i18n.js"></script>
+</head>
+<body class="wallpapers-enabled">
+    <div class="container">
+        <div class="header">
+            <div class="logo-container">
+                <img src="img/logo.png" alt="StartPOZI" class="logo-img" onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='block';">
+                <h1 class="logo" id="logo-fallback" style="display: none;">Start<span>POZI</span></h1>
+            </div>
+        </div>
+
+        <div class="main-content" id="mainContent">
+            <div class="sites-grid" id="sitesGrid"></div>
+        </div>
+    </div>
+
+    <button class="personalize-btn" id="personalizeBtn" title="Personalization">
+        <svg class="icon-svg" viewBox="0 0 24 24">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+    </button>
+
+    <div class="customize-panel" id="customizePanel">
+        <div class="customize-header">
+            <h3>Personalization</h3>
+            <button class="close-panel-btn" id="closePanelBtn" title="Close">×</button>
+        </div>
+        <div class="customize-scroll-content">
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Spi Wallpaper Live</span>
+                    <label class="switch"><input type="checkbox" id="spiLiveToggle"><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Spi live interactive wallpapers</p>
+            </div>
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Wallpapers</span>
+                    <label class="switch"><input type="checkbox" id="wallpapersToggle" checked><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Enable home page background images</p>
+                <div class="wallpaper-categories" id="wallpaperCategories">
+                    <div class="wallpaper-cat-card" id="cat-custom" title="Add image">
+                        <div class="cat-preview custom-upload-preview">
+                            <svg viewBox="0 0 24 24" class="icon-svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        </div>
+                        <span class="cat-title">Custom photo</span>
+                    </div>
+                    <div class="wallpaper-cat-card" data-category="priroda" title="Nature"><div class="cat-preview" style="background: linear-gradient(to bottom, #11998e, #38ef7d);"></div><span class="cat-title">Nature</span></div>
+                    <div class="wallpaper-cat-card" data-category="abstract" title="Abstract"><div class="cat-preview" style="background: linear-gradient(to bottom, #fc00ff, #00dbde);"></div><span class="cat-title">Abstract</span></div>
+                    <div class="wallpaper-cat-card" data-category="space" title="Space"><div class="cat-preview" style="background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);"></div><span class="cat-title">Space</span></div>
+                    <div class="wallpaper-cat-card" data-category="photos" title="Photos"><div class="cat-preview" style="background: linear-gradient(to bottom, #ff9966, #ff5e62);"></div><span class="cat-title">Photos</span></div>
+                    <div class="wallpaper-cat-card" data-category="colors" title="Colors"><div class="cat-preview" style="background: linear-gradient(to bottom, #111, #444);"></div><span class="cat-title">Colors</span></div>
+                </div>
+            </div>
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Shortcuts</span>
+                    <label class="switch"><input type="checkbox" id="shortcutsToggle" checked><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Show quick-access tiles on the screen</p>
+            </div>
+            <!-- NEW TOGGLE FOR THE WEATHER WIDGET -->
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Weather and time</span>
+                    <label class="switch"><input type="checkbox" id="weatherToggle" checked><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Show the weather and time widget in the top-left corner</p>
+                <!-- Weather location: manual coordinates (privacy-friendly) or IP detection -->
+                <div class="geo-subsection" id="weatherGeoSection">
+                    <div class="geo-mode-row">
+                        <label class="geo-mode"><input type="radio" name="weatherGeoMode" value="manual" checked><span>Manual coordinates</span></label>
+                        <label class="geo-mode"><input type="radio" name="weatherGeoMode" value="auto"><span>Detect via IP</span></label>
+                    </div>
+                    <div class="geo-input-row">
+                        <input type="text" id="weatherLatInput" placeholder="Latitude, e.g. 55.75" spellcheck="false">
+                        <input type="text" id="weatherLonInput" placeholder="Longitude, e.g. 37.61" spellcheck="false">
+                        <button id="weatherGeoSave" title="Save coordinates">Save</button>
+                    </div>
+                    <p class="section-desc">Manual coordinates keep your IP private — no geolocation service is contacted. Until you set them, a default location is used.</p>
+                </div>
+            </div>
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Search bar</span>
+                    <label class="switch"><input type="checkbox" id="searchWidgetToggle" checked><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Centered search bar at the top (Google, DuckDuckGo, Yandex)</p>
+            </div>
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">To-do list</span>
+                    <label class="switch"><input type="checkbox" id="todoWidgetToggle"><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Mini to-do list saved in the browser (top-right)</p>
+            </div>
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Mini player</span>
+                    <label class="switch"><input type="checkbox" id="miniPlayerToggle"><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Media playback controls (bottom center)</p>
+            </div>
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Downloads</span>
+                    <label class="switch"><input type="checkbox" id="downloadsToggle"><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Panel of active and completed downloads (bottom-right)</p>
+            </div>
+            <div class="custom-section">
+                <div class="toggle-container">
+                    <span class="toggle-label">Custom widgets</span>
+                    <label class="switch"><input type="checkbox" id="customWidgetsToggle"><span class="slider round"></span></label>
+                </div>
+                <p class="section-desc">Add your own widgets (HTML/code) like KDE Plasma (bottom-left)</p>
+            </div>
+        </div>
+        <div class="customize-footer">
+            <button class="manage-settings-btn" id="manageSettingsLink">Manage additional settings</button>
+        </div>
+    </div>
+
+    <div class="sub-wallpaper-menu" id="subWallpaperMenu" style="display: none;">
+        <div class="sub-header">
+            <button class="back-to-panel-btn" id="subBackBtn">← Back</button>
+            <h4 id="subCategoryTitle">Category</h4>
+        </div>
+        <div class="sub-options-grid" id="subOptionsGrid"></div>
+    </div>
+
+    <div class="overlay" id="menuOverlay"></div>
+
+    <!-- Widgets layer -->
+    <div class="widgets-layer" id="widgetsLayer"></div>
+
+    <!-- Modal: custom widget editor -->
+    <div class="modal" id="customWidgetModal" style="display: none;">
+        <div class="modal-content modal-content-wide">
+            <div class="modal-header">
+                <h3 id="customWidgetTitle">Add custom widget</h3>
+                <button class="modal-close" id="customWidgetCloseBtn">&times;</button>
+            </div>
+            <form id="customWidgetForm">
+                <div class="form-group">
+                    <label>Widget name</label>
+                    <input type="text" id="customWidgetName" placeholder="For example: My clock" required>
+                </div>
+                <div class="form-group">
+                    <label>Source</label>
+                    <select id="customWidgetSource">
+                        <option value="html">Custom HTML / code</option>
+                        <option value="file">From the Widgets/ folder</option>
+                        <option value="url">By URL</option>
+                    </select>
+                </div>
+                <div class="form-group" id="customWidgetFileGroup" style="display:none;">
+                    <label>File from Widgets/</label>
+                    <select id="customWidgetFile"></select>
+                    <small class="form-hint">The corresponding .htm from the Widgets/ folder will be loaded</small>
+                </div>
+                <div class="form-group" id="customWidgetUrlGroup" style="display:none;">
+                    <label>Page URL</label>
+                    <input type="text" id="customWidgetUrl" placeholder="https://...">
+                </div>
+                <div class="form-group" id="customWidgetHtmlGroup">
+                    <label>Widget HTML / code</label>
+                    <textarea id="customWidgetHtml" rows="8" placeholder="<div>Hello, world!</div>\n<style>div{color:#fff;font:16px sans-serif}</style>"></textarea>
+                    <small class="form-hint">The code runs in an isolated sandboxed iframe. Access to the parent page is restricted.</small>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" id="customWidgetCancelBtn" class="btn-secondary">Cancel</button>
+                    <button type="submit" id="customWidgetSaveBtn" class="btn-primary">Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit/add shortcut modal -->
+    <div class="modal" id="editModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Edit shortcut</h3>
+                <button class="modal-close" id="modalCloseBtn">&times;</button>
+            </div>
+            <form id="editForm">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="editTitle" placeholder="Site name" required>
+                </div>
+                <div class="form-group">
+                    <label>URL</label>
+                    <input type="url" id="editUrl" placeholder="https://example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Custom icon (URL)</label>
+                    <input type="text" id="editIcon" placeholder="https://... (optional)">
+                    <small class="form-hint">If not specified, a favicon or globe icon will be loaded automatically</small>
+                </div>
+                <div class="form-preview">
+                    <label>Preview</label>
+                    <div class="preview-card" id="previewCard">
+                        <div class="preview-icon" id="previewIcon"></div>
+                        <div class="preview-name" id="previewName">Name</div>
+                        <div class="preview-url" id="previewUrl">domain.com</div>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" id="modalCancelBtn" class="btn-secondary">Cancel</button>
+                    <button type="submit" id="modalSaveBtn" class="btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="MouseConfig.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

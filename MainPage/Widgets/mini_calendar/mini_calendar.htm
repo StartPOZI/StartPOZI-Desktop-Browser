@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar | Widget</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 40% 70%, #212d3c, #0a0f17);
+            font-family: 'Segoe UI', system-ui;
+        }
+        .widget {
+            background: transparent;
+            border-radius: 1.8rem;
+            padding: 1.5rem;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,245,190,0.12);
+            max-width: 360px;
+            width: 100%;
+        }
+        .widget-title {
+            font-size: 1.6rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #FFF2DA, #D2E0FF);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .widget-desc {
+            font-size: 0.8rem;
+            color: #c0cde8;
+            margin: 0.3rem 0 1rem 0;
+            border-left: 2px solid #f9bc6c;
+            padding-left: 0.7rem;
+        }
+        .calendar-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .month-year {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: #FFECB3;
+        }
+        .cal-btn {
+            background: rgba(255,245,200,0.15);
+            border: none;
+            color: white;
+            font-size: 1.1rem;
+            padding: 0.2rem 0.9rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .cal-btn:hover {
+            background: rgba(255,210,110,0.4);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+        th {
+            font-weight: 400;
+            color: #e0e8ff;
+            padding: 6px 0;
+            font-size: 0.8rem;
+        }
+        td {
+            padding: 8px 0;
+            border-radius: 30px;
+            font-weight: 500;
+            color: #f2f0f5;
+        }
+        .today {
+            background: rgba(255, 200, 110, 0.5);
+            backdrop-filter: blur(2px);
+            font-weight: bold;
+            border-radius: 40px;
+            box-shadow: inset 0 0 0 1px #ffcd7e;
+        }
+        .other-month {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+<div class="widget">
+    <div class="widget-title">🗓️ Pocket calendar</div>
+    <div class="widget-desc">Month by month. The current day is highlighted.</div>
+    <div class="calendar-controls">
+        <button class="cal-btn" id="prevBtn">◀</button>
+        <span id="monthYearDisplay" class="month-year"></span>
+        <button class="cal-btn" id="nextBtn">▶</button>
+    </div>
+    <table>
+        <thead><tr><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
+        <tbody id="calendarBody"></tbody>
+    </table>
+</div>
+<script>
+    let currentDate = new Date();
+
+    function renderCalendar() {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const startWeekday = firstDay.getDay(); // 0 Sun
+        let offset = startWeekday === 0 ? 6 : startWeekday - 1;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const prevMonthDays = new Date(year, month, 0).getDate();
+        const tbody = document.getElementById('calendarBody');
+        tbody.innerHTML = '';
+        let row = document.createElement('tr');
+        let cellCount = 0;
+
+        for (let i = 0; i < offset; i++) {
+            let cell = document.createElement('td');
+            cell.innerText = prevMonthDays - offset + i + 1;
+            cell.classList.add('other-month');
+            row.appendChild(cell);
+            cellCount++;
+        }
+
+        const today = new Date();
+        const isCurrent = (today.getFullYear() === year && today.getMonth() === month);
+        const todayDate = today.getDate();
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            let cell = document.createElement('td');
+            cell.innerText = d;
+            if (isCurrent && d === todayDate) cell.classList.add('today');
+            row.appendChild(cell);
+            cellCount++;
+            if (cellCount % 7 === 0) {
+                tbody.appendChild(row);
+                row = document.createElement('tr');
+            }
+        }
+        const remaining = 7 - (cellCount % 7);
+        if (remaining < 7 && remaining !== 0) {
+            for (let i = 1; i <= remaining; i++) {
+                let cell = document.createElement('td');
+                cell.innerText = i;
+                cell.classList.add('other-month');
+                row.appendChild(cell);
+            }
+            tbody.appendChild(row);
+        } else if (row.children.length > 0) {
+            tbody.appendChild(row);
+        }
+
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        document.getElementById('monthYearDisplay').innerText = `${months[month]} ${year}`;
+    }
+
+    document.getElementById('prevBtn').addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        renderCalendar();
+    });
+    document.getElementById('nextBtn').addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        renderCalendar();
+    });
+    renderCalendar();
+</script>
+</body>
+</html>

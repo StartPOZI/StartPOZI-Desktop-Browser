@@ -1,1 +1,16 @@
----
+{
+  "KPlugin": {
+    "Id": "org.startpozi.analog_clock",
+    "Name": "Analog Clock",
+    "Description": "A classic analog clock widget for the StartPOZI start page",
+    "Icon": "preferences-system-time",
+    "Version": "1.0",
+    "Category": "Date and Time"
+  },
+  "StartPOZI": {
+    "Size": [
+      190,
+      190
+    ]
+  }
+}

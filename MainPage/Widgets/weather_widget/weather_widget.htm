@@ -1,115 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- spz-widget:weather_widget -->
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weather | Widget</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; background: transparent; overflow: hidden; }
         body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: radial-gradient(circle at 80% 50%, #1f2e3c, #0b111c);
-            font-family: 'Segoe UI', system-ui;
+            display: flex; align-items: center; justify-content: center;
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #fff;
         }
-        .widget {
-            background: transparent;
-            border-radius: 2rem;
-            padding: 1.6rem;
+        #spz-root {
+            width: 184px; height: 144px;
+            transform-origin: center center;
+            padding: 10px 14px 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
             text-align: center;
-            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,245,190,0.1);
-            max-width: 320px;
-            width: 100%;
+            position: relative;
         }
-        .widget-title {
-            font-size: 1.7rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #FFF0D6, #BED6FF);
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
+        .refresh-btn {
+            position: absolute; top: 4px; right: 4px;
+            background: none; border: none;
+            color: rgba(255,255,255,0.4);
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            cursor: pointer; font-size: 12px; line-height: 1;
+            display: flex; align-items: center; justify-content: center;
+            transition: color 0.2s, transform 0.3s;
         }
-        .widget-desc {
-            font-size: 0.8rem;
-            color: #bed1f5;
-            margin: 0.3rem 0 1rem;
-            border-left: 2px solid #ffbc6e;
-            padding-left: 0.7rem;
-            text-align: left;
-        }
-        .weather-icon {
-            font-size: 3rem;
-            margin: 0.3rem 0;
-        }
-        .temp {
-            font-size: 2.2rem;
-            font-weight: 700;
-            color: #fff0ce;
-        }
-        .desc {
-            font-size: 1rem;
-            margin: 0.2rem 0;
-        }
-        .city {
-            font-size: 0.75rem;
-            opacity: 0.8;
-            margin: 0.3rem 0 0.8rem;
-        }
-        button {
-            background: rgba(255,245,200,0.18);
-            border: none;
-            color: #ffe2b5;
-            padding: 0.3rem 1rem;
-            border-radius: 2rem;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-        button:hover {
-            background: rgba(255,195,100,0.5);
+        .refresh-btn:hover { color: #fff; transform: rotate(180deg); }
+        .weather-icon { font-size: 30px; line-height: 1.1; }
+        .temp { font-size: 23px; font-weight: 700; line-height: 1.15; }
+        .desc { font-size: 11px; color: rgba(255,255,255,0.7); }
+        .city { font-size: 9.5px; color: rgba(255,255,255,0.45); margin-top: 3px; }
+        .demo {
+            font-size: 8px; letter-spacing: 0.8px;
+            color: rgba(255,255,255,0.3);
+            text-transform: uppercase;
+            margin-top: 6px;
         }
     </style>
 </head>
 <body>
-<div class="widget">
-    <div class="widget-title">🌤️ Light weather</div>
-    <div class="widget-desc">Simulated weather for inspiration. You can refresh the state.</div>
+<div id="spz-root">
+    <button class="refresh-btn" id="refreshWeather">↻</button>
     <div class="weather-icon" id="weatherIcon">☀️</div>
-    <div class="temp" id="tempValue">+21°C</div>
-    <div class="desc" id="weatherDesc">Sunny, clear</div>
-    <div class="city" id="cityName">📍 Saint Petersburg</div>
-    <button id="refreshWeather">🔄 Refresh weather</button>
+    <div class="temp" id="tempValue">+21°</div>
+    <div class="desc" id="weatherDesc"></div>
+    <div class="city" id="cityName"></div>
+    <div class="demo" id="demoTag"></div>
 </div>
 <script>
-    const conditions = [
-        { emoji: "☀️", desc: "Sunny", temps: [18, 28] },
-        { emoji: "⛅", desc: "Partly cloudy", temps: [14, 22] },
-        { emoji: "🌥️", desc: "Cloudy", temps: [12, 19] },
-        { emoji: "🌦️", desc: "Light rain", temps: [8, 15] },
-        { emoji: "🌈", desc: "Rainbow breeze", temps: [15, 21] },
-        { emoji: "❄️", desc: "Light snow", temps: [-2, 4] },
-        { emoji: "🌬️", desc: "Windy", temps: [5, 12] }
+    (function () {
+        var W = 184, H = 144;
+        function fit() {
+            var s = Math.min(window.innerWidth / W, window.innerHeight / H, 1);
+            document.getElementById('spz-root').style.transform = 'scale(' + s + ')';
+        }
+        window.addEventListener('resize', fit); fit();
+    })();
+</script>
+<script>
+    var LANG = (window.__SPZ_LANG || (navigator.language || 'en').slice(0, 2).toLowerCase()) === 'ru' ? 'ru' : 'en';
+    var L = function (o) { return o[LANG] || o.en; };
+    var conditions = [
+        { emoji: "☀️", en: "Sunny",            ru: "Солнечно",               temps: [18, 28] },
+        { emoji: "⛅", en: "Partly cloudy",    ru: "Переменная облачность",  temps: [14, 22] },
+        { emoji: "🌥️", en: "Cloudy",           ru: "Облачно",                temps: [12, 19] },
+        { emoji: "🌦️", en: "Light rain",       ru: "Небольшой дождь",        temps: [8, 15] },
+        { emoji: "🌧️", en: "Rain",             ru: "Дождь",                  temps: [5, 12] },
+        { emoji: "❄️", en: "Light snow",       ru: "Небольшой снег",         temps: [-8, 1] },
+        { emoji: "🌫️", en: "Foggy",            ru: "Туман",                  temps: [-2, 6] }
     ];
-    const cities = ["Saint Petersburg", "Moscow", "Kazan", "Novosibirsk", "Vladivostok", "Yekaterinburg"];
+    var cities = {
+        en: ["Saint Petersburg", "Moscow", "Kazan", "Novosibirsk", "Vladivostok", "Yekaterinburg"],
+        ru: ["Санкт-Петербург", "Москва", "Казань", "Новосибирск", "Владивосток", "Екатеринбург"]
+    };
+    document.getElementById('refreshWeather').title = L({ en: 'Refresh', ru: 'Обновить' });
+    document.getElementById('demoTag').textContent = L({ en: 'demo', ru: 'демо' });
 
-    function updateWeather() {
-        const randCond = conditions[Math.floor(Math.random() * conditions.length)];
-        const [minT, maxT] = randCond.temps;
-        const temp = Math.floor(Math.random() * (maxT - minT + 1) + minT);
-        const sign = temp > 0 ? '+' : '';
-        document.getElementById('weatherIcon').innerText = randCond.emoji;
-        document.getElementById('tempValue').innerText = `${sign}${temp}°C`;
-        document.getElementById('weatherDesc').innerText = randCond.desc;
-        const randomCity = cities[Math.floor(Math.random() * cities.length)];
-        document.getElementById('cityName').innerText = `📍 ${randomCity}`;
+    function randomState() {
+        return {
+            c: Math.floor(Math.random() * conditions.length),
+            t: 0,
+            city: Math.floor(Math.random() * cities.en.length)
+        };
     }
-    document.getElementById('refreshWeather').addEventListener('click', updateWeather);
-    updateWeather();
+    function loadState() {
+        try {
+            var s = JSON.parse(localStorage.getItem('spzcw_weather') || 'null');
+            if (s && isFinite(s.c) && isFinite(s.city)) return s;
+        } catch (e) {}
+        return randomState();
+    }
+    function saveState(s) { try { localStorage.setItem('spzcw_weather', JSON.stringify(s)); } catch (e) {} }
+
+    function render(st) {
+        var cond = conditions[st.c] || conditions[0];
+        if (!st.set) {
+            var range = cond.temps;
+            st.t = Math.floor(Math.random() * (range[1] - range[0] + 1) + range[0]);
+            st.set = true;
+        }
+        document.getElementById('weatherIcon').textContent = cond.emoji;
+        document.getElementById('tempValue').textContent = (st.t > 0 ? '+' : '') + st.t + '°';
+        document.getElementById('weatherDesc').textContent = L(cond);
+        document.getElementById('cityName').textContent = '📍 ' + cities[LANG][st.city];
+    }
+
+    var state = loadState();
+    render(state); saveState(state);
+    document.getElementById('refreshWeather').addEventListener('click', function () {
+        state = randomState();
+        render(state); saveState(state);
+    });
 </script>
 </body>
 </html>

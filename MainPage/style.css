@@ -384,6 +384,39 @@ body.wallpapers-enabled {
 .btn-secondary:hover {
     background: rgba(255,255,255,0.2);
 }
+.btn-danger {
+    padding: 8px 20px;
+    border-radius: 30px;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+    background: rgba(255, 107, 107, 0.16);
+    color: #ff8b8b;
+}
+.btn-danger:hover {
+    background: rgba(255, 107, 107, 0.3);
+    color: #fff;
+}
+
+/* In-page confirm/alert dialogs (native confirm() is patched in webviews) */
+.pd-content {
+    max-width: 360px;
+    border-radius: 18px;
+    padding: 20px 22px 18px;
+}
+.pd-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.pd-msg {
+    font-size: 13px;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.45;
+    word-break: break-word;
+    margin-bottom: 6px;
+}
 
 /* Personalization panel */
 .customize-panel {
@@ -439,6 +472,37 @@ body.wallpapers-enabled {
 }
 .toggle-label { font-size: 16px; font-weight: 600; color: #f5f5f7; }
 .section-desc { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 15px; }
+/* Weather location subsection (manual coordinates vs IP detection) */
+.geo-subsection {
+    margin-top: 4px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+.geo-mode-row { display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
+.geo-mode {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: rgba(255,255,255,0.8); cursor: pointer;
+}
+.geo-mode input { accent-color: #4cc9f0; cursor: pointer; }
+.geo-input-row { display: flex; gap: 8px; }
+.geo-input-row input {
+    flex: 1; min-width: 0;
+    padding: 8px 10px; font-size: 13px;
+    color: #f5f5f7;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    outline: none;
+}
+.geo-input-row input:focus { border-color: #4cc9f0; }
+.geo-input-row button {
+    padding: 8px 14px; font-size: 13px; font-weight: 600;
+    color: #fff; background: #4cc9f0; border: none; border-radius: 8px;
+    cursor: pointer;
+}
+.geo-input-row button:hover { filter: brightness(1.1); }
 .switch {
     position: relative;
     display: inline-block;
@@ -1082,8 +1146,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 .cw-del:hover { color: #ff6b6b; }
 .cw-frame {
-    width: 220px;
-    height: 150px;
+    width: var(--cw-w, 220px);
+    height: var(--cw-h, 150px);
     border: none;
     background: transparent;
     display: block;

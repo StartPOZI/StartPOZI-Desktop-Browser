@@ -1,91 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- spz-widget:digital_datetime -->
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Digital time &amp; date | Widget</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; background: transparent; overflow: hidden; }
         body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: radial-gradient(circle at 70% 30%, #1f2c3c, #0c111a);
-            font-family: 'Segoe UI', 'Inter', monospace;
+            display: flex; align-items: center; justify-content: center;
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #fff;
         }
-        .widget {
-            background: transparent;
-            border-radius: 2rem;
-            padding: 1.8rem 1.8rem;
+        #spz-root {
+            width: 190px; height: 90px;
+            transform-origin: center center;
             text-align: center;
-            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,210,0.12);
-            max-width: 340px;
-            width: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 5px;
         }
-        .widget-title {
-            font-size: 1.7rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #FFF0CF, #C7DBFF);
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
+        .time {
+            font-size: 34px; font-weight: 600; line-height: 1;
+            letter-spacing: 1px;
+            font-variant-numeric: tabular-nums;
         }
-        .widget-desc {
-            font-size: 0.8rem;
-            color: #cbdbe6;
-            margin: 0.4rem 0 1.2rem 0;
-            border-left: 2px solid #ffbc6e;
-            padding-left: 0.7rem;
-            text-align: left;
+        .time .sec { font-size: 19px; font-weight: 500; color: rgba(255,255,255,0.45); margin-left: 4px; }
+        .date {
+            font-size: 12px; color: rgba(255,255,255,0.6);
+            text-transform: capitalize;
         }
-        .digital-time {
-            font-size: 3.3rem;
-            font-weight: 700;
-            font-family: 'JetBrains Mono', monospace;
-            background: rgba(255,250,225,0.08);
-            backdrop-filter: blur(4px);
-            border-radius: 3rem;
-            padding: 0.3rem 1rem;
-            display: inline-block;
-            letter-spacing: 3px;
-            color: #F9F3D9;
-        }
-        .date-string {
-            font-size: 1.3rem;
-            margin-top: 1rem;
-            font-weight: 400;
-            color: #dfe8ff;
-        }
+        .tick { width: 18px; height: 2px; border-radius: 2px; background: rgba(76,201,240,0.7); }
     </style>
 </head>
 <body>
-<div class="widget">
-    <div class="widget-title">📆 Digital time & date</div>
-    <div class="widget-desc">Exact time, day, month and year — always at a glance.</div>
-    <div class="digital-time" id="clockDisplay">--:--:--</div>
-    <div class="date-string" id="dateDisplay">loading...</div>
+<div id="spz-root">
+    <div class="time"><span id="hm">--:--</span><span class="sec" id="sec">--</span></div>
+    <div class="tick"></div>
+    <div class="date" id="dateLine">&nbsp;</div>
 </div>
 <script>
-    function updateTimeAndDate() {
-        const now = new Date();
-        const hours = now.getHours().toString().padStart(2, '0');
-        const minutes = now.getMinutes().toString().padStart(2, '0');
-        const seconds = now.getSeconds().toString().padStart(2, '0');
-        document.getElementById('clockDisplay').innerText = `${hours}:${minutes}:${seconds}`;
+    (function () {
+        var W = 190, H = 90;
+        function fit() {
+            var s = Math.min(window.innerWidth / W, window.innerHeight / H, 1);
+            document.getElementById('spz-root').style.transform = 'scale(' + s + ')';
+        }
+        window.addEventListener('resize', fit); fit();
+    })();
+</script>
+<script>
+    var LANG = (window.__SPZ_LANG || (navigator.language || 'en').slice(0, 2).toLowerCase()) === 'ru' ? 'ru' : 'en';
+    var locale = LANG === 'ru' ? 'ru-RU' : 'en-GB';
+    var fmt = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' });
 
-        const day = now.getDate();
-        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        const month = months[now.getMonth()];
-        const year = now.getFullYear();
-        document.getElementById('dateDisplay').innerHTML = `${day} ${month} ${year}`;
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function update() {
+        var now = new Date();
+        document.getElementById('hm').textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
+        document.getElementById('sec').textContent = pad(now.getSeconds());
+        var s = fmt.format(now);
+        document.getElementById('dateLine').textContent = s.charAt(0).toUpperCase() + s.slice(1);
     }
-    updateTimeAndDate();
-    setInterval(updateTimeAndDate, 1000);
+    update();
+    setInterval(update, 1000);
 </script>
 </body>
 </html>

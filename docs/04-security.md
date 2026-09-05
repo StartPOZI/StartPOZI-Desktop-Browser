@@ -63,7 +63,3 @@
 | Block geolocation | Запрет доступа к геолокации |
 | Block WebGL fingerprint | Подмена GPU-информации |
 | Block Clipboard API | Запрет чтения/записи буфера обмена |
-
-## Тестирование
-
-Откройте **Settings → Security → Test page** для интерактивной проверки всех функций безопасности на `SecurityTest.html`.

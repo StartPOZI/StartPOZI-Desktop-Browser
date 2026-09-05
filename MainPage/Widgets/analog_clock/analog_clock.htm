@@ -1,155 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- spz-widget:analog_clock -->
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analog clock | Widget</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; background: transparent; overflow: hidden; }
         body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: radial-gradient(circle at 30% 20%, #1e2a3a, #0a0f18);
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #fff;
         }
-        /* Widget – fully transparent background, content only */
-        .widget {
-            background: transparent;
-            border-radius: 2rem;
-            padding: 1.8rem 1.5rem;
-            text-align: center;
-            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,200,0.1);
-            backdrop-filter: blur(0px);
-            transition: transform 0.2s;
-            max-width: 320px;
-            width: 100%;
-        }
-        .widget:hover {
-            transform: translateY(-5px);
-        }
-        .widget-title {
-            font-size: 1.7rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #FFF2D7, #D4E0FF);
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
-            margin-bottom: 0.3rem;
-        }
-        .widget-desc {
-            font-size: 0.8rem;
-            color: #ccddee;
-            opacity: 0.8;
-            margin-bottom: 1.2rem;
-            border-left: 2px solid #ffc285;
-            padding-left: 0.7rem;
-            text-align: left;
-        }
-        canvas {
-            display: block;
-            margin: 0 auto;
-            background: transparent;
-            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-            width: 200px;
-            height: 200px;
-        }
-        .footnote {
-            font-size: 0.7rem;
-            color: #aab9d4;
-            margin-top: 1rem;
-        }
+        #spz-root { width: 170px; height: 170px; transform-origin: center center; }
+        canvas { display: block; width: 170px; height: 170px; }
     </style>
 </head>
 <body>
-<div class="widget">
-    <div class="widget-title">⌛ Classic dial</div>
-    <div class="widget-desc">Elegant hands, ticking seconds. Perfect for the start screen.</div>
-    <canvas id="clockCanvas" width="200" height="200"></canvas>
-    <div class="footnote">time moves forward</div>
-</div>
+<div id="spz-root"><canvas id="clockCanvas" width="340" height="340"></canvas></div>
 <script>
-    const canvas = document.getElementById('clockCanvas');
-    const ctx = canvas.getContext('2d');
+    (function () {
+        var W = 170, H = 170;
+        function fit() {
+            var s = Math.min(window.innerWidth / W, window.innerHeight / H, 1);
+            document.getElementById('spz-root').style.transform = 'scale(' + s + ')';
+        }
+        window.addEventListener('resize', fit); fit();
+    })();
+</script>
+<script>
+    var canvas = document.getElementById('clockCanvas');
+    var ctx = canvas.getContext('2d');
 
     function drawClock() {
-        const now = new Date();
-        const hours = now.getHours() % 12;
-        const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-
-        const radius = canvas.width / 2;
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
+        var now = new Date();
+        var hours = now.getHours() % 12;
+        var minutes = now.getMinutes();
+        var seconds = now.getSeconds();
+        var radius = canvas.width / 2;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-        ctx.translate(cx, cy);
+        ctx.translate(canvas.width / 2, canvas.height / 2);
 
-        // Dial
+        // Dial: soft dark glass
         ctx.beginPath();
-        ctx.arc(0, 0, radius * 0.88, 0, 2 * Math.PI);
-        ctx.strokeStyle = 'rgba(255,250,210,0.85)';
-        ctx.lineWidth = 2;
+        ctx.arc(0, 0, radius * 0.94, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
         ctx.stroke();
 
-        // Marks and numbers
-        for (let i = 1; i <= 12; i++) {
-            let angle = i * Math.PI / 6 - Math.PI / 2;
-            let x1 = (radius - 8) * Math.cos(angle);
-            let y1 = (radius - 8) * Math.sin(angle);
-            let x2 = (radius - 20) * Math.cos(angle);
-            let y2 = (radius - 20) * Math.sin(angle);
+        // Ticks
+        for (var i = 0; i < 60; i++) {
+            var a = i * Math.PI / 30;
+            var major = i % 5 === 0;
+            var len = major ? 16 : 7;
             ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.strokeStyle = '#fffaec';
+            ctx.moveTo((radius - 14) * Math.cos(a), (radius - 14) * Math.sin(a));
+            ctx.lineTo((radius - 14 - len) * Math.cos(a), (radius - 14 - len) * Math.sin(a));
+            ctx.lineWidth = major ? 5 : 2.5;
+            ctx.strokeStyle = major ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)';
             ctx.stroke();
-
-            ctx.font = `bold ${Math.floor(radius * 0.12)}px "Segoe UI"`;
-            ctx.fillStyle = '#F5E6C4';
-            let numX = (radius - 32) * Math.cos(angle);
-            let numY = (radius - 32) * Math.sin(angle);
-            ctx.fillText(i.toString(), numX - 6, numY + 6);
         }
 
+        // Numbers 12 / 3 / 6 / 9
+        ctx.font = '600 34px -apple-system, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var nr = radius - 58;
+        ctx.fillText('12', 0, -nr);
+        ctx.fillText('3', nr, 0);
+        ctx.fillText('6', 0, nr);
+        ctx.fillText('9', -nr, 0);
+
+        var hourAngle = (hours * 30 + minutes * 0.5) * Math.PI / 180;
+        var minuteAngle = minutes * 6 * Math.PI / 180;
+        var secondAngle = seconds * 6 * Math.PI / 180;
+
         // Hour hand
-        let hourAngle = (hours * 30 + minutes * 0.5) * Math.PI / 180;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(radius * 0.5 * Math.cos(hourAngle), radius * 0.5 * Math.sin(hourAngle));
-        ctx.lineWidth = 5;
-        ctx.strokeStyle = '#FFD966';
+        ctx.moveTo(-14 * Math.cos(hourAngle), -14 * Math.sin(hourAngle));
+        ctx.lineTo(radius * 0.48 * Math.cos(hourAngle), radius * 0.48 * Math.sin(hourAngle));
+        ctx.lineWidth = 11;
+        ctx.strokeStyle = '#ffffff';
         ctx.stroke();
 
         // Minute hand
-        let minuteAngle = (minutes * 6) * Math.PI / 180;
         ctx.beginPath();
-        ctx.moveTo(0, 0);
+        ctx.moveTo(-18 * Math.cos(minuteAngle), -18 * Math.sin(minuteAngle));
         ctx.lineTo(radius * 0.72 * Math.cos(minuteAngle), radius * 0.72 * Math.sin(minuteAngle));
-        ctx.lineWidth = 3.5;
-        ctx.strokeStyle = '#F5CCA0';
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = 'rgba(255,255,255,0.92)';
         ctx.stroke();
 
-        // Second hand
-        let secondAngle = (seconds * 6) * Math.PI / 180;
+        // Second hand — accent
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(radius * 0.82 * Math.cos(secondAngle), radius * 0.82 * Math.sin(secondAngle));
-        ctx.lineWidth = 1.8;
-        ctx.strokeStyle = '#FFAA66';
+        ctx.moveTo(-30 * Math.cos(secondAngle), -30 * Math.sin(secondAngle));
+        ctx.lineTo(radius * 0.84 * Math.cos(secondAngle), radius * 0.84 * Math.sin(secondAngle));
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = '#4cc9f0';
         ctx.stroke();
 
         // Center
         ctx.beginPath();
-        ctx.arc(0, 0, 5, 0, 2 * Math.PI);
-        ctx.fillStyle = '#FFD966';
+        ctx.arc(0, 0, 11, 0, 2 * Math.PI);
+        ctx.fillStyle = '#4cc9f0';
         ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(14,16,24,0.9)';
+        ctx.fill();
+
         ctx.restore();
     }
 

@@ -11,6 +11,14 @@
     <meta name="keywords" content="New tab, New Tab, New, Home, Start page, Home Page, Start Page">
     <meta name="author" content="StartPOZI">
     <style>
+    /* Chrome UI: no text selection on panels, lists, buttons and menus. */
+    /* Inputs, textareas and selectable content remain selectable. */
+    body { user-select: none; -webkit-user-select: none; }
+    input, textarea, select, [contenteditable="true"], [contenteditable=""], .selectable {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
         .logo-img { height: 60px; width: auto; user-select: none; pointer-events: none; }
         .logo-img.tile-logo { height: 48px; }
         .icon-svg {
@@ -93,6 +101,19 @@
                     <label class="switch"><input type="checkbox" id="weatherToggle" checked><span class="slider round"></span></label>
                 </div>
                 <p class="section-desc">Show the weather and time widget in the top-left corner</p>
+                <!-- Weather location: manual coordinates (privacy-friendly) or IP detection -->
+                <div class="geo-subsection" id="weatherGeoSection">
+                    <div class="geo-mode-row">
+                        <label class="geo-mode"><input type="radio" name="weatherGeoMode" value="manual" checked><span>Manual coordinates</span></label>
+                        <label class="geo-mode"><input type="radio" name="weatherGeoMode" value="auto"><span>Detect via IP</span></label>
+                    </div>
+                    <div class="geo-input-row">
+                        <input type="text" id="weatherLatInput" placeholder="Latitude, e.g. 55.75" spellcheck="false">
+                        <input type="text" id="weatherLonInput" placeholder="Longitude, e.g. 37.61" spellcheck="false">
+                        <button id="weatherGeoSave" title="Save coordinates">Save</button>
+                    </div>
+                    <p class="section-desc">Manual coordinates keep your IP private — no geolocation service is contacted. Until you set them, a default location is used.</p>
+                </div>
             </div>
             <div class="custom-section">
                 <div class="toggle-container">

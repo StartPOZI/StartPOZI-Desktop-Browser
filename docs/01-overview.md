@@ -16,8 +16,8 @@ StartPOZI — это десктопный браузер на базе Electron 
 
 ```
 StartPOZI Desktop Browser
-├── main.js              — главный процесс Electron (~5600 строк)
-├── renderer.js          — UI логика браузера (~9700 строк)
+├── main.js              — главный процесс Electron (~8500 строк)
+├── renderer.js          — UI логика браузера (~12200 строк)
 ├── preload.js           — мост IPC для главного окна
 ├── preload-webview.js   — инъекция в webview (vim, eco-freeze, security)
 ├── index.html           — главное окно браузера
@@ -29,8 +29,6 @@ StartPOZI Desktop Browser
 ├── adblocker.js         — движок блокировки рекламы
 ├── MainPage/            — встроенная стартовая страница с виджетами
 ├── ErrorPage/           — страница ошибки (с игрой Breakout!)
-├── SecurityTest.html    — страница тестирования безопасности
-├── OptimizationTest.html— страница тестирования оптимизации
 ├── locales/             — файлы переводов (ru.json)
 └── docs/                — документация
 ```
@@ -41,9 +39,12 @@ StartPOZI Desktop Browser
 |-----------|-----------|
 | Движок | Electron 42 + Chromium |
 | Блокировщик | @cliqz/adblocker-electron |
-| Архивы | adm-zip + archiver |
+| Архивы | adm-zip |
 | Tor | встроенный Tor-binary + мосты |
 | Шифрование | локальное шифрование паролей с master password |
+| TTS | espeak-ng (офлайн-синтез речи) |
+| OCR | tesseract.js (офлайн-распознавание текста) |
+| Импорт из браузеров | sql.js (чтение SQLite профилей Chrome/Firefox) |
 
 ## Системные требования
 

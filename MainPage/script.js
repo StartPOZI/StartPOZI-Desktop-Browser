@@ -132,6 +132,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchLocationAndWeather() {
         if (!weatherWidget || weatherWidget.classList.contains('hidden')) return;
+        // Privacy-friendly by default: with manual mode we never contact an
+        // IP geolocation service — only the weather API gets the coordinates.
+        const geoMode = localStorage.getItem('startpozi_weather_geo_mode') || 'manual';
+        if (geoMode !== 'auto') {
+            const lat = parseFloat(localStorage.getItem('startpozi_weather_lat'));
+            const lon = parseFloat(localStorage.getItem('startpozi_weather_lon'));
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                await fetchWeather(lat, lon);
+            } else {
+                // Default location until the user sets their own coordinates.
+                await fetchWeather(55.7558, 37.6173);
+            }
+            return;
+        }
         try {
             const geoResp = await fetch('https://ip-api.com/json/?fields=lat,lon');
             const geoData = await geoResp.json();
@@ -556,7 +570,10 @@ document.addEventListener('DOMContentLoaded', function() {
         titleEl.textContent = (info && info.title) || 'Nothing is playing';
         artistEl.textContent = (info && info.artist) || '';
         if (info && info.artwork) {
-            artEl.innerHTML = `<img src="${info.artwork}" alt="">`;
+            artEl.textContent = '';
+            var img = document.createElement('img');
+            img.src = info.artwork; img.alt = '';
+            artEl.appendChild(img);
         } else {
             artEl.textContent = '🎵';
         }
@@ -677,7 +694,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="dl-meta"></div>
                 <div class="dl-bar"><span style="width:${pct}%"></span></div>`;
             li.querySelector('.dl-name').textContent = d.name;
-            li.querySelector('.dl-meta').textContent = d.state === 'progressing' ? (pct + '%' + (sizeStr ? ' · ' + sizeStr : '')) : 'Completed' + (sizeStr ? ' · ' + sizeStr : '');
+            li.querySelector('.dl-meta').textContent = d.state === 'progressing'
+                ? (pct + '%' + (sizeStr ? ' · ' + sizeStr : ''))
+                : ((d.state === 'failed' || d.state === 'interrupted') ? 'Failed' : 'Completed') + (sizeStr ? ' · ' + sizeStr : '');
             list.appendChild(li);
         });
     }
@@ -688,31 +707,160 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!visible) downloadsWidget.querySelector('.dl-panel').classList.remove('open');
     }
 
-    // Tracking downloads initiated by clicks on the page (a[download] or media files)
-    document.addEventListener('click', (e) => {
-        const a = e.target.closest('a[download], a[href]');
-        if (!a || !a.getAttribute('download') && !/\.(zip|exe|dmg|pkg|mp3|mp4|pdf|iso|msi|7z|rar|apk)(\?|$)/i.test(a.href || '')) return;
-        if (!downloadsWidget || downloadsWidget.classList.contains('hidden')) return;
-        const name = a.getAttribute('download') || (a.href.split('/').pop() || 'File');
-        addDownloadItem({ name, url: a.href, state: 'progressing', progress: 0 });
-        const id = loadDownloads().slice(-1)[0] && loadDownloads().slice(-1)[0].id;
-        let p = 0;
-        const t = setInterval(() => {
-            p += Math.random() * 22;
-            if (p >= 100) { p = 100; updateDownloadItem(id, { progress: 100, state: 'completed' }); clearInterval(t); }
-            else updateDownloadItem(id, { progress: p });
-        }, 400);
-    });
+    // Real download events from the browser's download manager (IPC), instead
+    // of the old simulated progress. MainPage is a trusted internal file://
+    // page, so preload-webview exposes the download events to it.
+    function _wireRealDownloads(api) {
+        if (!api) return;
+        if (api.onDownloadStarted) {
+            api.onDownloadStarted(function (info) {
+                if (!info) return;
+                addDownloadItem({
+                    id: info.id,
+                    name: info.filename || 'File',
+                    size: info.totalBytes || 0,
+                    state: 'progressing',
+                    progress: 0
+                });
+            });
+        }
+        if (api.onDownloadProgress) {
+            api.onDownloadProgress(function (info) {
+                if (!info || !info.id) return;
+                const patch = { state: info.state === 'interrupted' || info.state === 'paused' || info.state === 'failed' ? info.state : 'progressing' };
+                if (info.totalBytes > 0 && typeof info.receivedBytes === 'number') {
+                    patch.progress = Math.min(100, info.receivedBytes / info.totalBytes * 100);
+                    patch.size = info.totalBytes;
+                } else if (typeof info.receivedBytes === 'number') {
+                    patch.size = null;
+                    patch.received = info.receivedBytes;
+                }
+                if (info.state === 'completed') { patch.state = 'completed'; patch.progress = 100; }
+                if (info.state === 'cancelled' || info.state === 'failed') patch.state = 'failed';
+                updateDownloadItem(info.id, patch);
+            });
+        }
+        // Full re-sync (e.g. after a download is removed from the shell panel).
+        if (api.onDownloadsUpdated) {
+            api.onDownloadsUpdated(function () {
+                if (!api.getDownloads) return;
+                api.getDownloads().then(function (items) {
+                    if (!Array.isArray(items)) return;
+                    saveDownloads(items.slice(0, 50).map(function (d) {
+                        return {
+                            id: d.id,
+                            name: d.filename || 'File',
+                            size: d.totalBytes || 0,
+                            state: d.state === 'progressing' ? 'progressing' : (d.state === 'completed' ? 'completed' : 'failed'),
+                            progress: d.state === 'completed' ? 100 : (d.totalBytes ? Math.min(100, (d.receivedBytes || 0) / d.totalBytes * 100) : 0),
+                            added: d.startTime || Date.now()
+                        };
+                    }));
+                    renderDownloads();
+                }).catch(function () {});
+            });
+        }
+    }
+
+    // ========== IN-PAGE DIALOGS ==========
+    // Native alert()/confirm() are patched inside webview pages: confirm()
+    // always returns false (the real answer arrives asynchronously), so
+    // MainPage uses its own promise-based dialogs instead.
+    function pageDialog(opts) {
+        return new Promise(resolve => {
+            const ov = document.createElement('div');
+            ov.className = 'modal';
+            ov.style.zIndex = '3000';
+            const isConfirm = !!opts.cancelText;
+            ov.innerHTML = `
+                <div class="modal-content pd-content">
+                    <div class="pd-title"></div>
+                    ${opts.message ? '<div class="pd-msg"></div>' : ''}
+                    <div class="modal-buttons">
+                        ${isConfirm ? '<button type="button" class="btn-secondary pd-cancel"></button>' : ''}
+                        <button type="button" class="${opts.danger ? 'btn-danger' : 'btn-primary'} pd-ok"></button>
+                    </div>
+                </div>`;
+            ov.querySelector('.pd-title').textContent = opts.title || '';
+            const msg = ov.querySelector('.pd-msg');
+            if (msg) msg.textContent = opts.message;
+            const okBtn = ov.querySelector('.pd-ok');
+            okBtn.textContent = opts.okText || 'OK';
+            const cancelBtn = ov.querySelector('.pd-cancel');
+            if (cancelBtn) cancelBtn.textContent = opts.cancelText;
+            function close(result) {
+                ov.remove();
+                document.removeEventListener('keydown', onKey);
+                resolve(result);
+            }
+            function onKey(e) { if (e.key === 'Escape') close(false); }
+            document.addEventListener('keydown', onKey);
+            ov.addEventListener('click', e => { if (e.target === ov) close(false); });
+            okBtn.addEventListener('click', () => close(true));
+            if (cancelBtn) cancelBtn.addEventListener('click', () => close(false));
+            document.body.appendChild(ov);
+            okBtn.focus();
+        });
+    }
+    function pageConfirm(title, message) {
+        return pageDialog({ title, message, okText: 'Delete', cancelText: 'Cancel', danger: true });
+    }
+    function pageAlert(title, message) {
+        return pageDialog({ title, message, okText: 'OK' });
+    }
 
     // ========== WIDGET: CUSTOM WIDGETS (KDE Plasma-style) ==========
     const WIDGET_FILES = [
-        { id: 'analog_clock',     name: 'Analog clock' },
-        { id: 'digital_datetime', name: 'Digital clock / date' },
-        { id: 'mini_calendar',    name: 'Mini calendar' },
-        { id: 'quote_widget',     name: 'Quote of the day' },
-        { id: 'weather_widget',   name: 'Weather widget' },
-        { id: 'media_upload',     name: 'Media upload' }
+        { id: 'analog_clock',     name: 'Analog clock',        size: [190, 190] },
+        { id: 'digital_datetime', name: 'Digital clock / date', size: [210, 110] },
+        { id: 'mini_calendar',    name: 'Mini calendar',       size: [230, 240] },
+        { id: 'quote_widget',     name: 'Quote of the day',    size: [230, 160] },
+        { id: 'weather_widget',   name: 'Weather widget',      size: [200, 160] },
+        { id: 'media_upload',     name: 'Media upload',        size: [190, 200] }
     ];
+    const DEFAULT_WIDGET_SIZE = [220, 150];
+    // Old builds embedded the whole widget HTML into localStorage at add time.
+    // Detect those copies (by their old markup) and convert to live file refs
+    // so redesigned widgets from Widgets/ are picked up.
+    const LEGACY_WIDGET_MARKERS = {
+        analog_clock: 'id="clockCanvas"',
+        quote_widget: 'id="newQuote"',
+        digital_datetime: 'id="clockDisplay"',
+        mini_calendar: 'id="calendarBody"',
+        weather_widget: 'id="weatherIcon"',
+        media_upload: 'id="uploadFile"'
+    };
+
+    function widgetLang() {
+        try {
+            if (window.i18n && window.i18n.getLanguage) return window.i18n.getLanguage();
+        } catch (e) {}
+        return (navigator.language || 'en').slice(0, 2).toLowerCase() === 'ru' ? 'ru' : 'en';
+    }
+
+    function migrateCustomWidgets(arr) {
+        let changed = false;
+        arr.forEach(w => {
+            if (w && w.type === 'html' && w.html) {
+                for (const fid of Object.keys(LEGACY_WIDGET_MARKERS)) {
+                    if (w.html.indexOf(LEGACY_WIDGET_MARKERS[fid]) !== -1 || w.html.indexOf('spz-widget:' + fid) !== -1) {
+                        const meta = WIDGET_FILES.find(f => f.id === fid);
+                        w.type = 'file';
+                        w.fileId = fid;
+                        if (meta) {
+                            w.size = meta.size;
+                            if (!w.name || w.name === 'Widget') w.name = meta.name;
+                        }
+                        delete w.html;
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        });
+        if (changed) saveCustomWidgets(arr);
+        return arr;
+    }
 
     function loadCustomWidgets() {
         try { return JSON.parse(localStorage.getItem('startpozi_custom_widgets')) || []; }
@@ -732,15 +880,33 @@ document.addEventListener('DOMContentLoaded', function() {
         renderCustomWidgets();
     }
 
+    // Inject the app language so built-in widget bodies can localize themselves.
+    function injectLangIntoDoc(html) {
+        const boot = '<script>window.__SPZ_LANG=' + JSON.stringify(widgetLang()) + ';</script>';
+        if (html.indexOf('<head>') !== -1) return html.replace('<head>', '<head>' + boot);
+        return boot + html;
+    }
+
     function renderCustomWidgets() {
         if (!customWidgetsContainer) return;
         customWidgetsContainer.querySelectorAll('.cw-item').forEach(n => n.remove());
-        const items = loadCustomWidgets();
+        const items = migrateCustomWidgets(loadCustomWidgets());
         items.forEach(w => customWidgetsContainer.appendChild(buildCustomWidgetItem(w)));
+        // Built-in widgets load fresh from Widgets/ on every render (no stale copies)
+        items.filter(w => w.type === 'file' && w.fileId).forEach(w => {
+            const frame = customWidgetsContainer.querySelector('.cw-item[data-id="' + w.id + '"] .cw-frame');
+            if (!frame) return;
+            fetch('Widgets/' + w.fileId + '/' + w.fileId + '.htm')
+                .then(r => { if (!r.ok) throw new Error('not found'); return r.text(); })
+                .then(html => { frame.srcdoc = injectLangIntoDoc(html); })
+                .catch(() => {
+                    frame.srcdoc = injectLangIntoDoc('<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:transparent;color:rgba(255,255,255,.5);font:11px -apple-system,Segoe UI,Roboto,sans-serif}body{display:flex;align-items:center;justify-content:center}</style></head><body>Could not load widget</body></html>');
+                });
+        });
     }
 
     function buildSrcDoc(w) {
-        if (w.type === 'html') return w.html || '<div style="color:#fff;font:14px sans-serif;padding:8px">Empty widget</div>';
+        if (w.type === 'html') return injectLangIntoDoc(w.html || '<div style="color:#fff;font:14px sans-serif;padding:8px">Empty widget</div>');
         return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:transparent;color:#fff;font-family:-apple-system,Segoe UI,Roboto,sans-serif}</style></head><body>${w.html || ''}</body></html>`;
     }
 
@@ -748,7 +914,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const item = document.createElement('div');
         item.className = 'cw-item';
         item.dataset.id = w.id;
-        const src = (w.type === 'url') ? '' : buildSrcDoc(w);
+        const meta = (w.type === 'file') ? WIDGET_FILES.find(f => f.id === w.fileId) : null;
+        const size = w.size || (meta && meta.size) || DEFAULT_WIDGET_SIZE;
+        const src = (w.type === 'url' || w.type === 'file') ? '' : buildSrcDoc(w);
         const frameHtml = (w.type === 'url')
             ? `<iframe class="cw-frame" sandbox="allow-scripts allow-same-origin allow-popups" src="${w.url}"></iframe>`
             : `<iframe class="cw-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals" srcdoc="${src.replace(/"/g, '&quot;')}"></iframe>`;
@@ -758,12 +926,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button class="cw-del" title="Delete">×</button>
             </div>
             ${frameHtml}`;
+        const frame = item.querySelector('.cw-frame');
+        frame.style.setProperty('--cw-w', size[0] + 'px');
+        frame.style.setProperty('--cw-h', size[1] + 'px');
         item.querySelector('.cw-name').textContent = w.name;
         item.querySelector('.cw-del').addEventListener('click', () => {
-            if (confirm('Delete widget "' + w.name + '"?')) {
+            pageConfirm('Delete widget', w.name).then(ok => {
+                if (!ok) return;
                 saveCustomWidgets(loadCustomWidgets().filter(x => x.id !== w.id));
                 renderCustomWidgets();
-            }
+            });
         });
         return item;
     }
@@ -824,18 +996,17 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (src === 'url') {
             entry.type = 'url';
             entry.url = customWidgetUrl.value.trim();
-            if (!entry.url) { alert('Enter a URL'); return; }
+            if (!entry.url) { await pageAlert('Enter a URL'); return; }
         } else if (src === 'file') {
+            // Live file reference: the widget body is fetched fresh on every
+            // render, so redesigns of Widgets/*.htm apply without re-adding.
             const fid = customWidgetFile.value;
-            try {
-                const resp = await fetch(`Widgets/${fid}/${fid}.htm`);
-                if (!resp.ok) throw new Error('not found');
-                entry.type = 'html';
-                entry.html = await resp.text();
-            } catch (err) {
-                alert('Could not load widget from Widgets/' + fid + '/' + fid + '.htm');
-                return;
-            }
+            const meta = WIDGET_FILES.find(f => f.id === fid);
+            if (!meta) { await pageAlert('Could not load widget', 'Widgets/' + fid + '/' + fid + '.htm'); return; }
+            entry.type = 'file';
+            entry.fileId = fid;
+            entry.size = meta.size;
+            if (!customWidgetName.value.trim()) entry.name = meta.name;
         }
         const arr = loadCustomWidgets();
         arr.push(entry);
@@ -1093,7 +1264,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const iconUrl = editIcon.value.trim();
         if (iconUrl && (iconUrl.startsWith('http') || iconUrl.startsWith('data:'))) {
-            previewIcon.innerHTML = `<img src="${iconUrl}" style="width:100%;height:100%;object-fit:contain;">`;
+            previewIcon.textContent = '';
+            var pImg = document.createElement('img');
+            pImg.src = iconUrl;
+            pImg.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+            previewIcon.appendChild(pImg);
         } else if (url) {
             try {
                 let testUrl = url;
@@ -1120,15 +1295,15 @@ document.addEventListener('DOMContentLoaded', function() {
     editUrl.addEventListener('input', updatePreview);
     editIcon.addEventListener('input', updatePreview);
 
-    function saveFromModal() {
+    async function saveFromModal() {
         let title = editTitle.value.trim();
         let url = editUrl.value.trim();
         let icon = editIcon.value.trim();
 
-        if (!title) { alert('Enter a title'); return; }
-        if (!url) { alert('Enter a URL'); return; }
+        if (!title) { await pageAlert('Enter a title'); return; }
+        if (!url) { await pageAlert('Enter a URL'); return; }
         if (!url.startsWith('http')) url = 'https://' + url;
-            try { new URL(url); } catch(e) { alert('Invalid URL'); return; }
+            try { new URL(url); } catch(e) { await pageAlert('Invalid URL'); return; }
 
             if (currentEditCard) {
                 updateSiteCard(currentEditCard, title, url, icon);
@@ -1177,7 +1352,9 @@ document.addEventListener('DOMContentLoaded', function() {
             delBtn.style.display = 'flex';
             delBtn.style.alignItems = 'center';
             delBtn.onclick = () => {
-                if (confirm('Delete shortcut?')) { card.remove(); saveSites(); }
+                pageConfirm('Delete shortcut').then(ok => {
+                    if (ok) { card.remove(); saveSites(); }
+                });
                 menu.remove();
             };
 
@@ -1403,6 +1580,48 @@ document.addEventListener('DOMContentLoaded', function() {
             setWeatherWidgetVisible(isEnabled);
         });
 
+        // Weather location: manual coordinates (default) or IP detection.
+        (function setupWeatherGeo() {
+            const latInput = document.getElementById('weatherLatInput');
+            const lonInput = document.getElementById('weatherLonInput');
+            const saveBtn = document.getElementById('weatherGeoSave');
+            if (!latInput || !lonInput || !saveBtn) return;
+
+            function restore() {
+                const mode = localStorage.getItem('startpozi_weather_geo_mode') || 'manual';
+                document.querySelectorAll('input[name="weatherGeoMode"]').forEach(r => {
+                    r.checked = (r.value === mode);
+                });
+                latInput.value = localStorage.getItem('startpozi_weather_lat') || '';
+                lonInput.value = localStorage.getItem('startpozi_weather_lon') || '';
+            }
+            restore();
+
+            document.querySelectorAll('input[name="weatherGeoMode"]').forEach(r => {
+                r.addEventListener('change', function() {
+                    if (!this.checked) return;
+                    localStorage.setItem('startpozi_weather_geo_mode', this.value);
+                    fetchLocationAndWeather();
+                });
+            });
+
+            saveBtn.addEventListener('click', () => {
+                const lat = parseFloat(String(latInput.value).trim().replace(',', '.'));
+                const lon = parseFloat(String(lonInput.value).trim().replace(',', '.'));
+                if (!Number.isFinite(lat) || lat < -90 || lat > 90 ||
+                    !Number.isFinite(lon) || lon < -180 || lon > 180) {
+                    saveBtn.textContent = 'Invalid';
+                    setTimeout(() => { saveBtn.textContent = 'Save'; }, 1500);
+                    return;
+                }
+                localStorage.setItem('startpozi_weather_lat', String(lat));
+                localStorage.setItem('startpozi_weather_lon', String(lon));
+                saveBtn.textContent = 'Saved';
+                setTimeout(() => { saveBtn.textContent = 'Save'; }, 1500);
+                fetchLocationAndWeather();
+            });
+        })();
+
         searchWidgetToggle.addEventListener('change', function() {
             localStorage.setItem('startpozi_search_enabled', this.checked);
             setSearchWidgetVisible(this.checked);
@@ -1459,7 +1678,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const reader = new FileReader();
                         reader.onload = ev => setBackgroundImage(ev.target.result);
                         reader.readAsDataURL(file);
-                    } else if (file) alert('Select an image');
+                    } else if (file) pageAlert('Select an image');
                 };
                     input.click();
             });
@@ -1520,6 +1739,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 createTodoWidget();
                 createMiniPlayerWidget();
                 createDownloadsWidget();
+                _wireRealDownloads(window.electronAPI);
                 createCustomWidgetsContainer();
                 createWeatherWidget();
                 initSites();

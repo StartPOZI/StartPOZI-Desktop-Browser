@@ -1,106 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- spz-widget:quote_widget -->
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quote of the day | Widget</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; background: transparent; overflow: hidden; }
         body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: radial-gradient(circle at 20% 80%, #253341, #0a0f1a);
-            font-family: 'Georgia', 'Times New Roman', serif;
+            display: flex; align-items: center; justify-content: center;
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #fff;
         }
-        .widget {
-            background: transparent;
-            border-radius: 2rem;
-            padding: 1.8rem;
-            max-width: 380px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,245,175,0.1);
+        #spz-root {
+            width: 210px; height: 144px;
+            transform-origin: center center;
+            padding: 14px 16px;
+            display: flex; flex-direction: column;
         }
-        .widget-title {
-            font-size: 1.7rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #FFEEDD, #CFE0FF);
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
-        }
-        .widget-desc {
-            font-size: 0.8rem;
-            color: #cbdefc;
-            margin: 0.3rem 0 1.2rem;
-            border-left: 2px solid #ffbc6e;
-            padding-left: 0.7rem;
-            text-align: left;
+        .q-mark {
+            font-size: 26px; line-height: 0.6;
+            color: rgba(76,201,240,0.8);
+            font-family: Georgia, serif;
+            margin-bottom: 8px;
         }
         .quote-text {
-            font-size: 1.2rem;
+            flex: 1;
+            font-size: 12px; line-height: 1.5;
             font-style: italic;
-            line-height: 1.4;
-            margin: 0.8rem 0;
-            color: #F9F2E0;
+            color: rgba(255,255,255,0.92);
+            overflow: hidden;
         }
         .quote-author {
-            font-size: 0.85rem;
-            opacity: 0.8;
-            margin-bottom: 1.2rem;
-            color: #e7dbbc;
+            font-size: 10.5px;
+            color: rgba(255,255,255,0.5);
+            text-align: right;
+            margin: 8px 0 6px;
         }
+        .row { display: flex; justify-content: center; }
         .refresh-btn {
-            background: rgba(255,245,200,0.18);
-            border: none;
-            color: #ffecb3;
-            padding: 0.4rem 1.2rem;
-            border-radius: 2rem;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(255,255,255,0.75);
+            width: 26px; height: 26px;
+            border-radius: 50%;
             cursor: pointer;
-            font-size: 0.85rem;
-            transition: 0.2s;
+            font-size: 13px; line-height: 1;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s, transform 0.3s;
         }
-        .refresh-btn:hover {
-            background: rgba(255,200,100,0.5);
-            color: white;
-        }
+        .refresh-btn:hover { background: rgba(76,201,240,0.35); color: #fff; transform: rotate(180deg); }
     </style>
 </head>
 <body>
-<div class="widget">
-    <div class="widget-title">✨ Thought of the day</div>
-    <div class="widget-desc">A random quote to set the mood. Refresh anytime.</div>
-    <div class="quote-text" id="quote">"Magic begins beyond your comfort zone"</div>
-    <div class="quote-author" id="author">~ Unknown author</div>
-    <button class="refresh-btn" id="newQuote">🎲 New quote</button>
+<div id="spz-root">
+    <div class="q-mark">“</div>
+    <div class="quote-text" id="quote"></div>
+    <div class="quote-author" id="author"></div>
+    <div class="row"><button class="refresh-btn" id="newQuote" title="Another quote">↻</button></div>
 </div>
 <script>
-    const quotes = [
-        { text: "Simplicity is the ultimate sophistication.", author: "Leonardo da Vinci" },
-        { text: "Try not to become a person of success, but a person of value.", author: "Albert Einstein" },
-        { text: "Your time is limited, so don't waste it living someone else's life.", author: "Steve Jobs" },
-        { text: "Every day is a little life.", author: "Maxim Gorky" },
-        { text: "Be the change that you wish to see in the world.", author: "Mahatma Gandhi" },
-        { text: "Action is the foundational key to all success.", author: "Pablo Picasso" },
-        { text: "Don't wait for the perfect moment — create it yourself.", author: "Unknown" },
-        { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
-        { text: "Fall seven times, stand up eight.", author: "Japanese proverb" }
-    ];
-    const quoteEl = document.getElementById('quote');
-    const authorEl = document.getElementById('author');
-    function randomQuote() {
-        const idx = Math.floor(Math.random() * quotes.length);
-        quoteEl.innerText = `❝ ${quotes[idx].text} ❞`;
-        authorEl.innerText = `— ${quotes[idx].author}`;
+    (function () {
+        var W = 210, H = 144;
+        function fit() {
+            var s = Math.min(window.innerWidth / W, window.innerHeight / H, 1);
+            document.getElementById('spz-root').style.transform = 'scale(' + s + ')';
+        }
+        window.addEventListener('resize', fit); fit();
+    })();
+</script>
+<script>
+    var LANG = (window.__SPZ_LANG || (navigator.language || 'en').slice(0, 2).toLowerCase()) === 'ru' ? 'ru' : 'en';
+    var L = function (o) { return o[LANG] || o.en; };
+    var quotes = {
+        en: [
+            { text: "Simplicity is the ultimate sophistication.", author: "Leonardo da Vinci" },
+            { text: "Try not to become a person of success, but a person of value.", author: "Albert Einstein" },
+            { text: "Your time is limited, so don't waste it living someone else's life.", author: "Steve Jobs" },
+            { text: "Every day is a little life.", author: "Maxim Gorky" },
+            { text: "Be the change that you wish to see in the world.", author: "Mahatma Gandhi" },
+            { text: "Action is the foundational key to all success.", author: "Pablo Picasso" },
+            { text: "Don't wait for the perfect moment — create it yourself.", author: "Unknown" },
+            { text: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+            { text: "Fall seven times, stand up eight.", author: "Japanese proverb" }
+        ],
+        ru: [
+            { text: "Простота — высшая степень изощрённости.", author: "Леонардо да Винчи" },
+            { text: "Не стремись стать человеком успеха — стремись стать человеком ценности.", author: "Альберт Эйнштейн" },
+            { text: "Твоё время ограничено — не трать его, проживая чужую жизнь.", author: "Стив Джобс" },
+            { text: "Каждый день — это маленькая жизнь.", author: "Максим Горький" },
+            { text: "Стань сам тем изменением, которое хочешь видеть в мире.", author: "Махатма Ганди" },
+            { text: "Действие — ключ ко всякому успеху.", author: "Пабло Пикассо" },
+            { text: "Не жди подходящего момента — создай его сам.", author: "Неизвестный" },
+            { text: "Лучший способ предсказать будущее — создать его.", author: "Питер Друкер" },
+            { text: "Упади семь раз — поднимись восемь.", author: "Японская пословица" }
+        ]
+    };
+    document.getElementById('newQuote').title = L({ en: 'Another quote', ru: 'Другая цитата' });
+
+    // Quote of the day: deterministic by date, button adds a random shuffle offset
+    var list = quotes[LANG];
+    var dayIndex = Math.floor(Date.now() / 86400000) % list.length;
+    var offset = 0;
+    try { offset = parseInt(localStorage.getItem('spzcw_quote_offset') || '0', 10) || 0; } catch (e) {}
+
+    function show() {
+        var q = list[(dayIndex + offset) % list.length];
+        document.getElementById('quote').textContent = q.text;
+        document.getElementById('author').textContent = '— ' + q.author;
     }
-    document.getElementById('newQuote').addEventListener('click', randomQuote);
-    randomQuote();
+    document.getElementById('newQuote').addEventListener('click', function () {
+        var jump = 1 + Math.floor(Math.random() * (list.length - 1));
+        offset += jump;
+        try { localStorage.setItem('spzcw_quote_offset', String(offset)); } catch (e) {}
+        show();
+    });
+    show();
 </script>
 </body>
 </html>

@@ -1,104 +1,153 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- spz-widget:media_upload -->
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Media widget | Upload an image/GIF</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; background: transparent; overflow: hidden; }
         body {
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: radial-gradient(circle at 60% 40%, #1e2a36, #0b1018);
-            font-family: system-ui, 'Segoe UI';
+            display: flex; align-items: center; justify-content: center;
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #fff;
         }
-        .widget {
-            background: transparent;
-            border-radius: 2rem;
-            padding: 1.8rem;
-            text-align: center;
-            box-shadow: 0 20px 35px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,250,180,0.1);
-            max-width: 340px;
-            width: 100%;
+        #spz-root {
+            width: 174px; height: 184px;
+            transform-origin: center center;
+            padding: 8px;
+            display: flex; flex-direction: column; align-items: center;
         }
-        .widget-title {
-            font-size: 1.7rem;
-            font-weight: 600;
-            background: linear-gradient(135deg, #FFECCF, #C0D4FF);
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
-        }
-        .widget-desc {
-            font-size: 0.8rem;
-            color: #c5d3f0;
-            margin: 0.4rem 0 1.2rem;
-            border-left: 2px solid #ffbc6e;
-            padding-left: 0.7rem;
-            text-align: left;
-        }
-        .preview {
-            width: 130px;
-            height: 130px;
-            object-fit: contain;
-            background: rgba(0,0,0,0.2);
-            border-radius: 32px;
-            margin-bottom: 1rem;
-            backdrop-filter: blur(3px);
-            border: 1px dashed #ffd58c;
-            padding: 0.4rem;
-        }
-        .file-label {
-            background: rgba(255,245,210,0.15);
-            padding: 0.5rem 1.3rem;
-            border-radius: 2rem;
+        .drop {
+            position: relative;
+            width: 100%; flex: 1;
+            border: 1.5px dashed rgba(255,255,255,0.25);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            display: flex; align-items: center; justify-content: center;
             cursor: pointer;
-            display: inline-block;
-            font-size: 0.9rem;
-            color: #f5eac1;
-            transition: 0.2s;
+            transition: border-color 0.2s, background 0.2s;
+            overflow: hidden;
         }
-        .file-label:hover {
-            background: rgba(255,205,100,0.5);
-        }
-        input {
+        .drop:hover, .drop.over { border-color: rgba(76,201,240,0.7); background: rgba(76,201,240,0.08); }
+        .drop img {
+            max-width: 100%; max-height: 100%;
+            object-fit: contain;
             display: none;
         }
-        small {
-            display: block;
-            margin-top: 0.8rem;
-            opacity: 0.6;
-            color: #cbdcff;
+        .placeholder { text-align: center; color: rgba(255,255,255,0.45); }
+        .placeholder .ico { font-size: 26px; margin-bottom: 6px; }
+        .placeholder .lbl { font-size: 10.5px; line-height: 1.4; padding: 0 8px; }
+        .clear-btn {
+            position: absolute; top: 4px; right: 4px;
+            display: none;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(10,12,18,0.75);
+            color: rgba(255,255,255,0.75);
+            font-size: 12px; line-height: 1;
+            cursor: pointer;
+            align-items: center; justify-content: center;
         }
+        .clear-btn:hover { color: #ff6b6b; }
+        .hint { font-size: 8.5px; color: rgba(255,255,255,0.35); margin-top: 6px; text-align: center; }
+        .err { font-size: 9px; color: #ff8b8b; margin-top: 4px; height: 11px; text-align: center; }
+        input { display: none; }
     </style>
 </head>
 <body>
-<div class="widget">
-    <div class="widget-title">🖼️ Media widget</div>
-    <div class="widget-desc">Upload an icon, GIF or any image — it will decorate your start page.</div>
-    <img id="previewImg" class="preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ddd9cc'%3E%3Cpath d='M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z'/%3E%3C/svg%3E" alt="preview">
-    <label for="uploadFile" class="file-label">📁 Choose a GIF / icon</label>
+<div id="spz-root">
+    <div class="drop" id="dropZone">
+        <img id="previewImg" alt="">
+        <div class="placeholder" id="placeholder">
+            <div class="ico">🖼️</div>
+            <div class="lbl" id="chooseLbl"></div>
+        </div>
+        <button class="clear-btn" id="clearBtn" title="Remove">×</button>
+    </div>
     <input type="file" id="uploadFile" accept="image/gif,image/png,image/jpeg,image/webp,image/svg+xml">
-    <small>GIF, PNG, JPG, WEBP are supported</small>
+    <div class="err" id="errMsg"></div>
+    <div class="hint" id="formatsHint"></div>
 </div>
 <script>
-    const fileInput = document.getElementById('uploadFile');
-    const preview = document.getElementById('previewImg');
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file && file.type.startsWith('image/')) {
-            const url = URL.createObjectURL(file);
-            preview.src = url;
-            preview.onload = () => URL.revokeObjectURL(url);
-        } else if (file) {
-            alert('Please select an image (gif, png, jpg)');
+    (function () {
+        var W = 174, H = 184;
+        function fit() {
+            var s = Math.min(window.innerWidth / W, window.innerHeight / H, 1);
+            document.getElementById('spz-root').style.transform = 'scale(' + s + ')';
         }
+        window.addEventListener('resize', fit); fit();
+    })();
+</script>
+<script>
+    var LANG = (window.__SPZ_LANG || (navigator.language || 'en').slice(0, 2).toLowerCase()) === 'ru' ? 'ru' : 'en';
+    var L = function (o) { return o[LANG] || o.en; };
+    document.getElementById('chooseLbl').textContent = L({ en: 'Click or drop an image', ru: 'Кликните или перетащите картинку' });
+    document.getElementById('formatsHint').textContent = L({ en: 'GIF · PNG · JPG · WEBP · SVG', ru: 'GIF · PNG · JPG · WEBP · SVG' });
+    document.getElementById('clearBtn').title = L({ en: 'Remove', ru: 'Убрать' });
+
+    var drop = document.getElementById('dropZone');
+    var input = document.getElementById('uploadFile');
+    var preview = document.getElementById('previewImg');
+    var placeholder = document.getElementById('placeholder');
+    var clearBtn = document.getElementById('clearBtn');
+    var errMsg = document.getElementById('errMsg');
+    var KEY = 'spzcw_media_img';
+
+    function showErr(msg) { errMsg.textContent = msg; setTimeout(function () { errMsg.textContent = ''; }, 3000); }
+
+    function setImage(dataUrl) {
+        if (dataUrl) {
+            preview.src = dataUrl;
+            preview.style.display = 'block';
+            placeholder.style.display = 'none';
+            clearBtn.style.display = 'flex';
+        } else {
+            preview.removeAttribute('src');
+            preview.style.display = 'none';
+            placeholder.style.display = 'block';
+            clearBtn.style.display = 'none';
+            try { localStorage.removeItem(KEY); } catch (e) {}
+        }
+    }
+
+    try { setImage(localStorage.getItem(KEY) || null); } catch (e) {}
+
+    function handleFile(file) {
+        if (!file) return;
+        if (!file.type || file.type.indexOf('image/') !== 0) {
+            showErr(L({ en: 'Pick an image file', ru: 'Выберите файл-изображение' }));
+            return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+            showErr(L({ en: 'File is over 2 MB', ru: 'Файл больше 2 МБ' }));
+            return;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+            setImage(reader.result);
+            try { localStorage.setItem(KEY, reader.result); } catch (e) {
+                showErr(L({ en: 'Could not save', ru: 'Не удалось сохранить' }));
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+
+    drop.addEventListener('click', function () { input.click(); });
+    input.addEventListener('change', function (e) { handleFile(e.target.files && e.target.files[0]); });
+    clearBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setImage(null);
+    });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+        drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+    });
+    drop.addEventListener('drop', function (e) {
+        handleFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
     });
 </script>
 </body>

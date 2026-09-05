@@ -1,23 +1,16 @@
 {
-    "KPlugin": {
-        "Authors": [
-            {
-                "Name": "KCE",
-                "Email": "spam@kce.wtf"
-            }
-        ],
-        "Category": "Utilities",
-        "Description": "Advanced web view widget with local file support. Features built-in templates, transparency, drag & drop, suspension mode, size persistence, and custom security settings.",
-        "Id": "kce-html-widget",
-        "Name": "KCE HTML Widget",
-        "Version": "1.0",
-        "Website": "https://kce.wtf/",
-        "License": "GPL-3.0-or-later",
-        "Icon": "/icon.png"
-    },
-    "X-Plasma-API": "declarativeappletscript",
-    "X-Plasma-MainScript": "ui/main.qml",
-    "X-Plasma-API-Minimum-Version": "6.0",
-    "KPackageStructure": "Plasma/Applet",
-    "X-Plasma-DropMimeTypes": ["text/html"]
+  "KPlugin": {
+    "Id": "org.startpozi.mini_calendar",
+    "Name": "Mini Calendar",
+    "Description": "Compact month calendar widget for the StartPOZI start page",
+    "Icon": "view-calendar",
+    "Version": "1.0",
+    "Category": "Date and Time"
+  },
+  "StartPOZI": {
+    "Size": [
+      230,
+      240
+    ]
+  }
 }

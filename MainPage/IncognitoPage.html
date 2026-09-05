@@ -13,8 +13,8 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   min-height:100vh;
-  user-select:none;
-  -webkit-user-select:none;
+  user-select:text;
+  -webkit-user-select:text;
   overflow:hidden;
 }
 .logo{
@@ -109,18 +109,34 @@ body{
   </div>
 </div>
 
+<script src="../i18n.js"></script>
 <script>
 (function(){
   var input = document.getElementById('searchInput');
   input.focus();
+
+  // Respect the search engine configured in Settings (falls back to the
+  // browser default instead of a hardcoded Google).
+  var searchBase = null;
+  if (window.electronAPI && window.electronAPI.getSearchEngine) {
+    window.electronAPI.getSearchEngine().then(function(engine) {
+      if (engine && typeof engine === 'string' && engine.indexOf('http') === 0) searchBase = engine;
+    }).catch(function() {});
+  }
 
   function navigate(raw) {
     raw = (raw || '').trim();
     if (!raw) return;
     var isUrl = /^https?:\/\//i.test(raw) ||
                 (/^[\w-]+(\.[\w-]+)+/.test(raw) && raw.indexOf(' ') === -1);
-    var url = isUrl ? (raw.match(/^https?:\/\//i) ? raw : 'https://' + raw)
-                    : 'https://www.google.com/search?q=' + encodeURIComponent(raw);
+    var url;
+    if (isUrl) {
+      url = raw.match(/^https?:\/\//i) ? raw : 'https://' + raw;
+    } else if (searchBase) {
+      url = searchBase + encodeURIComponent(raw);
+    } else {
+      url = 'https://startpozi.netlify.app/search.html?q=' + encodeURIComponent(raw);
+    }
     if (window.electronAPI && window.electronAPI.openInCurrentTab) {
       window.electronAPI.openInCurrentTab(url);
     } else {

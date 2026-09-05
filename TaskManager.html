@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Task manager</title>
 <style>
+/* Chrome UI: no text selection on panels, lists, buttons and menus. */
+/* Inputs, textareas and selectable content remain selectable. */
+body { user-select: none; -webkit-user-select: none; }
+input, textarea, select, [contenteditable="true"], [contenteditable=""], .selectable,
+.table-wrap {
+  user-select: text;
+  -webkit-user-select: text;
+}
+.table-wrap button, .table-wrap select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { height:100%; overflow:hidden; font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
 
@@ -175,7 +188,7 @@
       Task manager
     </h1>
     <div class="summary" id="summary">
-      <span><span class="refresh-dot"></span> updates every 2 s</span>
+      <span><span class="refresh-dot"></span> updates every 3 s</span>
       <span>Total RAM: <b id="totalMem">—</b></span>
       <span>CPU: <b id="totalCpu">—</b></span>
       <span>Tabs: <b id="tabCount">—</b></span>

@@ -9,6 +9,21 @@
     <script src="vendor/jsqr/jsQR.min.js"></script>
     <script src="i18n.js"></script>
     <style>
+    /* Chrome UI: no text selection on panels, lists, buttons and menus. */
+    /* Inputs, textareas and selectable content remain selectable. */
+    body { user-select: none; -webkit-user-select: none; }
+    input, textarea, select, [contenteditable="true"], [contenteditable=""], .selectable,
+    .content {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    /* Interactive controls inside the content stay non-selectable. */
+    .content button, .content select, .content option, .content .btn,
+    .content input[type="checkbox"], .content input[type="radio"] {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
         /* ===== FULL CSS FROM ORIGINAL ===== */
 
         * { margin:0; padding:0; box-sizing:border-box; }
@@ -519,57 +534,6 @@
             color: var(--secondary-text);
             font-size: 12px;
             font-weight: normal;
-        }
-
-        /* Plugin settings modal */
-        .plugin-settings-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(12px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-        }
-
-        .plugin-settings-content {
-            background: var(--card-bg);
-            border-radius: 20px;
-            padding: 32px;
-            width: 500px;
-            max-width: 90vw;
-            border: 1px solid var(--card-border);
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .plugin-settings-content h3 {
-            color: var(--text-color);
-            font-size: 22px;
-            margin-bottom: 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .plugin-settings-content .close-btn {
-            background: none;
-            border: none;
-            color: var(--secondary-text);
-            cursor: pointer;
-            font-size: 24px;
-            padding: 0;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-        }
-
-        .plugin-settings-content .close-btn:hover {
-            background: rgba(255,255,255,0.1);
         }
 
         .settings-group {
@@ -1265,6 +1229,10 @@
                     <svg viewBox="0 0 24 24" style="fill: currentColor; stroke: none;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     Profiles
                 </a>
+                <a href="#containers">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+                    Containers
+                </a>
                 <a href="#blocker">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                     Blocker
@@ -1444,11 +1412,11 @@
                             </div>
                         </div>
                         <p style="color:var(--secondary-text);font-size:13px;margin-bottom:14px;line-height:1.5;">
-                            Готовые пакеты скриптов в формате <code>.skit</code> — как темы <code>.thmz</code>, но для автоматизации. Тёмный режим, экономия батареи, режим чтения и др.
+                            Ready-made script packages in the <code>.skit</code> format — like <code>.thmz</code> themes, but for automation. Dark mode, battery saving, reading mode and more.
                         </p>
                         <div id="skit-gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;"></div>
                         <div id="skit-empty" style="display:none;padding:24px;text-align:center;color:var(--secondary-text);font-size:13px;">
-                            Нет установленных пакетов. Импортируйте <code>.skit</code> или создайте свой.
+                            No packages installed. Import a <code>.skit</code> or create your own.
                         </div>
                     </div>
 
@@ -1590,6 +1558,22 @@
                                 <option value="normal" selected>Normal</option>
                                 <option value="large">Large</option>
                             </select>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="color: var(--text-color); font-size: 14px;">Vertical tab width:</label>
+                            <select id="tab-vertical-width-select" style="margin-top: 4px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-color); width: 100%;">
+                                <option value="140">Narrow (140 px)</option>
+                                <option value="180" selected>Normal (180 px)</option>
+                                <option value="220">Wide (220 px)</option>
+                                <option value="260">Extra wide (260 px)</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                            <div>
+                                <div style="font-size:14px;font-weight:500;color:var(--text-color);">Auto-hide top bar</div>
+                                <div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Hide the tab bar and toolbar until you move the cursor to the top edge of the window</div>
+                            </div>
+                            <label class="px-toggle-wrap"><input type="checkbox" id="optAutohideTopbar"><span class="px-toggle-track"></span></label>
                         </div>
                         <div style="margin-bottom: 12px; margin-top: 12px;">
                             <label style="color: var(--text-color); font-size: 14px;">Window button style:</label>
@@ -1943,7 +1927,7 @@
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7e4798" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
                                 Tor
                             </span>
-                            <label class="px-toggle-wrap" title="Включить/выключить Tor">
+                            <label class="px-toggle-wrap" title="Enable/disable Tor">
                                 <input type="checkbox" id="pxTorToggle">
                                 <span class="px-toggle-track"></span>
                             </label>
@@ -1969,8 +1953,8 @@
 
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:12px 14px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;">
                             <div>
-                                <div style="font-size:14px;font-weight:500;color:var(--text-color);">Использовать Tor по умолчанию <span style="color:var(--secondary-text);font-weight:400;">(автозапуск)</span></div>
-                                <div style="font-size:11px;color:var(--secondary-text);margin-top:3px;line-height:1.4;">Запускать встроенный Tor и направлять трафик через SOCKS5 при старте браузера.</div>
+                                <div style="font-size:14px;font-weight:500;color:var(--text-color);">Use Tor by default <span style="color:var(--secondary-text);font-weight:400;">(auto-start)</span></div>
+                                <div style="font-size:11px;color:var(--secondary-text);margin-top:3px;line-height:1.4;">Start the built-in Tor and route traffic through SOCKS5 when the browser launches.</div>
                             </div>
                             <label class="px-toggle-wrap"><input type="checkbox" id="pxTorAutoStart"><span class="px-toggle-track"></span></label>
                         </div>
@@ -1981,43 +1965,43 @@
                         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
                             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7e4798" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-                                <span style="font-size:15px;font-weight:600;color:var(--text-color);">Диагностика соединения</span>
+                                <span style="font-size:15px;font-weight:600;color:var(--text-color);">Connection diagnostics</span>
                                 <span id="pxModeBadge" class="px-mode-badge direct"><span class="px-mode-dot"></span>Direct</span>
                             </div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
                                 <button id="pxConnTest" class="px-tor-btn-secondary px-spin-btn" type="button">
                                     <svg id="pxConnSpin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                                    Проверить
+                                    Check
                                 </button>
-                                <button id="pxConnRepeat" class="px-tor-btn-secondary" type="button">Повторить</button>
+                                <button id="pxConnRepeat" class="px-tor-btn-secondary" type="button">Retry</button>
                             </div>
                         </div>
                         <div style="font-size:12px;color:var(--secondary-text);margin-top:8px;line-height:1.5;">
-                            Показывает, через что идёт трафик (Tor / прокси / напрямую), ваш выходной IP, страну, провайдера и скорость. Запрос выполняется через текущий прокси/Tor — так видно, что подмена работает.
+                            Shows what your traffic goes through (Tor / proxy / direct), your exit IP, country, provider and speed. The request is made through the current proxy/Tor so you can see that the substitution works.
                         </div>
                         <div class="px-diag-grid">
                             <div class="px-diag-cell">
-                                <div class="px-diag-label">Статус</div>
-                                <div class="px-diag-value" id="pxDiagStatus"><span class="px-diag-value dim">не проверено</span></div>
+                                <div class="px-diag-label">Status</div>
+                                <div class="px-diag-value" id="pxDiagStatus"><span class="px-diag-value dim">not checked</span></div>
                             </div>
                             <div class="px-diag-cell">
-                                <div class="px-diag-label">IP-адрес</div>
+                                <div class="px-diag-label">IP address</div>
                                 <div class="px-diag-value" id="pxDiagIp"><span class="px-diag-value dim">—</span></div>
                             </div>
                             <div class="px-diag-cell">
-                                <div class="px-diag-label">Страна</div>
+                                <div class="px-diag-label">Country</div>
                                 <div class="px-diag-value" id="pxDiagCountry"><span class="px-diag-value dim">—</span></div>
                             </div>
                             <div class="px-diag-cell">
-                                <div class="px-diag-label">Город</div>
+                                <div class="px-diag-label">City</div>
                                 <div class="px-diag-value" id="pxDiagCity"><span class="px-diag-value dim">—</span></div>
                             </div>
                             <div class="px-diag-cell">
-                                <div class="px-diag-label">Провайдер (ISP)</div>
+                                <div class="px-diag-label">Provider (ISP)</div>
                                 <div class="px-diag-value" id="pxDiagIsp"><span class="px-diag-value dim">—</span></div>
                             </div>
                             <div class="px-diag-cell">
-                                <div class="px-diag-label">Задержка / Скорость</div>
+                                <div class="px-diag-label">Latency / Speed</div>
                                 <div class="px-diag-value" id="pxDiagSpeed"><span class="px-diag-value dim">—</span></div>
                             </div>
                         </div>
@@ -2028,23 +2012,23 @@
                     <div class="px-diag-card">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7e4798" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                            <span style="font-size:15px;font-weight:600;color:var(--text-color);">Списки доменов</span>
+                            <span style="font-size:15px;font-weight:600;color:var(--text-color);">Domain lists</span>
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px;" class="px-domains-grid">
                             <div class="px-field">
-                                <span class="px-field-label">Не использовать Tor/прокси <span style="color:var(--secondary-text);font-weight:400;">(напрямую)</span></span>
+                                <span class="px-field-label">Do not use Tor/proxy <span style="color:var(--secondary-text);font-weight:400;">(direct)</span></span>
                                 <textarea id="pxBypassDomains" rows="5" placeholder="google.com&#10;*.bank.ru&#10;192.168.*&#10;localhost" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
-                                <div style="font-size:11px;color:var(--secondary-text);margin-top:4px;line-height:1.4;">Эти сайты всегда подключаются напрямую — в обход прокси/Tor. По домену <code>google.com</code> попадают и поддомены.</div>
+                                <div style="font-size:11px;color:var(--secondary-text);margin-top:4px;line-height:1.4;">These sites always connect directly, bypassing the proxy/Tor. A <code>google.com</code> entry also covers subdomains.</div>
                             </div>
                             <div class="px-field">
-                                <span class="px-field-label">Всегда использовать Tor/прокси <span style="color:var(--secondary-text);font-weight:400;">(принудительно)</span></span>
+                                <span class="px-field-label">Always use Tor/proxy <span style="color:var(--secondary-text);font-weight:400;">(forced)</span></span>
                                 <textarea id="pxForceDomains" rows="5" placeholder="*.onion&#10;facebook.com&#10;bbc.com" style="width:100%;font-family:monospace;font-size:12px;"></textarea>
-                                <div style="font-size:11px;color:var(--secondary-text);margin-top:4px;line-height:1.4;">Эти сайты всегда идут через прокси/Tor, даже если он выключен глобально. Идеально для <code>.onion</code> и заблокированных сайтов.</div>
+                                <div style="font-size:11px;color:var(--secondary-text);margin-top:4px;line-height:1.4;">These sites always go through the proxy/Tor even when it is disabled globally. Ideal for <code>.onion</code> and blocked sites.</div>
                             </div>
                         </div>
                         <div style="display:flex;gap:8px;margin-top:12px;">
-                            <button id="pxDomainsApply" class="px-tor-btn-primary" type="button">Применить списки</button>
-                            <button id="pxDomainsAddOnion" class="px-tor-btn-secondary" type="button">Добавить *.onion в «всегда»</button>
+                            <button id="pxDomainsApply" class="px-tor-btn-primary" type="button">Apply lists</button>
+                            <button id="pxDomainsAddOnion" class="px-tor-btn-secondary" type="button">Add *.onion to "always"</button>
                         </div>
                     </div>
 
@@ -2061,6 +2045,37 @@
                             — Find your Tor port: <code>cat /etc/tor/torrc | grep -i socksport</code> (default 9050, or 9150 for Tor Browser).<br>
                             — Security hardening (disable JS / WebGL / fonts / etc.) has been moved to the <b>"Security"</b> section.
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="containers" class="section">
+                <div class="card">
+                    <h2>Container tabs</h2>
+                    <p style="color:var(--secondary-text);font-size:14px;margin-bottom:20px;line-height:1.5;">
+                        Containers isolate sites from each other: each container has its own cookies, localStorage and cache.
+                        Open sites in different containers to use several accounts of the same site at once (for example, Work and Personal).
+                        Open a container tab from the tab bar context menu → "New tab in container".
+                    </p>
+                    <div id="containersUnsupported" style="display:none;color:#e74c3c;font-size:13px;margin-bottom:16px;">
+                        This build does not support container tabs.
+                    </div>
+                    <div id="containersSettings" style="display:none;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                            <div>
+                                <div style="font-size:14px;font-weight:500;color:var(--text-color);">Enable container tabs</div>
+                                <div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Adds "New tab in container" to the tab context menu</div>
+                            </div>
+                            <label class="px-toggle-wrap"><input type="checkbox" id="containersEnabled"><span class="px-toggle-track"></span></label>
+                        </div>
+                        <div id="containersList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;"></div>
+                        <div class="buttons-container">
+                            <button id="addContainerBtn" style="padding:8px 16px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);font-size:13px;cursor:pointer;">+ Add container</button>
+                        </div>
+                        <p style="color:var(--secondary-text);font-size:12px;margin-top:12px;line-height:1.5;">
+                            Deleting a container does not delete its stored data — use "Clear data" first if you want the cookies gone.
+                            Container tabs are restored with the session like regular tabs.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -2156,8 +2171,29 @@
                         <button id="abSaveFilters" class="refresh-button" style="font-size:12px;padding:6px 14px;">Save filters</button>
                     </div>
 
-                    <h3 style="font-size:14px;font-weight:500;margin:20px 0 10px;color:var(--text-color);">Filter lists</h3>
-                    <p style="color:var(--secondary-text);font-size:12px;margin-bottom:8px;">Filter list URLs (EasyList, EasyPrivacy, etc.)</p>
+                    <h3 style="font-size:14px;font-weight:500;margin:20px 0 10px;color:var(--text-color);">FilterHub lists</h3>
+                    <p style="color:var(--secondary-text);font-size:12px;margin-bottom:10px;">Blocklist catalog from the <a href="#" id="fhRepoLink" style="color:var(--accent-color);">FilterHub</a> repository. Not all lists are enabled by default: the recommended Medium set is on.</p>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                        <button id="fhPresetLight" class="refresh-button" style="font-size:12px;padding:6px 14px;">Light (fast)</button>
+                        <button id="fhPresetMedium" class="refresh-button" style="font-size:12px;padding:6px 14px;">Medium (recommended)</button>
+                        <button id="fhPresetFull" class="refresh-button" style="font-size:12px;padding:6px 14px;">Maximum (all lists)</button>
+                    </div>
+                    <div id="fhStatus" style="font-size:12px;color:var(--secondary-text);min-height:16px;margin-bottom:10px;"></div>
+                    <div id="fhCatalog" style="margin-bottom:12px;"></div>
+                    <details style="margin-bottom:20px;border:1px solid var(--border-color);border-radius:8px;padding:10px 12px;">
+                        <summary style="font-size:13px;font-weight:500;color:var(--text-color);cursor:pointer;">FilterHub help</summary>
+                        <div style="font-size:12px;color:var(--secondary-text);line-height:1.6;margin-top:10px;">
+                            <p style="margin:0 0 8px;"><strong style="color:var(--text-color);">What is FilterHub?</strong><br>FilterHub is a centralized blocklist repository: 44 lists from trusted sources (EasyList, AdGuard, uBlock Origin, HaGezi, Phishing Army, Fanboy, DuckDuckGo and others), about 3.4 million rules in total.</p>
+                            <p style="margin:0 0 8px;"><strong style="color:var(--text-color);">Protection levels</strong><br>Light — 7 lists, ~261K rules, fastest. Medium — 17 lists, ~718K rules, the recommended balance of protection and speed. Maximum — all 44 lists, ~3.9M rules, for powerful PCs only.</p>
+                            <p style="margin:0 0 8px;"><strong style="color:var(--text-color);">Can I enable everything at once?</strong><br>It is not recommended: lists overlap, and the big ones (HaGezi TIF — 43 MB, DuckDuckGo US Maximum — 30 MB) slow the browser down. Pick one main ad list, one privacy list, then extras as needed.</p>
+                            <p style="margin:0 0 8px;"><strong style="color:var(--text-color);">Warnings</strong><br>Google Ultra Strict may break reCAPTCHA and Google fonts. OISD Full and HaGezi Pro Plus are heavy. Lists marked with a warning badge deserve caution.</p>
+                            <p style="margin:0 0 8px;"><strong style="color:var(--text-color);">Categories</strong><br>Ad blocking — main ad filters. Privacy — trackers and data collection. Security — phishing, malware, coin-mining. Annoyances — cookie banners, popups, widgets. Regional — language-specific lists. Pro — maximum-strength lists.</p>
+                            <p style="margin:0;"><strong style="color:var(--text-color);">License</strong><br>FilterHub is distributed under Apache License 2.0; individual lists keep their upstream licenses. Full documentation: <span id="fhDocLink" style="color:var(--accent-color);cursor:pointer;text-decoration:underline;">FilterHub/Doc on GitHub</span>.</p>
+                        </div>
+                    </details>
+
+                    <h3 style="font-size:14px;font-weight:500;margin:20px 0 10px;color:var(--text-color);">Custom filter lists</h3>
+                    <p style="color:var(--secondary-text);font-size:12px;margin-bottom:8px;">Extra filter list URLs (EasyList format) in addition to the FilterHub catalog</p>
                     <div id="abFilterLists" style="margin-bottom:8px;"></div>
                     <div style="display:flex;gap:8px;margin-bottom:8px;">
                         <input type="text" id="abNewListUrl" placeholder="https://example.com/filter-list.txt" style="flex:1;background:var(--card-bg);color:var(--text-color);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;font-size:12px;">
@@ -2173,6 +2209,10 @@
                     </div>
 
                     <h3 style="font-size:14px;font-weight:500;margin:20px 0 10px;color:var(--text-color);">Blocked log</h3>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Keep log on disk</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Off by default: the log lives in memory only and is wiped on exit</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="abPersistLog"><span class="px-toggle-track"></span></label>
+                    </div>
                     <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
                         <input type="text" id="abLogSearch" placeholder="Filter by URL or domain..." style="flex:1;background:var(--card-bg);color:var(--text-color);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;font-size:12px;">
                         <button id="abClearLog" class="refresh-button" style="font-size:12px;padding:6px 14px;">Clear</button>
@@ -2274,6 +2314,35 @@
                     </div>
 
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Clear cookies on exit</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Delete all cookies (incl. container tabs) when the browser closes</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secClearCookiesOnExit"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <h3 style="font-size:13px;font-weight:500;margin:20px 0 8px;color:var(--text-color);">External services</h3>
+                    <p style="color:var(--secondary-text);font-size:11px;margin-bottom:10px;">Third-party endpoints the browser may contact. Turn off anything you do not want to be contacted.</p>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:13px;font-weight:500;color:var(--text-color);">Search suggestions</div><div style="font-size:11px;color:var(--secondary-text);">suggestqueries.google.com, suggest.yandex.com, duckduckgo.com</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secSuggestEnabled"><span class="px-toggle-track"></span></label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:13px;font-weight:500;color:var(--text-color);">Translator</div><div style="font-size:11px;color:var(--secondary-text);">translate.googleapis.com (hover-translate, :ru/:en)</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secTranslateEnabled"><span class="px-toggle-track"></span></label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:10px 12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:13px;font-weight:500;color:var(--text-color);">Password breach check</div><div style="font-size:11px;color:var(--secondary-text);">api.pwnedpasswords.com (k-anonymity, no password leaves the device)</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secHibpEnabled"><span class="px-toggle-track"></span></label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:10px 12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:13px;font-weight:500;color:var(--text-color);">Connection diagnostics</div><div style="font-size:11px;color:var(--secondary-text);">check.torproject.org, ipapi.co, ipinfo.io, speed.cloudflare.com (proxy test)</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secDiagnosticsEnabled"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Do Not Track</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Send DNT and Global Privacy Control (Sec-GPC) signals to websites</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secDnt"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
                         <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Referrer policy</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Send only the origin (without the full path) when navigating between sites</div></div>
                         <label class="px-toggle-wrap"><input type="checkbox" id="secReferrerPolicy"><span class="px-toggle-track"></span></label>
                     </div>
@@ -2313,6 +2382,49 @@
                         <label class="px-toggle-wrap"><input type="checkbox" id="secLetterboxing"><span class="px-toggle-track"></span></label>
                     </div>
 
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Auto-decline cookie banners</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Automatically click "Reject / Decline / Reject all" on cookie consent dialogs and hide them</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secAutoRejectCookies"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Super Drag</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Drag selected text to search it in a background tab, drag a link to open it in background, drag an image for reverse image search</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secSuperDrag"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Fake media responses</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Sites asking for camera/mic get a synthetic black-noise video and white-noise audio instead of a denial — they cannot tell the difference</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secFakeMedia"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">Per-page notes</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">A note icon in the address bar — attach thoughts to any page, they persist per URL</div></div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="secPageNotes"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <!-- DNS-over-HTTPS -->
+                    <div style="margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;">
+                            <div><div style="font-size:14px;font-weight:500;color:var(--text-color);">DNS-over-HTTPS (DoH)</div><div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Encrypt DNS queries. Applies after restart; automatically off while a proxy/Tor is active</div></div>
+                            <label class="px-toggle-wrap"><input type="checkbox" id="dohEnabled"><span class="px-toggle-track"></span></label>
+                        </div>
+                        <div id="dohProvidersWrap" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;align-items:center;">
+                            <select id="dohProvider" style="padding:6px 10px;background:var(--input-bg);border:var(--input-border);border-radius:8px;color:var(--input-color);font-size:13px;min-width:170px;">
+                                <option value="https://cloudflare-dns.com/dns-query">Cloudflare (1.1.1.1)</option>
+                                <option value="https://dns.quad9.net/dns-query">Quad9 (malware blocking)</option>
+                                <option value="https://dns.adguard-dns.com/dns-query">AdGuard DNS (ad blocking)</option>
+                                <option value="https://dns.google/dns-query">Google Public DNS</option>
+                                <option value="custom">Custom…</option>
+                            </select>
+                            <input type="text" id="dohCustomUrl" placeholder="https://provider.example/dns-query" style="padding:6px 10px;background:var(--input-bg);border:var(--input-border);border-radius:8px;color:var(--input-color);font-size:13px;flex:1;min-width:200px;display:none;">
+                            <select id="dohMode" style="padding:6px 10px;background:var(--input-bg);border:var(--input-border);border-radius:8px;color:var(--input-color);font-size:13px;">
+                                <option value="automatic">Automatic (fallback to plain DNS)</option>
+                                <option value="secure">Secure only (no fallback)</option>
+                            </select>
+                        </div>
+                        <div id="dohRestartHint" style="display:none;margin-top:8px;font-size:11px;color:#ff9800;">Restart required to apply DoH changes</div>
+                    </div>
+
                     <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-color);">
                         <div style="font-size:15px;font-weight:600;color:var(--text-color);margin-bottom:4px;">Tor hardening (CSP)</div>
                         <div style="font-size:12px;color:var(--secondary-text);margin-bottom:12px;line-height:1.4;">Applied to http/https pages via Content-Security-Policy. They do not require Tor to be enabled — they always work. Each option is independent.</div>
@@ -2342,16 +2454,6 @@
                                 <label class="px-toggle-wrap"><input type="checkbox" id="thBase"><span class="px-toggle-track"></span></label>
                             </div>
                         </div>
-                    </div>
-
-                    <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-color);">
-                        <button id="open-security-test" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 24px;border-radius:12px;border:none;background:var(--accent-gradient);color:white;font-size:15px;font-weight:600;cursor:pointer;transition:filter 0.2s;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                            </svg>
-                            Open the security test page
-                        </button>
-                        <p style="color:var(--secondary-text);font-size:12px;margin-top:8px;text-align:center;line-height:1.4;">Tests all security features (except tab sleeping) with interactive tests</p>
                     </div>
                 </div>
             </div>
@@ -2384,6 +2486,14 @@
                             <div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">On startup only the active tab loads; others load on click</div>
                         </div>
                         <label class="px-toggle-wrap"><input type="checkbox" id="optLazyTabs"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div>
+                            <div style="font-size:14px;font-weight:500;color:var(--text-color);">Disable window transparency</div>
+                            <div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Opaque window: no rounded corners or frosted glass, but smoother compositing <span style="color:#ff9800;">requires restart</span></div>
+                        </div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="optDisableTransparency"><span class="px-toggle-track"></span></label>
                     </div>
 
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
@@ -2603,14 +2713,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-color);">
-                        <button id="open-optimization-test" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 24px;border-radius:12px;border:none;background:var(--accent-gradient);color:white;font-size:15px;font-weight:600;cursor:pointer;transition:filter 0.2s;">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                            Open the optimization test page
-                        </button>
-                        <p style="color:var(--secondary-text);font-size:12px;margin-top:8px;text-align:center;line-height:1.4;">Tests all optimization features with interactive tests</p>
-                    </div>
                 </div>
             </div>
 
@@ -2740,6 +2842,13 @@
                             Reset to defaults
                         </button>
                     </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;">
+                        <div>
+                            <div style="font-size:14px;font-weight:500;color:var(--text-color);">Hotkeys overlay</div>
+                            <div style="font-size:11px;color:var(--secondary-text);margin-top:2px;">Hold a modifier key (Ctrl/Shift/Alt) for ~500 ms, or press <code>?</code>, to show a translucent cheat-sheet of all shortcuts. <b>Note:</b> works only when focus is on the browser frame (address bar, toolbar, a tab) — click the frame first if focus is inside a web page.</div>
+                        </div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="hkOverlay" checked><span class="px-toggle-track"></span></label>
+                    </div>
                     <div id="hotkeysList" style="display:flex;flex-direction:column;gap:8px;"></div>
                     <div id="hkRecorderHint" style="margin-top:16px;padding:10px 14px;background:var(--input-bg);border:1px solid var(--border-color);border-radius:8px;font-size:12px;color:var(--secondary-text);display:none;line-height:1.5;"></div>
                 </div>
@@ -2824,10 +2933,10 @@
 
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:14px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;">
                         <div>
-                            <div style="font-size:14px;font-weight:500;color:var(--text-color);">Library password on entry <span style="font-size:11px;color:var(--accent-color);font-weight:400;">default ON</span></div>
+                            <div style="font-size:14px;font-weight:500;color:var(--text-color);">Library password on entry <span style="font-size:11px;color:var(--secondary-text);font-weight:400;">default OFF</span></div>
                             <div style="font-size:11px;color:var(--secondary-text);margin-top:4px;">Ask for the master password every time the Library is opened. Turning this off requires the password.</div>
                         </div>
-                        <label class="px-toggle-wrap"><input type="checkbox" id="libProtPasswordToggle" checked><span class="px-toggle-track"></span></label>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="libProtPasswordToggle"><span class="px-toggle-track"></span></label>
                     </div>
 
                     <div style="font-size:12px;font-weight:600;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;">Settings &amp; Backup</div>
@@ -2856,6 +2965,26 @@
                             <div style="font-size:11px;color:var(--secondary-text);margin-top:4px;">Cover the whole browser with a lock screen when it starts. One unlock per launch.</div>
                         </div>
                         <label class="px-toggle-wrap"><input type="checkbox" id="libProtAppLockToggle"><span class="px-toggle-track"></span></label>
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:14px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;">
+                        <div style="flex:1;margin-right:12px;">
+                            <div style="font-size:14px;font-weight:500;color:var(--text-color);">Auto-lock on inactivity</div>
+                            <div style="font-size:11px;color:var(--secondary-text);margin-top:4px;">Lock the whole browser after a period of inactivity. Requires a master password.</div>
+                            <div id="idleLockMinutesWrap" style="display:none;margin-top:10px;align-items:center;gap:8px;font-size:12px;color:var(--secondary-text);">
+                                <span>Lock after</span>
+                                <select id="libProtIdleMinutes" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border-color);background:var(--input-bg);color:var(--input-color);font-size:12px;">
+                                    <option value="1">1 min</option>
+                                    <option value="2">2 min</option>
+                                    <option value="5" selected>5 min</option>
+                                    <option value="10">10 min</option>
+                                    <option value="15">15 min</option>
+                                    <option value="30">30 min</option>
+                                </select>
+                                <span>of inactivity</span>
+                            </div>
+                        </div>
+                        <label class="px-toggle-wrap"><input type="checkbox" id="libProtIdleLockToggle"><span class="px-toggle-track"></span></label>
                     </div>
 
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:14px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;">
@@ -2892,7 +3021,7 @@
                         <div style="width:360px;max-width:calc(100vw - 32px);background:var(--card-bg,#202020);border:1px solid var(--border-color);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
                             <div id="libProtPwdTitle" style="font-size:16px;font-weight:700;color:var(--text-color);">Set password</div>
                             <input type="password" id="libProtPwdOld" placeholder="Current password (if changing)" autocomplete="current-password" style="padding:10px 14px;border-radius:10px;border:1px solid var(--border-color);background:var(--input-bg);color:var(--input-color);font-size:13px;outline:none;">
-                            <input type="password" id="libProtPwdNew" placeholder="New password (min 4 chars)" autocomplete="new-password" style="padding:10px 14px;border-radius:10px;border:1px solid var(--border-color);background:var(--input-bg);color:var(--input-color);font-size:13px;outline:none;">
+                            <input type="password" id="libProtPwdNew" placeholder="New password (min 8 chars)" autocomplete="new-password" style="padding:10px 14px;border-radius:10px;border:1px solid var(--border-color);background:var(--input-bg);color:var(--input-color);font-size:13px;outline:none;">
                             <input type="password" id="libProtPwdConfirm" placeholder="Confirm new password" autocomplete="new-password" style="padding:10px 14px;border-radius:10px;border:1px solid var(--border-color);background:var(--input-bg);color:var(--input-color);font-size:13px;outline:none;">
                             <div id="libProtPwdError" style="color:#ff5f57;font-size:12px;min-height:14px;"></div>
                             <div style="display:flex;gap:8px;justify-content:flex-end;">
@@ -2913,8 +3042,8 @@
                         <div style="flex:1;min-width:220px;">
                             <div class="about-title">StartPOZI Browser</div>
                             <div class="about-version">
-                                Версия: 1.0.0 <span class="badge">stable</span><br>
-                                Официальная сборка, built on Ubuntu (SSE3) (64 бит)
+                                Version: 1.0.0 <span class="badge">stable</span><br>
+                                Official build, built on Ubuntu (SSE3) (64-bit)
                             </div>
                         </div>
                     </div>
@@ -2922,7 +3051,7 @@
                     <div class="buttons-container" style="margin-bottom:8px;">
                         <button class="refresh-button" id="aboutCheckUpdate" type="button">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 4 21 10 15 10"/></svg>
-                            Проверить обновление
+                            Check for updates
                         </button>
                         <button class="refresh-button btn-accent" id="aboutHelpPage" type="button">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -2930,7 +3059,7 @@
                         </button>
                         <button class="refresh-button btn-success" id="aboutDonate" type="button">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                            Поддержать проект
+                            Support the project
                         </button>
                     </div>
                     <div id="aboutUpdateStatus" style="font-size:12px;color:var(--secondary-text);min-height:16px;margin-top:6px;"></div>
@@ -2938,16 +3067,12 @@
 
                 <div class="card">
                     <div class="about-prose">
-                        <p class="lead">© 2026 StartPOZI Project. Все права защищены.</p>
-                        <p>StartPOZI создан с нуля как независимый веб-браузер, ориентированный на максимальную приватность и прозрачность. При разработке использовались только свободные компоненты и библиотеки с открытым исходным кодом, что позволяет нам полностью контролировать каждый аспект работы программы.</p>
-                        <p>Браузер распространяется на условиях <span class="about-license">GNU General Public License v3.0</span> — вы можете свободно использовать, изменять и распространять его код при соблюдении условий лицензии.</p>
-                        <p>StartPOZI — это самый приватный браузер. Никакой телеметрии, никаких скрытых трекеров, никакой передачи данных без вашего ведома. Ваша история остаётся только у вас, а все настройки по умолчанию настроены на защиту от слежки. Мы не храним логи, не собираем статистику и не делимся данными с третьими лицами.</p>
-                    </div>
-                </div>
+                        <p class="lead">© 2026 StartPOZI Project. All rights reserved.</p>
+                        <p>StartPOZI was built from scratch as an independent web browser focused on maximum privacy and transparency. Only free, open-source components and libraries were used during development, which lets us fully control every aspect of how the program works.</p>
+                        <p>The browser is distributed under the <span class="about-license">GNU General Public License v3.0</span> — you are free to use, modify and redistribute its code as long as you comply with the license terms.</p>
+                        <p>StartPOZI is the most private browser. No telemetry, no hidden trackers, no data transfers without your knowledge. Your history stays with you, and every default setting is tuned to protect you from surveillance. We keep no logs, collect no statistics and share no data with third parties.</p>
             </div>
-
-    <div id="plugin-settings-modal" class="plugin-settings-modal" style="display: none;">
-        <!-- ... -->
+        </div>
     </div>
 
 
@@ -3059,10 +3184,10 @@ console.log('🔍 Method restartBrowser exists?', typeof api?.restartBrowser);
 
 if (!api) {
     console.error('electronAPI is not available!');
-    customAlert('Error: API not loaded. Restart the application.');
+    alert('Error: API not loaded. Restart the application.');
 } else if (!api.saveToolbarButtons) {
     console.error('Method saveToolbarButtons does not exist!');
-    customAlert('Error: Method saveToolbarButtons not found. Restart the application.');
+    alert('Error: Method saveToolbarButtons not found. Restart the application.');
 } else {
     console.log('electronAPI and all methods are available');
 }
@@ -3434,6 +3559,156 @@ var loadSbStats = null;
     }
     renderFilterLists();
 
+    // FilterHub catalog
+    var fhCatalogEl = document.getElementById('fhCatalog');
+    var fhStatusEl = document.getElementById('fhStatus');
+    if (fhCatalogEl && fhStatusEl && api.getFilterhubCatalog) {
+        var FH_CAT_ORDER = ['ads', 'privacy', 'security', 'annoyances', 'fixes', 'regional', 'pro'];
+        var FH_CAT_LABELS = {
+            ads: 'Ad blocking', privacy: 'Privacy', security: 'Security',
+            annoyances: 'Annoyances', fixes: 'Fixes', regional: 'Regional', pro: 'Pro'
+        };
+        var FH_WARN_LABELS = {
+            google: 'May break reCAPTCHA / Google services',
+            slow: 'May slow down the browser',
+            huge: 'Very large list',
+            strict: 'Strict — may break sites'
+        };
+        var fhCatalog = null;
+        var fhEnabledSet = {};
+        var fhApplying = false;
+
+        function fhFmtRules(n) {
+            if (!n) return '—';
+            if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '') + 'K';
+            return String(n);
+        }
+        function fhFmtSize(kb) {
+            if (kb >= 1024) return (kb / 1024).toFixed(1) + ' MB';
+            return kb + ' KB';
+        }
+        function fhUpdateStatus() {
+            var n = Object.keys(fhEnabledSet).length;
+            fhStatusEl.style.color = 'var(--secondary-text)';
+            fhStatusEl.textContent = n + ' of 44 lists enabled';
+        }
+        function fhRender() {
+            fhCatalogEl.innerHTML = '';
+            var lists = (fhCatalog && fhCatalog.lists) || [];
+            FH_CAT_ORDER.forEach(function(cat) {
+                var inCat = lists.filter(function(l) { return l.cat === cat; });
+                if (!inCat.length) return;
+                var head = document.createElement('div');
+                head.style.cssText = 'font-size:12px;font-weight:500;color:var(--text-color);margin:12px 0 6px;';
+                head.textContent = FH_CAT_LABELS[cat] + ' (' + inCat.length + ')';
+                fhCatalogEl.appendChild(head);
+                inCat.forEach(function(l) {
+                    var row = document.createElement('label');
+                    row.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:4px;padding:7px 10px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;font-size:12px;cursor:pointer;';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.checked = !!fhEnabledSet[l.num];
+                    cb.dataset.fhNum = String(l.num);
+                    cb.style.cssText = 'accent-color:var(--accent-color);margin:0;';
+                    var nameSpan = document.createElement('span');
+                    nameSpan.style.cssText = 'color:var(--text-color);font-weight:500;';
+                    nameSpan.textContent = l.name + ' #' + l.num;
+                    var metaSpan = document.createElement('span');
+                    metaSpan.style.cssText = 'color:var(--secondary-text);font-size:11px;margin-left:auto;white-space:nowrap;';
+                    metaSpan.textContent = fhFmtRules(l.rules) + ' · ' + fhFmtSize(l.sizeKB);
+                    row.appendChild(cb);
+                    row.appendChild(nameSpan);
+                    if (l.warn) {
+                        var warn = document.createElement('span');
+                        warn.style.cssText = 'font-size:10px;color:#ffb347;background:rgba(255,179,71,0.12);padding:1px 6px;border-radius:4px;white-space:nowrap;';
+                        warn.textContent = '⚠ ' + (FH_WARN_LABELS[l.warn] || l.warn);
+                        warn.title = FH_WARN_LABELS[l.warn] || l.warn;
+                        row.appendChild(warn);
+                    }
+                    row.appendChild(metaSpan);
+                    cb.addEventListener('change', function() {
+                        if (cb.checked) fhEnabledSet[l.num] = true;
+                        else delete fhEnabledSet[l.num];
+                        fhApply(Object.keys(fhEnabledSet).map(Number));
+                    });
+                    fhCatalogEl.appendChild(row);
+                });
+            });
+            fhUpdateStatus();
+        }
+        function fhSyncCheckboxes() {
+            var boxes = fhCatalogEl.querySelectorAll('input[data-fh-num]');
+            boxes.forEach(function(cb) {
+                cb.checked = !!fhEnabledSet[Number(cb.dataset.fhNum)];
+            });
+            fhUpdateStatus();
+        }
+        function fhApply(newEnabled) {
+            if (fhApplying) return;
+            fhApplying = true;
+            fhStatusEl.style.color = '#ffb347';
+            fhStatusEl.textContent = 'Rebuilding engine, please wait…';
+            api.setFilterhubEnabled(newEnabled).then(function(r) {
+                fhApplying = false;
+                fhEnabledSet = {};
+                ((r && r.enabled) || []).forEach(function(n) { fhEnabledSet[n] = true; });
+                fhSyncCheckboxes();
+                fhStatusEl.style.color = '#4CAF50';
+                fhStatusEl.textContent = '✓ ' + Object.keys(fhEnabledSet).length + ' lists enabled';
+            }).catch(function() {
+                fhApplying = false;
+                fhStatusEl.style.color = 'var(--secondary-text)';
+                fhStatusEl.textContent = 'Failed to apply, please retry.';
+            });
+        }
+        function fhPreset(level) {
+            if (fhApplying) return;
+            fhApplying = true;
+            fhStatusEl.style.color = '#ffb347';
+            fhStatusEl.textContent = 'Applying ' + level + ' preset…';
+            api.setFilterhubPreset(level).then(function(r) {
+                fhApplying = false;
+                if (r && r.success) {
+                    fhEnabledSet = {};
+                    (r.enabled || []).forEach(function(n) { fhEnabledSet[n] = true; });
+                    fhSyncCheckboxes();
+                    fhStatusEl.style.color = '#4CAF50';
+                    fhStatusEl.textContent = '✓ ' + level + ' preset: ' + Object.keys(fhEnabledSet).length + ' lists enabled';
+                } else {
+                    fhStatusEl.style.color = 'var(--secondary-text)';
+                    fhStatusEl.textContent = 'Failed to apply preset.';
+                }
+            }).catch(function() {
+                fhApplying = false;
+                fhStatusEl.style.color = 'var(--secondary-text)';
+                fhStatusEl.textContent = 'Failed to apply preset.';
+            });
+        }
+        ['light', 'medium', 'full'].forEach(function(level) {
+            var btn = document.getElementById('fhPreset' + level.charAt(0).toUpperCase() + level.slice(1));
+            if (btn) btn.addEventListener('click', function() { fhPreset(level); });
+        });
+        var repoLink = document.getElementById('fhRepoLink');
+        if (repoLink) repoLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.open('https://github.com/StartPOZI/FilterHub', '_blank');
+        });
+        var docLink = document.getElementById('fhDocLink');
+        if (docLink) docLink.addEventListener('click', function() {
+            window.open('https://github.com/StartPOZI/FilterHub/tree/main/Doc', '_blank');
+        });
+        Promise.all([
+            api.getFilterhubCatalog(),
+            api.getFilterhubEnabled ? api.getFilterhubEnabled() : Promise.resolve([])
+        ]).then(function(res) {
+            fhCatalog = res[0];
+            fhEnabledSet = {};
+            (res[1] || []).forEach(function(n) { fhEnabledSet[n] = true; });
+            fhRender();
+        });
+    }
+
     addListBtn.addEventListener('click', function() {
         var url = newListInput.value.trim();
         if (url && api.addFilterList) {
@@ -3502,6 +3777,15 @@ var loadSbStats = null;
     clearLogBtn.addEventListener('click', function() {
         if (api.clearBlockedLog) api.clearBlockedLog().then(function() { allLogEntries = []; renderLog(''); });
     });
+    var persistToggle = document.getElementById('abPersistLog');
+    if (persistToggle) {
+        if (api.getBlockerLogPersistent) {
+            api.getBlockerLogPersistent().then(function(v) { persistToggle.checked = !!v; });
+        }
+        persistToggle.addEventListener('change', function() {
+            if (api.setBlockerLogPersistent) api.setBlockerLogPersistent(persistToggle.checked);
+        });
+    }
 })();
 
 // Security
@@ -3514,6 +3798,12 @@ var loadSbStats = null;
         'secAutoplay': 'autoplayBlock',
         'secSiteIsolation': 'siteIsolation',
         'secHttpsOnly': 'httpsOnly',
+        'secClearCookiesOnExit': 'clearCookiesOnExit',
+        'secSuggestEnabled': 'suggestEnabled',
+        'secTranslateEnabled': 'translateEnabled',
+        'secHibpEnabled': 'hibpEnabled',
+        'secDiagnosticsEnabled': 'diagnosticsEnabled',
+        'secDnt': 'dnt',
         'secReferrerPolicy': 'referrerPolicy',
         'secBlockThirdPartyCookies': 'blockThirdPartyCookies',
         'secBlockMixedContent': 'blockMixedContent',
@@ -3521,7 +3811,11 @@ var loadSbStats = null;
         'secBlockGeolocation': 'blockGeolocation',
         'secBlockWebGL': 'blockWebGL',
         'secBlockClipboard': 'blockClipboard',
-        'secLetterboxing': 'letterboxing'
+        'secLetterboxing': 'letterboxing',
+        'secAutoRejectCookies': 'autoRejectCookies',
+        'secSuperDrag': 'superDrag',
+        'secFakeMedia': 'fakeMedia',
+        'secPageNotes': 'pageNotes'
     };
     Object.keys(secKeys).forEach(function(elId) {
         var el = document.getElementById(elId);
@@ -3535,20 +3829,55 @@ var loadSbStats = null;
         });
     });
 
-    var openSecTestBtn = document.getElementById('open-security-test');
-    if (openSecTestBtn) {
-        openSecTestBtn.addEventListener('click', function() {
-            if (api && api.openUrlFromSettings) {
-                api.openUrlFromSettings('SecurityTest.html');
-            }
+    // DNS-over-HTTPS.
+    (function() {
+        var en = document.getElementById('dohEnabled');
+        var provSel = document.getElementById('dohProvider');
+        var customInp = document.getElementById('dohCustomUrl');
+        var modeSel = document.getElementById('dohMode');
+        var wrap = document.getElementById('dohProvidersWrap');
+        var hint = document.getElementById('dohRestartHint');
+        if (!en || !provSel) return;
+        function currentServer() {
+            if (provSel.value === 'custom') return customInp.value.trim();
+            return provSel.value;
+        }
+        function save(showHint) {
+            if (!api.dohSetSettings) return;
+            api.dohSetSettings({ enabled: en.checked, server: currentServer(), mode: modeSel.value }).then(function(r) {
+                if (r && r.needRestart && showHint !== false) hint.style.display = '';
+            });
+        }
+        if (api.dohGetSettings) {
+            api.dohGetSettings().then(function(cfg) {
+                cfg = cfg || {};
+                en.checked = !!cfg.enabled;
+                var server = cfg.server || '';
+                var known = Array.prototype.some.call(provSel.options, function(o) { return o.value === server; });
+                if (server && !known) { provSel.value = 'custom'; customInp.value = server; customInp.style.display = ''; }
+                else provSel.value = server || provSel.options[0].value;
+                modeSel.value = cfg.mode === 'secure' ? 'secure' : 'automatic';
+                wrap.style.display = en.checked ? 'flex' : 'none';
+            });
+        }
+        en.addEventListener('change', function() {
+            wrap.style.display = en.checked ? 'flex' : 'none';
+            save();
         });
-    }
+        provSel.addEventListener('change', function() {
+            customInp.style.display = provSel.value === 'custom' ? '' : 'none';
+            save();
+        });
+        customInp.addEventListener('change', function() { save(); });
+        modeSel.addEventListener('change', function() { save(); });
+    })();
 })();
 
 // Optimization
 (function() {
     var optToggles = {
         'optLazyTabs': 'lazyTabs',
+        'optDisableTransparency': 'disableTransparency',
         'optClearOnMinimize': 'clearOnMinimize',
         'optGPU': 'gpu',
         'optPrefetch': 'prefetch',
@@ -3594,13 +3923,6 @@ var loadSbStats = null;
             if (api.setOptimizationSetting) api.setOptimizationSetting(key, parseInt(el.value) || 0);
         });
     });
-
-    var openOptTestBtn = document.getElementById('open-optimization-test');
-    if (openOptTestBtn) {
-        openOptTestBtn.addEventListener('click', function() {
-            if (api && api.openUrlFromSettings) api.openUrlFromSettings('OptimizationTest.html');
-        });
-    }
 
     // --- Whitelist "never sleep" ---
     var nosleepInput = document.getElementById('nosleepInput');
@@ -3700,6 +4022,7 @@ document.querySelectorAll('nav a').forEach(link => {
         if (link.getAttribute('href') === '#system-integration') initSystemIntegration();
         if (link.getAttribute('href') === '#customization') initCustomThemeUpload();
         if (link.getAttribute('href') === '#profiles') loadProfiles();
+        if (link.getAttribute('href') === '#containers') loadContainersSection();
         if (link.getAttribute('href') === '#security') { if (typeof loadPrivacyDashboard === 'function') loadPrivacyDashboard(); }
         if (link.getAttribute('href') === '#blocker') loadBlockerPage();
         if (link.getAttribute('href') === '#paths') loadPathsPage();
@@ -3938,39 +4261,48 @@ document.querySelectorAll('nav a').forEach(link => {
 
     var donateBtn = document.getElementById('aboutDonate');
     if (donateBtn) donateBtn.addEventListener('click', function () {
-        window.open('https://startpozi.com/donate', '_blank');
+        window.open('https://startpozi.com/s/donate.html', '_blank');
     });
 
     var updBtn = document.getElementById('aboutCheckUpdate');
     var updStatus = document.getElementById('aboutUpdateStatus');
     if (updBtn && updStatus) {
         updBtn.addEventListener('click', function () {
-            var appVersion = (typeof api !== 'undefined' && api.getAppVersion) ? '' : '1.0.0';
             updStatus.style.color = 'var(--secondary-text)';
-            updStatus.textContent = 'Проверка обновлений…';
-            var done = function (latest, current) {
+            updStatus.textContent = 'Checking for updates…';
+            var done = function (latest, current, releaseUrl) {
                 if (latest === current) {
                     updStatus.style.color = '#4CAF50';
-                    updStatus.textContent = '✓ У вас установлена последняя версия (' + current + ').';
+                    updStatus.textContent = '✓ You have the latest version (' + current + ').';
                 } else if (latest) {
                     updStatus.style.color = '#ffb347';
-                    updStatus.innerHTML = '↻ Доступна новая версия: ' + latest + '. Текущая: ' + current + '.';
+                    if (releaseUrl) {
+                        updStatus.innerHTML = '↻ New version available: <a href="#" id="aboutUpdLink" style="color:var(--accent-color);text-decoration:underline;">' + latest + '</a>. Current: ' + current + '.';
+                        var link = document.getElementById('aboutUpdLink');
+                        if (link) link.addEventListener('click', function (e) {
+                            e.preventDefault();
+                            window.open(releaseUrl, '_blank');
+                        });
+                    } else {
+                        updStatus.innerHTML = '↻ New version available: ' + latest + '. Current: ' + current + '.';
+                    }
                 } else {
                     updStatus.style.color = 'var(--secondary-text)';
-                    updStatus.textContent = 'Не удалось проверить обновление. Проверьте подключение.';
+                    updStatus.textContent = 'Could not check for updates. Check your connection.';
                 }
             };
             if (typeof api !== 'undefined' && api.checkForUpdate) {
                 Promise.resolve(api.checkForUpdate()).then(function (r) {
-                    done(r && r.latest, (r && r.current) || appVersion);
-                }).catch(function () { done(null, appVersion); });
+                    if (!r || r.success === false) { done(null, (r && r.current) || '1.0.0'); return; }
+                    done(r.updateAvailable === false ? r.current : r.latest, r.current, r.releaseUrl);
+                }).catch(function () { done(null, '1.0.0'); });
             } else {
                 try {
                     fetch('https://startpozi.com/version.json', { cache: 'no-store' })
                         .then(function (r) { return r.ok ? r.json() : null; })
-                        .then(function (j) { done(j && j.version, appVersion); })
-                        .catch(function () { done(null, appVersion); });
-                } catch (e) { done(null, appVersion); }
+                        .then(function (j) { done(j && j.version, '1.0.0'); })
+                        .catch(function () { done(null, '1.0.0'); });
+                } catch (e) { done(null, '1.0.0'); }
             }
         });
     }
@@ -4581,6 +4913,39 @@ if (winControlsSelect) {
     } else {
         updateLayoutUI('horizontal');
     }
+})();
+
+// Vertical tab width change handler
+(function() {
+    var sel = document.getElementById('tab-vertical-width-select');
+    if (!sel) return;
+    sel.addEventListener('change', function() {
+        saveCustomizationSettings({ verticalTabWidth: parseInt(sel.value, 10) });
+    });
+    if (window.electronAPI && window.electronAPI.getCustomizationSettings) {
+        window.electronAPI.getCustomizationSettings().then(function(r) {
+            if (r && r.settings && r.settings.verticalTabWidth) {
+                sel.value = String(r.settings.verticalTabWidth);
+            }
+        });
+    }
+})();
+
+// Auto-hide top bar toggle
+(function() {
+    var el = document.getElementById('optAutohideTopbar');
+    if (!el) return;
+    if (window.electronAPI && window.electronAPI.getCustomizationSettings) {
+        window.electronAPI.getCustomizationSettings().then(function(r) {
+            var s = (r && r.settings) || {};
+            el.checked = !!s.autohideTopbar;
+        });
+    }
+    el.addEventListener('change', async function() {
+        try {
+            await saveCustomizationSettings({ autohideTopbar: el.checked });
+        } catch(e) {}
+    });
 })();
 
 // Opacity change handler
@@ -5878,13 +6243,13 @@ function initSystemIntegration() {
     var COUNTRY_FLAGS = { AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AR:'🇦🇷',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BY:'🇧🇾',BE:'🇧🇪',BR:'🇧🇷',BG:'🇧🇬',CA:'🇨🇦',CL:'🇨🇱',CN:'🇨🇳',HR:'🇭🇷',CZ:'🇨🇿',DK:'🇩🇰',EE:'🇪🇪',FI:'🇫🇮',FR:'🇫🇷',DE:'🇩🇪',GR:'🇬🇷',HK:'🇭🇰',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JP:'🇯🇵',KZ:'🇰🇿',KR:'🇰🇷',LV:'🇱🇻',LT:'🇱🇹',LU:'🇱🇺',MY:'🇲🇾',MX:'🇲🇽',MD:'🇲🇩',NL:'🇳🇱',NZ:'🇳🇿','NO':'🇳🇴',PK:'🇵🇰',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',RO:'🇷🇴',RU:'🇷🇺',SA:'🇸🇦',RS:'🇷🇸',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',ZA:'🇿🇦',ES:'🇪🇸',SE:'🇸🇪',CH:'🇨🇭',TW:'🇹🇼',TH:'🇹🇭',TR:'🇹🇷',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UZ:'🇺🇿',VN:'🇻🇳' };
     function speedLabel(kbps) {
         if (kbps == null) return '';
-        if (kbps >= 1000) return (kbps / 1000).toFixed(1) + ' Мбит/с';
-        return kbps + ' Кбит/с';
+        if (kbps >= 1000) return (kbps / 1000).toFixed(1) + ' Mbps';
+        return kbps + ' Kbps';
     }
     function latencyLabel(ms) {
         if (ms == null) return '';
-        var tag = ms < 150 ? ' · быстро' : ms < 500 ? ' · средне' : ' · медленно';
-        return ms + ' мс' + tag;
+        var tag = ms < 150 ? 'ms · fast' : ms < 500 ? 'ms · medium' : 'ms · slow';
+        return ms + ' ' + tag;
     }
     function setDiag(id, html, dim) {
         var el = $(id);
@@ -5897,16 +6262,16 @@ function initSystemIntegration() {
         updateModeBadge();
         var statusEl = $('pxDiagStatus');
         if (statusEl) {
-            if (r.isTor) statusEl.innerHTML = '<span style="color:#4caf50;">● Tor активен</span>';
-            else if (r.mode === 'proxy') statusEl.innerHTML = '<span style="color:#667eea;">● Прокси работает</span>';
-            else if (r.mode === 'direct') statusEl.innerHTML = '<span style="color:var(--secondary-text);">● Прямое соединение</span>';
+            if (r.isTor) statusEl.innerHTML = '<span style="color:#4caf50;">● Tor is active</span>';
+            else if (r.mode === 'proxy') statusEl.innerHTML = '<span style="color:#667eea;">● Proxy is working</span>';
+            else if (r.mode === 'direct') statusEl.innerHTML = '<span style="color:var(--secondary-text);">● Direct connection</span>';
             else statusEl.innerHTML = '<span class="px-diag-value dim">—</span>';
         }
-        setDiag('pxDiagIp', r.ip || '<span class="px-diag-value dim">—</span>');
+        setDiag('pxDiagIp', r.ip ? escapeHtmlSimple(r.ip) : '<span class="px-diag-value dim">—</span>');
         var flag = r.countryCode ? (COUNTRY_FLAGS[r.countryCode] || '') + ' ' : '';
-        setDiag('pxDiagCountry', (r.country ? flag + r.country : '<span class="px-diag-value dim">—</span>'));
-        setDiag('pxDiagCity', r.city || '<span class="px-diag-value dim">—</span>');
-        setDiag('pxDiagIsp', r.isp || '<span class="px-diag-value dim">—</span>');
+        setDiag('pxDiagCountry', (r.country ? flag + escapeHtmlSimple(r.country) : '<span class="px-diag-value dim">—</span>'));
+        setDiag('pxDiagCity', r.city ? escapeHtmlSimple(r.city) : '<span class="px-diag-value dim">—</span>');
+        setDiag('pxDiagIsp', r.isp ? escapeHtmlSimple(r.isp) : '<span class="px-diag-value dim">—</span>');
         var speedEl = $('pxDiagSpeed');
         if (speedEl) {
             var parts = [];
@@ -5924,19 +6289,19 @@ function initSystemIntegration() {
     function runConnTest() {
         if (!api || !api.proxyConnectionTest) {
             var errEl = $('pxDiagError');
-            if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Метод недоступен (обновите браузер).'; }
+            if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Method unavailable (update the browser).'; }
             return;
         }
         var btn = $('pxConnTest');
         var spin = $('pxConnSpin');
         var statusEl = $('pxDiagStatus');
-        if (statusEl) statusEl.innerHTML = '<span style="color:var(--secondary-text);">⏳ Проверка…</span>';
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--secondary-text);">⏳ Checking…</span>';
         if (btn) btn.disabled = true;
         if (spin) spin.style.animation = 'about-logo-spin 0.9s linear infinite';
         api.proxyConnectionTest().then(function(r) {
             renderDiag(r || {});
         }).catch(function(e) {
-            renderDiag({ error: (e && e.message) || 'Ошибка проверки', mode: ($('pxToggle') && $('pxToggle').checked) ? 'proxy' : 'direct' });
+            renderDiag({ error: (e && e.message) || 'Check failed', mode: ($('pxToggle') && $('pxToggle').checked) ? 'proxy' : 'direct' });
         }).finally(function() {
             if (btn) btn.disabled = false;
             if (spin) spin.style.animation = '';
@@ -5966,21 +6331,21 @@ function initSystemIntegration() {
             if (!$('pxHost').value) $('pxHost').value = '127.0.0.1';
             if (!$('pxPort').value) $('pxPort').value = '9050';
             toggleTorSection();
-            setTorStatus('Запуск Tor…', 'warn');
+            setTorStatus('Starting Tor…', 'warn');
             var bridges = $('pxBridges') ? $('pxBridges').value : '';
-            if (!api.torStart) { setTorStatus('Метод недоступен', 'error'); return; }
+            if (!api.torStart) { setTorStatus('Method unavailable', 'error'); return; }
             api.torStart({ bridges: bridges }).then(function (r) {
                 if (r && r.running) {
                     $('pxToggle').checked = true;
-                    setTorStatus(r.bootstrapped ? 'Tor запущен и подключён!' : 'Tor запускается…', r.bootstrapped ? 'ok' : 'warn');
+                    setTorStatus(r.bootstrapped ? 'Tor started and connected!' : 'Tor is starting…', r.bootstrapped ? 'ok' : 'warn');
                     updateTorButtons(true);
                     applyProxy();
                 } else {
-                    setTorStatus('Не удалось запустить Tor', 'error');
+                    setTorStatus('Failed to start Tor', 'error');
                     torToggle.checked = false;
                 }
             }).catch(function (e) {
-                setTorStatus((e && e.message) || 'Ошибка запуска Tor', 'error');
+                setTorStatus((e && e.message) || 'Tor start error', 'error');
                 torToggle.checked = false;
             });
         } else {
@@ -5991,7 +6356,7 @@ function initSystemIntegration() {
                     $('pxToggle').checked = false;
                     applyProxy();
                 }
-                setTorStatus('Tor остановлен', '');
+                setTorStatus('Tor stopped', '');
             });
         }
     });
@@ -6028,7 +6393,7 @@ function initSystemIntegration() {
                 st.textContent = ($('pxToggle') && $('pxToggle').checked ? 'Proxy active' : 'Direct connection') + (parts.length ? ' (' + parts.join(', ') + ')' : '');
             }
             updateModeBadge();
-        }).catch(function(e) { customAlert('Ошибка: ' + (e.message || e)); });
+        }).catch(function(e) { customAlert('Error: ' + (e.message || e)); });
     }
     if ($('pxDomainsApply')) $('pxDomainsApply').addEventListener('click', applyDomainLists);
     if ($('pxDomainsAddOnion')) $('pxDomainsAddOnion').addEventListener('click', function () {
@@ -6100,6 +6465,102 @@ function _icon(emoji, w, h) {
   return svg;
 }
 const avatarOptions = ['👤','🧑','👩','👨','👦','👧','🧒','🦊','🐱','🐶','🐸','🤖','👾','🎨','🎵','⚡'];
+
+// ===== Container tabs =====
+var containersData = { enabled: false, containers: [] };
+var containersDirty = false;
+
+function loadContainersSection() {
+    const wrap = document.getElementById('containersSettings');
+    const unsupported = document.getElementById('containersUnsupported');
+    if (!wrap) return;
+    if (!api.getContainers || !api.setContainersEnabled || !api.saveContainers) {
+        if (unsupported) unsupported.style.display = 'block';
+        return;
+    }
+    wrap.style.display = 'block';
+    api.getContainers().then(cfg => {
+        containersData = cfg || { enabled: false, containers: [] };
+        renderContainers();
+    }).catch(() => {});
+}
+
+function renderContainers() {
+    const toggle = document.getElementById('containersEnabled');
+    const list = document.getElementById('containersList');
+    if (!toggle || !list) return;
+    toggle.checked = !!containersData.enabled;
+    list.innerHTML = '';
+    (containersData.containers || []).forEach((c, i) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;';
+        const icon = document.createElement('input');
+        icon.type = 'text'; icon.value = c.icon || '🗂';
+        icon.title = 'Icon (emoji)';
+        icon.style.cssText = 'width:44px;padding:6px;border:1px solid var(--border-color);border-radius:6px;background:var(--input-bg);color:var(--text-color);font-size:15px;text-align:center;';
+        icon.addEventListener('change', () => { containersData.containers[i].icon = icon.value.slice(0, 4) || '🗂'; saveContainersNow(); });
+        const name = document.createElement('input');
+        name.type = 'text'; name.value = c.name || ''; name.placeholder = 'Name';
+        name.style.cssText = 'flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--input-bg);color:var(--text-color);font-size:13px;';
+        name.addEventListener('change', () => { containersData.containers[i].name = name.value.slice(0, 40) || 'Container'; saveContainersNow(); });
+        const color = document.createElement('input');
+        color.type = 'color'; color.value = c.color || '#1da1f2';
+        color.title = 'Color';
+        color.style.cssText = 'width:36px;height:32px;padding:2px;border:1px solid var(--border-color);border-radius:6px;background:var(--input-bg);cursor:pointer;';
+        color.addEventListener('change', () => { containersData.containers[i].color = color.value; saveContainersNow(); });
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = 'Clear data';
+        clearBtn.title = 'Wipe cookies and storage of this container';
+        clearBtn.style.cssText = 'padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);font-size:12px;cursor:pointer;white-space:nowrap;';
+        clearBtn.addEventListener('click', () => {
+            clearBtn.disabled = true;
+            api.clearContainerData(c.id).then(() => { clearBtn.disabled = false; })
+              .catch(() => { clearBtn.disabled = false; });
+        });
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete container';
+        delBtn.style.cssText = 'padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:#e74c3c;font-size:12px;cursor:pointer;';
+        delBtn.addEventListener('click', () => {
+            containersData.containers.splice(i, 1);
+            saveContainersNow();
+            renderContainers();
+        });
+        row.appendChild(icon); row.appendChild(name); row.appendChild(color);
+        row.appendChild(clearBtn); row.appendChild(delBtn);
+        list.appendChild(row);
+    });
+}
+
+function saveContainersNow() {
+    if (api.saveContainers) {
+        api.saveContainers(containersData.containers || []);
+    }
+}
+
+(function setupContainersSection() {
+    const toggle = document.getElementById('containersEnabled');
+    const addBtn = document.getElementById('addContainerBtn');
+    if (toggle) {
+        toggle.addEventListener('change', () => {
+            containersData.enabled = toggle.checked;
+            if (api.setContainersEnabled) api.setContainersEnabled(toggle.checked);
+        });
+    }
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            const palette = ['#4caf50', '#1da1f2', '#ff9800', '#e74c3c', '#9b59b6', '#1abc9c'];
+            containersData.containers.push({
+                id: 'c' + Date.now(),
+                name: 'Container ' + (containersData.containers.length + 1),
+                color: palette[containersData.containers.length % palette.length],
+                icon: '🗂'
+            });
+            saveContainersNow();
+            renderContainers();
+        });
+    }
+})();
 
 function loadProfiles() {
     const listEl = document.getElementById('profiles-list');
@@ -6715,8 +7176,8 @@ function _backupShowProgress(text, pct) {
                 var encrypted = ov.querySelector('input[name="bkEnc"]:checked').value === 'yes';
                 var pwd = ov.querySelector('#bkPwdInput').value;
                 var pwd2 = ov.querySelector('#bkPwdConfirm').value;
-                if (encrypted && (!pwd || pwd.length < 4)) {
-                    customAlert('Password must be at least 4 characters');
+                if (encrypted && (!pwd || pwd.length < 8)) {
+                    customAlert('Password must be at least 8 characters');
                     return;
                 }
                 if (encrypted && pwd !== pwd2) {
@@ -6941,6 +7402,13 @@ function loadHotkeysPage() {
         _hkBindings = res.bindings || {};
         _hkDefaults = res.defaults || {};
         renderHotkeysList();
+        var ov = document.getElementById('hkOverlay');
+        if (ov) {
+            ov.checked = res.overlayEnabled !== false;
+            ov.onchange = function() {
+                if (api && api.setHotkeysOverlay) api.setHotkeysOverlay(ov.checked);
+            };
+        }
     }).catch(function() {
         list.innerHTML = '<div style="color:#e74c3c;padding:14px;">Error loading</div>';
     });
@@ -7409,6 +7877,9 @@ function loadLibraryProtectionPage() {
     var tSet = document.getElementById('libProtSettingsToggle');
     var tBak = document.getElementById('libProtBackupToggle');
     var tApp = document.getElementById('libProtAppLockToggle');
+    var tIdle = document.getElementById('libProtIdleLockToggle');
+    var tIdleMin = document.getElementById('libProtIdleMinutes');
+    var tIdleWrap = document.getElementById('idleLockMinutesWrap');
     var noMaster = document.getElementById('libProtNoMaster');
     var hasMasterBox = document.getElementById('libProtHasMaster');
     var bioHint = document.getElementById('libProtBioHint');
@@ -7425,7 +7896,9 @@ function loadLibraryProtectionPage() {
             enhancedProtection: tEnh.checked,
             protectSettings: tSet.checked,
             protectBackup: tBak.checked,
-            appLock: tApp.checked
+            appLock: tApp.checked,
+            idleLock: tIdle ? tIdle.checked : false,
+            idleLockMinutes: tIdleMin ? parseInt(tIdleMin.value, 10) : 5
         };
     }
 
@@ -7444,6 +7917,9 @@ function loadLibraryProtectionPage() {
         if (tSet) tSet.checked = !!cfg.protectSettings;
         if (tBak) tBak.checked = !!cfg.protectBackup;
         if (tApp) tApp.checked = !!cfg.appLock;
+        if (tIdle) tIdle.checked = !!cfg.idleLock;
+        if (tIdleMin && cfg.idleLockMinutes) tIdleMin.value = String(cfg.idleLockMinutes);
+        if (tIdleWrap) tIdleWrap.style.display = (tIdle && tIdle.checked) ? 'flex' : 'none';
         tBio.disabled = !cfg.biometricAvailable;
     }).catch(function() {});
 
@@ -7478,7 +7954,7 @@ function loadLibraryProtectionPage() {
         pwdError.textContent = '';
         var np = pwdNew.value, cp = pwdConfirm.value;
         var isChange = pwdOld.style.display !== 'none';
-        if (!np || np.length < 4) { pwdError.textContent = 'Password must be at least 4 characters'; return; }
+        if (!np || np.length < 8) { pwdError.textContent = 'Password must be at least 8 characters'; return; }
         if (np !== cp) { pwdError.textContent = 'Passwords do not match'; return; }
         pwdSave.disabled = true; pwdSave.textContent = 'Saving…';
         var promise;
@@ -7496,7 +7972,7 @@ function loadLibraryProtectionPage() {
                 showToast(r.message || 'Password saved');
                 refreshBanners(true);
                 api.getLibraryProtection().then(function(cfg) {
-                    tPwd.checked = cfg.passwordRequired !== false;
+        tPwd.checked = !!cfg.passwordRequired;
                 }).catch(function() {});
             } else {
                 pwdError.textContent = (r && r.message) || 'Failed';
@@ -7595,6 +8071,17 @@ function loadLibraryProtectionPage() {
     bindProtectToggle(tSet);
     bindProtectToggle(tBak);
     bindProtectToggle(tApp);
+    bindProtectToggle(tIdle);
+    if (tIdleMin) {
+        tIdleMin.onchange = function() {
+            api.setLibraryProtection(gather()).catch(function() {});
+        };
+    }
+    if (tIdle) {
+        tIdle.addEventListener('change', function() {
+            if (tIdleWrap) tIdleWrap.style.display = tIdle.checked ? 'flex' : 'none';
+        });
+    }
 
     btnCancel.onclick = function() {
         // Revert the toggle that triggered the confirmation.

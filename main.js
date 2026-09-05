@@ -1,16 +1,27 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, clipboard, nativeImage, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, clipboard, nativeImage, session, webContents } = require('electron');
 const { app: electronApp } = require('electron');
 const crypto = require('crypto');
-const https = require('https');
-const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const adblocker = require('./adblocker');
+// Shared cookie-banner blocker payload — same function the renderer injects
+// into the top document; here it is injected into EVERY frame (see the
+// 'inject-cookie-blocker-frames' handler).
+var _cookieBlockerPayload = null;
+try { _cookieBlockerPayload = require('./cookie-blocker-payload'); } catch (e) {}
 let AdmZip;
 try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
 
-process.on('unhandledRejection', function() {});
+var _lastRejectionLogAt = 0;
+process.on('unhandledRejection', function(reason) {
+  // Rate-limited logging: silent swallowing hid real bugs (lost writes, broken
+  // IPC), but unlimited logging would spam the console on cascading failures.
+  var now = Date.now();
+  if (now - _lastRejectionLogAt < 5000) return;
+  _lastRejectionLogAt = now;
+  try { console.error('[unhandledRejection]', reason); } catch(e) {}
+});
 require('events').EventEmitter.defaultMaxListeners = 50;
 
 (function checkCustomDataPath() {
@@ -53,6 +64,180 @@ var _sessionPermissions = {};
 // Shape: { [domain]: { lat:Number, lng:Number, accuracy:Number } }
 var _geoOverrides = {};
 
+// Cached per-site permission overrides from settings.json (kept in memory —
+// reading settings.json on every request would be far too slow). Used by the
+// per-site JavaScript/Cookies toggles in the Site Info panel.
+// Shape: { [domain]: { javascript: true|false, cookies: true|false, ... } }
+var _sitePermCache = {};
+function _refreshSitePermCache() {
+  try { _sitePermCache = readStorage().sitePermissions || {}; }
+  catch(e) { _sitePermCache = {}; }
+}
+// Look up a per-site permission, walking up subdomains
+// (a.b.example.com → b.example.com → example.com).
+function _sitePermFor(hostname, key) {
+  if (!hostname) return undefined;
+  try {
+    var v = _sitePermCache[hostname];
+    if (v && v[key] !== undefined) return v[key];
+    var parts = hostname.split('.');
+    for (var i = 1; i < parts.length - 1; i++) {
+      v = _sitePermCache[parts.slice(i).join('.')];
+      if (v && v[key] !== undefined) return v[key];
+    }
+  } catch(e) {}
+  return undefined;
+}
+// Per-site cookie blocking (Site Info panel): drop the Cookie request
+// header for hosts the user set to "block cookies".
+function _stripSiteCookies(details, headers) {
+  try {
+    if (!headers) return;
+    var host = '';
+    try { host = new URL(details.url).hostname; } catch(e) { return; }
+    if (_sitePermFor(host, 'cookies') === false) {
+      delete headers['Cookie'];
+    }
+  } catch(e) {}
+}
+
+// ============== CRASH-SAFE SESSION DETECTION ==============
+// A marker file is created on every launch and removed on a clean quit
+// (before-quit / window-all-closed). If it is still present at the next
+// launch, the previous session ended abnormally (crash, kill, power loss) —
+// the renderer then restores the auto-saved tabs (autoSaveTabs runs every
+// 30 s in the renderer).
+var _sessionMarkerPath = path.join(app.getPath('userData'), 'session-active');
+var _lastSessionCrashed = false;
+(function detectCrashedSession() {
+  try {
+    if (fs.existsSync(_sessionMarkerPath)) _lastSessionCrashed = true;
+    // The userData directory may not exist yet on a fresh profile (we run
+    // before Electron creates it) — create it explicitly, otherwise
+    // writeFileSync throws ENOENT and crash detection silently never arms.
+    fs.mkdirSync(path.dirname(_sessionMarkerPath), { recursive: true });
+    fs.writeFileSync(_sessionMarkerPath, String(Date.now()));
+  } catch(e) {}
+})();
+function _clearSessionMarker() {
+  try { if (fs.existsSync(_sessionMarkerPath)) fs.unlinkSync(_sessionMarkerPath); } catch(e) {}
+}
+ipcMain.handle('get-last-session-crashed', () => _lastSessionCrashed);
+
+// Sandbox preloads have no __dirname — the webview preload asks the main
+// process for the app directory to gate the electronAPI exposure to pages
+// that ship with the browser (see preload-webview.js).
+ipcMain.on('spz-get-app-dir', (event) => { event.returnValue = __dirname; });
+
+// ============== OFFLINE TTS (espeak-ng WASM worker) ==============
+// Speech synthesis without any system voices (fresh Linux, minimal Windows,
+// headless setups). Runs in a utilityProcess — WASM synthesis blocks its
+// thread for 100–400 ms per chunk and must never touch the main process.
+// Jobs are serialized through a single queue; the renderer prefetches the
+// next chunk while the current one plays.
+var _ttsWorker = null;
+var _ttsWorkerStarting = false;
+var _ttsJobId = 1;
+var _ttsPending = new Map(); // id → {resolve, reject, timer}
+
+function _ttsEnsureWorker() {
+  if (_ttsWorker) return Promise.resolve();
+  if (_ttsWorkerStarting) return _ttsWorkerStarting;
+  _ttsWorkerStarting = new Promise(function (resolve, reject) {
+    try {
+      const { utilityProcess } = require('electron');
+      _ttsWorker = utilityProcess.fork(path.join(__dirname, 'tts-worker.js'), [], {
+        serviceName: 'spz-tts',
+        stdio: 'ignore'
+      });
+      var settled = false;
+      _ttsWorker.once('spawn', function () { settled = true; resolve(); });
+      _ttsWorker.once('exit', function (code) {
+        _ttsWorker = null;
+        // Fail all in-flight jobs — their promises would hang forever.
+        _ttsPending.forEach(function (job) {
+          clearTimeout(job.timer);
+          job.reject(new Error('TTS worker exited (' + code + ')'));
+        });
+        _ttsPending.clear();
+        if (!settled) { settled = true; reject(new Error('TTS worker failed to start')); }
+      });
+      _ttsWorker.on('message', function (msg) {
+        var job = _ttsPending.get(msg && msg.id);
+        if (!job) return;
+        _ttsPending.delete(msg.id);
+        clearTimeout(job.timer);
+        if (msg.ok) job.resolve(msg.wav);
+        else job.reject(new Error(msg.error || 'synthesis failed'));
+      });
+    } catch (e) { reject(e); }
+  }).finally(function () { _ttsWorkerStarting = null; });
+  return _ttsWorkerStarting;
+}
+
+// Serialize synth requests: one at a time keeps WASM memory bounded and
+// preserves ordering for the renderer's prefetch logic.
+var _ttsQueueTail = Promise.resolve();
+function _ttsSynthesizeQueued(text, lang, rate) {
+  var run = function () {
+    return _ttsEnsureWorker().then(function () {
+      return new Promise(function (resolve, reject) {
+        var id = _ttsJobId++;
+        var timer = setTimeout(function () {
+          _ttsPending.delete(id);
+          reject(new Error('TTS synthesis timeout'));
+        }, 15000);
+        _ttsPending.set(id, { resolve: resolve, reject: reject, timer: timer });
+        try { _ttsWorker.postMessage({ id: id, cmd: 'synth', text: text, lang: lang, rate: rate }); }
+        catch (e) { clearTimeout(timer); _ttsPending.delete(id); reject(e); }
+      });
+    });
+  };
+  _ttsQueueTail = _ttsQueueTail.then(run, run);
+  return _ttsQueueTail;
+}
+
+ipcMain.handle('tts-synthesize', async (_, text, lang, rate) => {
+  try {
+    if (typeof text !== 'string' || !text.trim()) return { ok: false, error: 'empty text' };
+    var wav = await _ttsSynthesizeQueued(text, String(lang || ''), Number(rate) || 1);
+    return { ok: true, wav: wav };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+ipcMain.handle('tts-offline-available', () => {
+  try { require.resolve('espeak-ng'); return { ok: true, available: true }; }
+  catch (e) { return { ok: true, available: false }; }
+});
+app.on('before-quit', function () {
+  if (_ttsWorker) { try { _ttsWorker.postMessage({ cmd: 'shutdown' }); } catch (e) {} }
+});
+
+// "Clear cookies on exit" (Settings → Security): wipe cookies of the default
+// session and all container partitions when the browser closes. Incognito
+// partitions are in-memory and are destroyed automatically.
+app.on('will-quit', function (event) {
+  try {
+    var store = readStorage();
+    if (!(store.security && store.security.clearCookiesOnExit)) return;
+    event.preventDefault();
+    var sessionsToClear = [session.defaultSession];
+    try {
+      (store.containers || []).forEach(function (c) {
+        if (c && c.id) {
+          try { sessionsToClear.push(session.fromPartition('persist:container-' + c.id)); } catch (e0) {}
+        }
+      });
+    } catch (e1) {}
+    Promise.all(sessionsToClear.map(function (ses) {
+      try { return ses.clearStorageData({ storages: ['cookies'] }); } catch (e2) { return Promise.resolve(); }
+    })).then(function () { app.exit(0); }, function () { app.exit(0); });
+  } catch (e) {
+    // Never trap the user in a quitting app because of a cleanup failure.
+  }
+});
+
 // Disable KWallet and other password prompts
 app.commandLine.appendSwitch('password-store', 'basic');
 app.commandLine.appendSwitch('use-mock-keychain');
@@ -61,70 +246,68 @@ app.commandLine.appendSwitch('disable-features', 'PasswordPeak,PasswordImport,Pa
 app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,IntensiveWakeUpThrottling');
 // Anti-detection: remove the webdriver flag, otherwise Google and others detect automation
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+// Privacy: disable hyperlink auditing (<a ping="..."> beacon tracking)
+app.commandLine.appendSwitch('disable-hyperlink-auditing');
 
-// === .onion / SOCKS5 DNS fix ===
-// Chromium does NOT do SOCKS5h (DNS-through-proxy) by default.
-// Without this flag, .onion domains fail with ERR_NAME_NOT_RESOLVED
-// because Chromium resolves them locally (no DNS server knows .onion).
+// === Tor DNS hardening (host-resolver-rules) ===
+// EXPERIMENTALLY VERIFIED (mock SOCKS5 server, Electron 42): Chromium sends
+// the DOMAIN NAME to SOCKS5 proxies (ATYP=0x03 — SOCKS5h behaviour) by
+// default, so proxies and .onion work even with local DNS available.
+// The flag's only remaining value is suppressing DNS-prefetch leaks in full
+// Tor mode — worth it ONLY there, because while the flag is active the
+// browser cannot resolve anything directly: turning the proxy/VPN off later
+// black-holes every request until a restart (the dead-proxy watchdog offers
+// one). Regular proxies (http/https/socks, e.g. VPN) never get the flag —
+// disabling them switches to a working direct connection immediately.
+// The flag can ONLY be set before app.whenReady().
 //
-// The host-resolver-rules flag disables local DNS, forcing Chromium
-// to send ALL hostnames to the SOCKS5 proxy for resolution.
-// This flag can ONLY be set before app.whenReady().
-//
-// Strategy:
-//  1. proxy.json enabled → set flag (user already configured proxy)
-//  2. Tor detected on common ports → set flag + save proxy.json immediately
-//  3. Otherwise → no flag (normal browsing); user must restart after enabling Tor
+// Strategy: proxy.json enabled AND type 'tor' → set the flag. Otherwise no.
 var _startupTorDetected = null; // { host, port } or null
+var _dnsThroughProxyActive = false; // host-resolver-rules ~NOTFOUND is active
 (function applyDnsThroughProxyFlag() {
   try {
     var fs3 = require('fs');
-    var needsProxyDns = false;
+    var needsTorHardening = false;
 
-    // Check 1: proxy.json already configured
+    // Only an explicit Tor configuration gets the DNS lockdown.
     var proxyFile = path.join(app.getPath('userData'), 'proxy.json');
     if (fs3.existsSync(proxyFile)) {
       try {
-        var proxy = JSON.parse(fs3.readFileSync(proxyFile, 'utf8'));
-        if (proxy && proxy.enabled && proxy.host) needsProxyDns = true;
+        var proxy = JSON.parse(fs3.readFileSync(proxyFile, 'utf-8'));
+        if (proxy && proxy.enabled && proxy.host && proxy.type === 'tor') needsTorHardening = true;
       } catch(e) {}
     }
 
-    // Check 2: Tor SOCKS5 port listening? (synchronous system call)
+    if (needsTorHardening) {
+      // NOTE: Chromium's host-resolver-rules parser treats each comma-
+      // separated segment as a FULL rule, so 'EXCLUDE a,b,c' fails to parse
+      // ('Failed parsing rule: b'). Each excluded host needs its own EXCLUDE
+      // clause, otherwise localhost/::1 DNS breaks while Tor is active.
+      app.commandLine.appendSwitch('host-resolver-rules',
+        'MAP * ~NOTFOUND , EXCLUDE localhost , EXCLUDE 127.0.0.1 , EXCLUDE ::1');
+      app.commandLine.appendSwitch('proxy-bypass-list', '<-loopback>');
+      // Command-line switches cannot be unset at runtime: while this flag is
+      // active the browser CANNOT resolve DNS directly, so turning Tor off
+      // later requires a restart (see _offerDirectRelaunch + watchdog).
+      _dnsThroughProxyActive = true;
+    }
+
+    // === DNS-over-HTTPS (DoH) ===
+    // Only when NO proxy/Tor is active: with SOCKS5 all DNS must go through
+    // the proxy (see above); enabling DoH on top would leak queries to the
+    // DoH provider outside the tunnel. Can only be set before app ready.
     if (!needsProxyDns) {
-      var torPorts = [9050, 9150, 9060, 9070, 9080, 9100, 39050, 39060];
       try {
-        var cmd;
-        if (process.platform === 'win32') {
-          cmd = 'netstat -an -p tcp | findstr LISTENING';
-        } else {
-          cmd = 'ss -tlnH 2>/dev/null || netstat -an -p tcp 2>/dev/null | grep -i LISTEN';
-        }
-        var out = execSync(cmd, {
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'ignore'],
-          timeout: 2000
-        });
-        for (var i = 0; i < torPorts.length; i++) {
-          var p = torPorts[i];
-          var re = new RegExp('(?:127\\.0\\.0\\.1|localhost|\\[?::1\\]?):' + p + '\\b');
-          if (re.test(out)) {
-            needsProxyDns = true;
-            _startupTorDetected = { host: '127.0.0.1', port: String(p) };
-            // Save immediately so _proxySettings picks it up at init
-            try {
-              var autoProxy = { enabled: true, type: 'socks5', host: '127.0.0.1', port: String(p), bridges: '' };
-              fs3.writeFileSync(proxyFile, JSON.stringify(autoProxy));
-            } catch(e2) {}
-            break;
+        var settingsFile = path.join(app.getPath('userData'), 'settings.json');
+        if (fs3.existsSync(settingsFile)) {
+          var _early = JSON.parse(fs3.readFileSync(settingsFile, 'utf8'));
+          var doh = _early && _early.doh;
+          if (doh && doh.enabled && doh.server && /^https:\/\//.test(doh.server)) {
+            app.commandLine.appendSwitch('dns-over-https-mode', doh.mode === 'secure' ? 'secure' : 'automatic');
+            app.commandLine.appendSwitch('dns-over-https-templates', doh.server);
           }
         }
-      } catch(e) {}
-    }
-
-    if (needsProxyDns) {
-      app.commandLine.appendSwitch('host-resolver-rules', 'MAP * ~NOTFOUND , EXCLUDE 127.0.0.1,localhost,::1');
-      app.commandLine.appendSwitch('proxy-bypass-list', '<-loopback>');
+      } catch(e2) {}
     }
   } catch(e) {}
 })();
@@ -157,6 +340,99 @@ var _secChUaBrands = '"Chromium";v="' + _chromeMajorVersion + '", "Not:A-Brand";
 // is suspicious. Now the versions match the engine — we send it like Chrome.
 var _secChUaFullVersionList = '"Chromium";v="' + _chromeFullVersion + '", "Not:A-Brand";v="24.0.0.0", "Google Chrome";v="' + _chromeFullVersion + '"';
 
+// === Engine-level User-Agent override via CDP (Emulation.setUserAgentOverride) ===
+// The JS-level spoof of navigator.userAgentData (in preload-webview.js) is applied
+// via webFrame.executeJavaScript, which is ASYNC — Google's BotGuard, which loads
+// very early, can read navigator.userAgentData BEFORE the patch lands and see the
+// real "Electron" brand → "This browser or app may not be secure".
+// CDP's Emulation.setUserAgentOverride sets navigator.userAgent AND
+// navigator.userAgentData (via userAgentMetadata) AT THE ENGINE LEVEL, before any
+// page script runs, so there is no race. This is the same mechanism Chrome's
+// DevTools "Network conditions → custom UA" uses.
+function _buildUAOverrideMetadata() {
+  var platformVersion = _uaPlatform === 'Windows' ? '15.0.0'
+    : _uaPlatform === 'macOS' ? '10.15.7' : '6.5.0';
+  return {
+    brands: [
+      { brand: 'Chromium', version: _chromeMajorVersion },
+      { brand: 'Not:A-Brand', version: '24' },
+      { brand: 'Google Chrome', version: _chromeMajorVersion }
+    ],
+    fullVersionList: [
+      { brand: 'Chromium', version: _chromeFullVersion },
+      { brand: 'Not:A-Brand', version: '24.0.0.0' },
+      { brand: 'Google Chrome', version: _chromeFullVersion }
+    ],
+    fullVersion: _chromeFullVersion,
+    platform: _uaPlatform,
+    platformVersion: platformVersion,
+    architecture: 'x86',
+    bitness: '64',
+    model: '',
+    mobile: false,
+    wow64: false
+  };
+}
+var _uaOverrideApplied = new WeakSet();
+// Login pages where even an ATTACHED DEBUGGER is a detection signal for
+// Google (BotGuard flags CDP-attached targets). There we use the
+// debugger-free path: wc.setUserAgent (navigator.userAgent + request UA),
+// the preload's userAgentData patch and per-request sec-ch-ua rewriting.
+// Must stay in sync with _isSensitiveAuthPage() in preload-webview.js.
+function _isAuthSensitiveUrl(url) {
+  try {
+    var h = new URL(url).hostname.toLowerCase();
+    return /(^|\.)accounts\.google\.com$/.test(h) ||
+           /(^|\.)myaccount\.google\.com$/.test(h) ||
+           /(^|\.)passwords\.google\.com$/.test(h) ||
+           /(^|\.)signin\.google\.com$/.test(h) ||
+           /(^|\.)pay\.google\.com$/.test(h) ||
+           /(^|\.)wallet\.google\.com$/.test(h) ||
+           /(^|\.)accounts\.youtube\.com$/.test(h) ||
+           /(^|\.)appleid\.apple\.com$/.test(h) ||
+           /(^|\.)login\.live\.com$/.test(h) ||
+           /(^|\.)login\.microsoftonline\.com$/.test(h);
+  } catch (e) { return false; }
+}
+function _applyUAOverrideViaDebugger(webContents, destUrl) {
+  try {
+    if (!webContents || webContents.isDestroyed()) return;
+    // Prefer the navigation DESTINATION: at did-start-loading getURL() still
+    // returns the PREVIOUS page — wrong moment for the auth decision.
+    var curUrl = (typeof destUrl === 'string' && destUrl) || (webContents.getURL ? webContents.getURL() : '');
+    // Re-attach whenever detached (e.g. user opened DevTools on the tab):
+    // a one-shot WeakSet gate left the override silently dead afterwards.
+    try {
+      if (!webContents.debugger.isAttached()) webContents.debugger.attach('1.3');
+    } catch (e) { /* devtools or already attached */ }
+    _uaOverrideApplied.add(webContents);
+    webContents.once('destroyed', function () {
+      try { _uaOverrideApplied.delete(webContents); } catch (e) {}
+      try { _uaProfileByWc.delete(webContents.id); } catch (e) {}
+    });
+    var wcId = webContents.id;
+    if (_isAuthSensitiveUrl(curUrl)) {
+      // Firefox profile for login pages (see _firefoxUa). ALWAYS via CDP:
+      // webContents.setUserAgent RESTARTS an in-flight navigation and
+      // getUserAgent() does not reflect it in time — that combination caused
+      // an infinite reload loop. The CDP override is instant and never
+      // restarts a load. No userAgentMetadata (Firefox has no UA-CH); the
+      // preload (installFirefoxProfile) removes userAgentData/window.chrome.
+      _uaProfileByWc.set(wcId, 'ff');
+      webContents.debugger.sendCommand('Emulation.setUserAgentOverride', {
+        userAgent: _firefoxUa
+      }).catch(function () {});
+      return;
+    }
+    _uaProfileByWc.set(wcId, 'chrome');
+    webContents.debugger.sendCommand('Emulation.setUserAgentOverride', {
+      userAgent: _uaPlatformString,
+      platform: _uaPlatform,
+      userAgentMetadata: _buildUAOverrideMetadata()
+    }).catch(function () {});
+  } catch (e) {}
+}
+
 // ============================================================================
 // PERMISSION REQUEST HANDLER (unified)
 // ----------------------------------------------------------------------------
@@ -186,8 +462,26 @@ function _normalisePermKey(permission) {
 function _isInternalPage(url) {
   try {
     if (!url) return false;
-    return url.indexOf('file://') === 0 && (
-      url.indexOf('Settings.html') > -1 ||
+    if (url.indexOf('file://') !== 0) return false;
+    // Internal pages must live inside the app directory — a downloaded file
+    // merely NAMED "Settings.html" must not inherit internal-page powers.
+    var _appDir = __dirname.replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '');
+    var _p = '';
+    try { _p = decodeURIComponent(new URL(url).pathname); } catch (e) { _p = url; }
+    _p = _p.replace(/\\/g, '/').toLowerCase().replace(/^\/(?=[a-z]:)/, '');
+    // Resolve dot segments so /app-dir/../evil/x.html cannot pass the check.
+    var _isDrivePath = /^[a-z]:/.test(_p);
+    var _segs = _p.split('/');
+    var _norm = [];
+    for (var _si = 0; _si < _segs.length; _si++) {
+      var _s = _segs[_si];
+      if (_s === '.' || _s === '') continue;
+      if (_s === '..') { if (_norm.length) _norm.pop(); continue; }
+      _norm.push(_s);
+    }
+    _p = (_isDrivePath ? '' : '/') + _norm.join('/');
+    if (!(_p === _appDir || _p.indexOf(_appDir + '/') === 0)) return false;
+    return url.indexOf('Settings.html') > -1 ||
       url.indexOf('MainPage/index.html') > -1 ||
       url.indexOf('ErrorPage/index.html') > -1 ||
       url.indexOf('ErrorPage/security.html') > -1 ||
@@ -195,8 +489,7 @@ function _isInternalPage(url) {
       url.indexOf('MainPage/IncognitoPage.html') > -1 ||
       url.indexOf('TaskManager.html') > -1 ||
       url.indexOf('Library.html') > -1 ||
-      url.indexOf('CustomizeToolbar.html') > -1
-    );
+      url.indexOf('CustomizeToolbar.html') > -1;
   } catch(e) { return false; }
 }
 
@@ -255,9 +548,10 @@ function _makePermissionHandler(sec) {
         domain: domain,
         permission: permKey
       };
+      var permShell = _shellWindowOf(webContents);
       try {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('permission-request', {
+        if (permShell && !permShell.isDestroyed()) {
+          permShell.webContents.send('permission-request', {
             dialogId: dialogId,
             domain: domain,
             permission: permKey,
@@ -272,12 +566,50 @@ function _makePermissionHandler(sec) {
         var req = _pendingPermRequests[dialogId];
         if (req) {
           delete _pendingPermRequests[dialogId];
-          try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('permission-request-timeout', { dialogId: dialogId }); } catch(e) {}
+          try { if (permShell && !permShell.isDestroyed()) permShell.webContents.send('permission-request-timeout', { dialogId: dialogId }); } catch(e) {}
           req.callback(false);
         }
       }, 60000);
     } catch(e) {
-      try { callback(true); } catch(_) {}
+      // Fail closed: an internal error must never silently grant a
+      // permission (camera/mic/geo) that the user was never asked about.
+      try { callback(false); } catch(_) {}
+    }
+  };
+}
+
+// Mirror of _makePermissionHandler for navigator.permissions.query(): keeps
+// the JS-visible permission states in sync with our policy, so pages cannot
+// probe granted/denied states that differ from what the popup flow decided.
+function _makePermissionCheckHandler(sec) {
+  sec = sec || {};
+  return function(webContents, permission, requestingOrigin, requester) {
+    try {
+      var url = requestingOrigin || (webContents && webContents.getURL ? webContents.getURL() : '');
+      if (_isInternalPage(url)) return true;
+
+      var permKey = _normalisePermKey(permission);
+      if (permKey === 'notifications' && sec.blockNotifications) return false;
+      if (permKey === 'geolocation' && sec.blockGeolocation && !sec.spoofGeolocation) return false;
+      if (permKey === 'geolocation' && sec.spoofGeolocation) return true;
+      if ((permKey === 'clipboardRead' || permKey === 'clipboardWrite') && sec.blockClipboard) return false;
+
+      var domain = '';
+      try { domain = url ? new URL(url).hostname : ''; } catch(e) {}
+      if (domain) {
+        var store = readStorage();
+        var sitePerms = (store.sitePermissions && store.sitePermissions[domain]) || {};
+        if (permKey in sitePerms) {
+          var v = sitePerms[permKey];
+          if (v === true || v === 'allow') return true;
+          if (v === false || v === 'block') return false;
+        }
+        var sess = (_sessionPermissions[domain] && _sessionPermissions[domain][permKey]);
+        if (sess === true) return true;
+      }
+      return null; // unknown → Chromium reports 'prompt'
+    } catch(e) {
+      return false; // fail closed
     }
   };
 }
@@ -303,6 +635,289 @@ function _permIcon(permKey) {
   }
 }
 
+// Sanitized download manager. Attached to the default session in createWindow
+// AND to every session created later (incognito tabs and container tabs each
+// get their own partition session — without this they bypassed the download
+// manager entirely: no sanitized path, no records, no progress UI).
+function _attachDownloadHandler(session) {
+  if (!session || session.__spzDownloadsAttached) return;
+  session.__spzDownloadsAttached = true;
+  session.on('will-download', (event, item, webContents) => {
+    const store = readStorage();
+    const downloadDir = store.downloadPath || electronApp.getPath('downloads');
+    if (!fs.existsSync(downloadDir)) {
+      try { fs.mkdirSync(downloadDir, { recursive: true }); } catch(e) {}
+    }
+    const filename = item.getFilename() || 'download';
+    // Sanitize: a malicious server can set Content-Disposition with a filename
+    // like "../../../foo" to write outside the download directory. Strip path
+    // separators, drive letters and leading dots.
+    let safeName = String(filename).replace(/[/\\]+/g, '_').replace(/^\.+/, '').trim() || 'download';
+    let savePath = path.join(downloadDir, safeName);
+    // Final guard: resolved path must stay inside the download directory.
+    const resolvedDir = path.resolve(downloadDir) + path.sep;
+    if (path.resolve(savePath).indexOf(resolvedDir) !== 0) {
+      safeName = '_' + safeName;
+      savePath = path.join(downloadDir, safeName);
+    }
+
+    if (fs.existsSync(savePath)) {
+      const ext = path.extname(safeName);
+      const base = path.basename(safeName, ext);
+      let n = 1;
+      while (fs.existsSync(path.join(downloadDir, base + ' (' + n + ')' + ext))) n++;
+      savePath = path.join(downloadDir, base + ' (' + n + ')' + ext);
+    }
+
+    item.setSavePath(savePath);
+
+    const dlId = 'dl-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+    // Active DownloadItems by id — pause/resume needs the live item handle.
+    if (!_activeDownloadItems) _activeDownloadItems = new Map();
+    _activeDownloadItems.set(dlId, item);
+    item.once('destroyed', function () { try { _activeDownloadItems.delete(dlId); } catch (e) {} });
+    const dlRecord = {
+      id: dlId,
+      filename: path.basename(savePath),
+      path: savePath,
+      url: item.getURL() || '',
+      mimeType: item.getMimeType() || '',
+      totalBytes: item.getTotalBytes(),
+      receivedBytes: 0,
+      state: 'progressing',
+      startTime: Date.now()
+    };
+
+    // Privacy: downloads from incognito partitions are not persisted in the
+    // shared on-disk list (the file itself still saves; progress UI works).
+    var dlIsIncognito = _sessionIsIncognito(session);
+    if (!dlIsIncognito) {
+      if (!store.downloads) store.downloads = [];
+      store.downloads.unshift(dlRecord);
+      writeStorage(store);
+    }
+    _allShells().forEach(function (sh) {
+      try { sh.webContents.send('download-started', dlRecord); } catch(e) {}
+    });
+    _allShells().forEach(function (sh) {
+      try { sh.webContents.send('downloads-updated'); } catch(e) {}
+    });
+
+    item.on('updated', (event, state) => {
+      if (state === 'progressing') {
+        // Progress goes to the UI via IPC only — re-reading and re-writing
+        // the whole settings.json on every chunk was heavy I/O churn.
+        dlRecord.receivedBytes = item.getReceivedBytes();
+        dlRecord.state = 'progressing';
+        _allShells().forEach(function (sh) {
+          try { sh.webContents.send('download-progress', {
+            id: dlId, receivedBytes: item.getReceivedBytes(), totalBytes: item.getTotalBytes(), state: 'progressing'
+          }); } catch(e) {}
+        });
+      } else if (state === 'interrupted') {
+        dlRecord.state = 'interrupted';
+        const store2 = readStorage();
+        const idx = (store2.downloads || []).findIndex(d => d.id === dlId);
+        if (idx >= 0) { store2.downloads[idx] = { ...dlRecord }; writeStorage(store2); }
+        _allShells().forEach(function (sh) {
+          try { sh.webContents.send('download-progress', {
+            id: dlId, state: 'interrupted'
+          }); } catch(e) {}
+        });
+      }
+    });
+
+    item.once('done', (event, state) => {
+      try { _activeDownloadItems.delete(dlId); } catch (e) {}
+      dlRecord.state = state === 'completed' ? 'completed' : 'failed';
+      if (state === 'completed') dlRecord.receivedBytes = dlRecord.totalBytes;
+      const store2 = readStorage();
+      const idx = (store2.downloads || []).findIndex(d => d.id === dlId);
+      if (idx >= 0) { store2.downloads[idx] = { ...dlRecord }; writeStorage(store2); }
+      _allShells().forEach(function (sh) {
+        try { sh.webContents.send('download-progress', {
+          id: dlId, state: dlRecord.state
+        }); } catch(e) {}
+      });
+      _allShells().forEach(function (sh) {
+        try { sh.webContents.send('downloads-updated'); } catch(e) {}
+      });
+    });
+  });
+}
+// Every incognito/container partition session gets the same treatment.
+app.on('session-created', function (session) {
+  try { _attachDownloadHandler(session); } catch(e) {}
+});
+
+// ===== DOWNLOAD PAUSE / RESUME =====
+// Works for resumable protocols (http/https with range support): pause()
+// stops the transfer, resume() continues it. The UI is notified through the
+// regular 'download-progress' channel with state 'paused'/'progressing'.
+var _activeDownloadItems = new Map();
+function _broadcastDlState(dlId, state, receivedBytes, totalBytes) {
+  _allShells().forEach(function (sh) {
+    try {
+      sh.webContents.send('download-progress', {
+        id: dlId, state: state,
+        receivedBytes: receivedBytes || 0,
+        totalBytes: totalBytes || 0
+      });
+    } catch(e) {}
+  });
+}
+
+// Persist a live state change (paused/resumed) to the store so a restart or
+// a panel refresh does not show a phantom "downloading…" entry.
+function _persistDlState(dlId, state) {
+  try {
+    const store2 = readStorage();
+    const idx = (store2.downloads || []).findIndex(d => d.id === dlId);
+    if (idx >= 0) { store2.downloads[idx].state = state; writeStorage(store2); }
+  } catch (e) {}
+}
+
+ipcMain.handle('download-pause', (_, dlId) => {
+  try {
+    var item = _activeDownloadItems.get(dlId);
+    if (item && !item.isPaused()) {
+      item.pause();
+      _persistDlState(dlId, 'paused');
+      _broadcastDlState(dlId, 'paused', item.getReceivedBytes(), item.getTotalBytes());
+      return { success: true, state: 'paused' };
+    }
+  } catch(e) {}
+  return { success: false };
+});
+
+ipcMain.handle('download-resume', (_, dlId) => {
+  try {
+    var item = _activeDownloadItems.get(dlId);
+    if (item && item.isPaused() && item.canResume()) {
+      item.resume();
+      _persistDlState(dlId, 'progressing');
+      _broadcastDlState(dlId, 'progressing', item.getReceivedBytes(), item.getTotalBytes());
+      return { success: true, state: 'progressing' };
+    }
+  } catch(e) {}
+  return { success: false };
+});
+
+// ===== MULTI-WINDOW ROUTING =====
+// The browser can run several shell windows: the primary window, additional
+// regular windows (Ctrl+N / "New window") and dedicated incognito windows.
+// Anything that used to be hardcoded to mainWindow (shortcut actions, popups,
+// dialogs, permission popups, window controls…) MUST be routed to the window
+// the action came from — otherwise tabs "leak" into the neighboring window.
+var _shellWindows = [];
+function _registerShellWindow(win) {
+  _shellWindows.push(win);
+  win.on('closed', function() {
+    var i = _shellWindows.indexOf(win);
+    if (i > -1) _shellWindows.splice(i, 1);
+  });
+}
+function _shellWindowOf(wc) {
+  try {
+    // For webview guests hostWebContents is the embedding shell renderer.
+    var host = wc && (wc.hostWebContents || wc);
+    var win = BrowserWindow.fromWebContents(host);
+    if (win && !win.isDestroyed()) return win;
+  } catch (e) {}
+  return (mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null;
+}
+function _focusedShell() {
+  var shells = _allShells();
+  for (var i = 0; i < shells.length; i++) {
+    if (shells[i].isFocused()) return shells[i];
+  }
+  return shells.length ? shells[0] : null;
+}
+function _allShells() {
+  return _shellWindows.filter(function (w) { return !w.isDestroyed(); });
+}
+
+// Creates an additional shell window (regular or incognito), optionally
+// opening a specific tab in it (tab tear-out / "Move tab to new window").
+// "Disable window transparency" (Settings → Optimization): transparent
+// frameless windows cost extra compositing work on every frame (worst on
+// Linux/Wayland). With the option on, windows are created opaque — the
+// rounded corners and the frosted-glass effect disappear, but dragging and
+// video playback get smoother on weak GPUs.
+function _windowTransparencyEnabled() {
+  try {
+    var perf = require('./storage').read().optimization || {};
+    return perf.disableTransparency !== true;
+  } catch (e) { return true; }
+}
+
+// `opts`: { incognito: bool, tab: { url, title, partition } }
+function createShellWindow(opts) {
+  opts = opts || {};
+  var win = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    frame: false,
+    transparent: _windowTransparencyEnabled(),
+    backgroundColor: '#16161e',
+    titleBarStyle: 'hidden',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webviewTag: true,
+      webSecurity: true
+    },
+    title: ''
+  });
+  _registerShellWindow(win);
+  // Cascade new windows so they don't stack exactly on top of each other.
+  try {
+    var offset = ((_shellWindows.length - 1) % 8) * 28;
+    if (offset) win.setPosition(win.getPosition()[0] + offset, win.getPosition()[1] + offset);
+  } catch (e) {}
+
+  // Same chrome wiring as the main window, so keyboard shortcuts work when
+  // focus is on the toolbar and the mac-style controls get their glyphs.
+  win.webContents.on('before-input-event', (event, input) => {
+    _handleBrowserShortcut(event, input, win.webContents, true);
+  });
+  win.on('maximize', function() {
+    if (!win.isDestroyed()) win.webContents.send('window-state-changed', { maximized: true });
+  });
+  win.on('unmaximize', function() {
+    if (!win.isDestroyed()) win.webContents.send('window-state-changed', { maximized: false });
+  });
+  win.on('focus', function() {
+    if (!win.isDestroyed()) win.webContents.send('window-focus-changed', { focused: true });
+  });
+  win.on('blur', function() {
+    if (!win.isDestroyed()) win.webContents.send('window-focus-changed', { focused: false });
+  });
+  win.on('minimize', function() {
+    try { if (!win.isDestroyed()) win.webContents.send('window-minimized'); } catch(e) {}
+  });
+  win.on('restore', function() {
+    try { if (!win.isDestroyed()) win.webContents.send('window-restored'); } catch(e) {}
+  });
+
+  var query = {};
+  if (opts.incognito) query.incognito = '1';
+  if (opts.tab && opts.tab.url) {
+    query.tab = opts.tab.url;
+    if (opts.tab.title) query.title = opts.tab.title;
+    if (opts.tab.partition) query.partition = opts.tab.partition;
+  } else if (!opts.incognito) {
+    // Additional regular windows never restore the primary session —
+    // that would duplicate tabs in every window.
+    query.fresh = '1';
+  }
+  win.loadFile('index.html', { query: query });
+  return win;
+}
+
 function createWindow() {
   // Restore last window position/size so the browser opens where the user
   // left it — not always at the default 1200x800 in the screen corner.
@@ -326,7 +941,8 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     frame: false,
-    transparent: true,
+    transparent: _windowTransparencyEnabled(),
+    backgroundColor: '#16161e',
     titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -359,6 +975,7 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow(windowOpts);
+  _registerShellWindow(mainWindow);
   if (startMaximized) {
     try { mainWindow.maximize(); } catch(e) {}
   }
@@ -385,83 +1002,14 @@ function createWindow() {
     storages: ['serviceworkers', 'cachestorage']
   });
 
-  mainWindow.webContents.session.on('will-download', (event, item, webContents) => {
-    const store = readStorage();
-    const downloadDir = store.downloadPath || electronApp.getPath('downloads');
-    if (!fs.existsSync(downloadDir)) {
-      try { fs.mkdirSync(downloadDir, { recursive: true }); } catch(e) {}
-    }
-    const filename = item.getFilename();
-    let savePath = path.join(downloadDir, filename);
-
-    if (fs.existsSync(savePath)) {
-      const ext = path.extname(filename);
-      const base = path.basename(filename, ext);
-      let n = 1;
-      while (fs.existsSync(path.join(downloadDir, base + ' (' + n + ')' + ext))) n++;
-      savePath = path.join(downloadDir, base + ' (' + n + ')' + ext);
-    }
-
-    item.setSavePath(savePath);
-
-    const dlId = 'dl-' + Date.now();
-    const dlRecord = {
-      id: dlId,
-      filename: path.basename(savePath),
-      path: savePath,
-      url: item.getURL() || '',
-      mimeType: item.getMimeType() || '',
-      totalBytes: item.getTotalBytes(),
-      receivedBytes: 0,
-      state: 'progressing',
-      startTime: Date.now()
-    };
-
-    if (!store.downloads) store.downloads = [];
-    store.downloads.unshift(dlRecord);
-    writeStorage(store);
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('download-started', dlRecord);
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('downloads-updated');
-
-    item.on('updated', (event, state) => {
-      if (state === 'progressing') {
-        dlRecord.receivedBytes = item.getReceivedBytes();
-        dlRecord.state = 'progressing';
-        const store2 = readStorage();
-        const idx = (store2.downloads || []).findIndex(d => d.id === dlId);
-        if (idx >= 0) { store2.downloads[idx] = { ...dlRecord }; writeStorage(store2); }
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('download-progress', {
-          id: dlId, receivedBytes: item.getReceivedBytes(), totalBytes: item.getTotalBytes(), state: 'progressing'
-        });
-      } else if (state === 'interrupted') {
-        dlRecord.state = 'interrupted';
-        const store2 = readStorage();
-        const idx = (store2.downloads || []).findIndex(d => d.id === dlId);
-        if (idx >= 0) { store2.downloads[idx] = { ...dlRecord }; writeStorage(store2); }
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('download-progress', {
-          id: dlId, state: 'interrupted'
-        });
-      }
-    });
-
-    item.once('done', (event, state) => {
-      dlRecord.state = state === 'completed' ? 'completed' : 'failed';
-      if (state === 'completed') dlRecord.receivedBytes = dlRecord.totalBytes;
-      const store2 = readStorage();
-      const idx = (store2.downloads || []).findIndex(d => d.id === dlId);
-      if (idx >= 0) { store2.downloads[idx] = { ...dlRecord }; writeStorage(store2); }
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('download-progress', {
-        id: dlId, state: dlRecord.state
-      });
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('downloads-updated');
-    });
-  });
+  _attachDownloadHandler(mainWindow.webContents.session);
 
   // Unified permission handler — defined once, reused by applySecuritySettings
   // so toggling security options no longer overwrites the per-site popup flow.
   try {
     var initSec = (readStorage().security) || {};
     mainWindow.webContents.session.setPermissionRequestHandler(_makePermissionHandler(initSec));
+    mainWindow.webContents.session.setPermissionCheckHandler(_makePermissionCheckHandler(initSec));
   } catch(e) {}
 
   // === Certificate verifier — per-site exceptions for self-signed/expired
@@ -558,9 +1106,9 @@ function createWindow() {
 // window.open etc. all open as a new tab instead of a new BrowserWindow.
 app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler((details) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('open-in-new-tab', details.url);
-    }
+    // Open the new tab in the window the click came from (main vs incognito).
+    var win = _shellWindowOf(contents);
+    if (win) win.webContents.send('open-in-new-tab', details.url);
     return { action: 'deny' };
   });
 
@@ -568,6 +1116,17 @@ app.on('web-contents-created', (event, contents) => {
     event.preventDefault();
     var dialogId = 'dlg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
     _pendingDialogs[dialogId] = { type: type, callback: callback };
+    // Auto-dismiss after 120s — if the renderer never answers (window gone,
+    // bug), the page dialog would otherwise block JS forever and the entry
+    // would leak in _pendingDialogs.
+    setTimeout(function() {
+      var pending = _pendingDialogs[dialogId];
+      if (!pending) return;
+      delete _pendingDialogs[dialogId];
+      try {
+        pending.callback(type === 'confirm' || type === 'beforeunload' ? false : (type === 'prompt' ? '' : undefined));
+      } catch(e) {}
+    }, 120000);
     // Capture the page URL/domain so the renderer can show it Chrome-style
     // (the dialog belongs to a specific site, not the browser).
     var pageUrl = '';
@@ -576,8 +1135,9 @@ app.on('web-contents-created', (event, contents) => {
       pageUrl = contents && contents.getURL ? contents.getURL() : '';
       if (pageUrl) pageDomain = new URL(pageUrl).hostname;
     } catch(e) {}
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('show-webview-dialog', {
+    var shellWin = _shellWindowOf(contents);
+    if (shellWin) {
+      shellWin.webContents.send('show-webview-dialog', {
         dialogId: dialogId,
         type: type,
         message: message || '',
@@ -601,6 +1161,9 @@ function _handleBrowserShortcut(event, input, webContents, isChrome) {
   if (!input || input.type !== 'keyDown') return;
   if (!_keyBindings) _loadKeybindings();
   var key = input.key;
+  // Route shortcut actions to the window the keypress belongs to (main or
+  // dedicated incognito) — NOT blindly to mainWindow.
+  var shell = _shellWindowOf(webContents);
 
   // Get the URL — if in Settings and recording a combination — skip
   var wcUrl = '';
@@ -611,20 +1174,26 @@ function _handleBrowserShortcut(event, input, webContents, isChrome) {
   // Esc — stop loading (even when focus is on the toolbar).
   // Important: only bare Escape, otherwise Shift+Esc (Task Manager) will not work.
   if (key === 'Escape' && !input.shift && !input.control && !input.meta && !input.alt) {
-    try { mainWindow.webContents.send('shortcut-action', { action: 'stop' }); } catch(e) {}
+    try { if (shell) shell.webContents.send('shortcut-action', { action: 'stop' }); } catch(e) {}
     return;
   }
   // Ctrl+1..9 — tab by index
   var ctrlOnly = (input.control || input.meta) && !input.shift && !input.alt;
   if (ctrlOnly && key >= '1' && key <= '9') {
     event.preventDefault();
-    try { mainWindow.webContents.send('shortcut-action', { action: 'tabByIndex', index: parseInt(key) }); } catch(e) {}
+    try { if (shell) shell.webContents.send('shortcut-action', { action: 'tabByIndex', index: parseInt(key) }); } catch(e) {}
     return;
   }
   // F5 — reload
   if (!input.control && !input.meta && !input.shift && !input.alt && key === 'F5') {
     event.preventDefault();
-    try { mainWindow.webContents.send('shortcut-action', { action: 'reload' }); } catch(e) {}
+    try { if (shell) shell.webContents.send('shortcut-action', { action: 'reload' }); } catch(e) {}
+    return;
+  }
+  // Ctrl+N — new window; Ctrl+Shift+N — new incognito window
+  if ((input.control || input.meta) && !input.alt && (key === 'n' || key === 'N')) {
+    event.preventDefault();
+    try { createShellWindow({ incognito: !!input.shift }); } catch(e) {}
     return;
   }
 
@@ -641,16 +1210,16 @@ function _handleBrowserShortcut(event, input, webContents, isChrome) {
       // Fixes conflict: addBookmark=Ctrl+D vs scrollHalfDown=ctrl+d.
       if (_vimMainCache.enabled && _vimKeyMatchesMainCache(_vimInputToKey(input))) break;
       if (a === 'devTools') {
-        // For the main window — open chrome devtools; for a webview — its own
+        // For a shell window — open chrome devtools; for a webview — its own
         event.preventDefault();
         try {
-          if (isChrome) mainWindow.webContents.toggleDevTools();
+          if (isChrome) { if (shell) shell.webContents.toggleDevTools(); }
           else webContents.toggleDevTools();
         } catch(e) {}
         return;
       }
       event.preventDefault();
-      try { mainWindow.webContents.send('shortcut-action', { action: a }); } catch(e) {}
+      try { if (shell) shell.webContents.send('shortcut-action', { action: a }); } catch(e) {}
       return;
     }
   }
@@ -672,7 +1241,7 @@ function _handleBrowserShortcut(event, input, webContents, isChrome) {
       var vCh = _vimInputToKey(input);
       if (_vimKeyMatchesMainCache(vCh)) {
         try {
-          mainWindow.webContents.send('forward-vim-key', {
+          if (shell) shell.webContents.send('forward-vim-key', {
             key: vKey,
             shiftKey: !!input.shift,
             ctrlKey: !!input.control,
@@ -785,8 +1354,85 @@ function _vimKeyMatchesMainCache(ch) {
   return found;
 }
 
+// ===== Single instance + OS protocol links =====
+// startpozi:// links (and http(s):// links when registered as the default
+// browser) launched from the OS arrive here: as argv on Windows/Linux and
+// via the 'open-url' event on macOS.
+function _normalizeLaunchUrl(url) {
+  if (typeof url !== 'string') return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  var m = url.toLowerCase().match(/^startpozi:\/\/([^/?#]*)/);
+  if (m) {
+    if (m[1] === 'newtab' || m[1] === 'home') return 'MainPage/index.html';
+    // customize-toolbar is signaled to the renderer as a mode toggle.
+    if (m[1] === 'customize-toolbar') return '__customize_toolbar__';
+    return null; // unknown internal protocol target — ignore
+  }
+  return null;
+}
+function _openLaunchUrl(url) {
+  var normalized = _normalizeLaunchUrl(url);
+  if (!normalized) return;
+  var shell = _focusedShell();
+  if (!shell) return;
+  if (normalized === '__customize_toolbar__') {
+    shell.webContents.send('toggle-customize-mode');
+    return;
+  }
+  shell.webContents.send('open-in-new-tab', normalized);
+}
+function _extractLaunchUrl(argv) {
+  if (!Array.isArray(argv)) return null;
+  for (var i = 1; i < argv.length; i++) {
+    var a = argv[i];
+    if (/^startpozi:\/\//i.test(a) || /^https?:\/\//i.test(a)) return a;
+  }
+  return null;
+}
+var _pendingLaunchUrl = _extractLaunchUrl(process.argv);
+
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', function (event, argv) {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    var url = _extractLaunchUrl(argv);
+    if (url) _openLaunchUrl(url);
+  });
+}
+
+// macOS: links clicked while the app is running.
+app.on('open-url', function (event, url) {
+  event.preventDefault();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    _openLaunchUrl(url);
+  } else {
+    _pendingLaunchUrl = url;
+  }
+});
+
 app.whenReady().then(async () => {
+  // The userData dir may have been relocated by checkCustomDataPath() at
+  // startup — (re)load the settings cache from the final location.
+  storage.reload();
   createWindow();
+  // Deliver a URL the app was launched with (OS "open with" / protocol link)
+  // once the shell has actually finished loading.
+  if (_pendingLaunchUrl) {
+    var launchUrl = _pendingLaunchUrl;
+    _pendingLaunchUrl = null;
+    var deliver = function () { _openLaunchUrl(launchUrl); };
+    try {
+      mainWindow.webContents.once('did-finish-load', deliver);
+      setTimeout(deliver, 3000); // fallback if load already finished
+    } catch(e) {}
+  }
   const initStore = readStorage();
   initStore._sessionStartTime = Date.now();
   writeStorage(initStore);
@@ -795,11 +1441,34 @@ app.whenReady().then(async () => {
   // ON. Runs once (_secureDefaultsApplied flag); later the user's explicit
   // choices — including turning them OFF with the password — are respected.
   _applySecureDefaultsIfNeeded();
+  _migratePlaintextPasswords();
+  // Downloads from a previous session can no longer be active (their
+  // DownloadItems died with the process) — mark leftovers as interrupted so
+  // the Library does not show phantom "downloading…" entries forever.
+  try {
+    storage.update(function (s) {
+      if (Array.isArray(s.downloads)) {
+        s.downloads.forEach(function (d) {
+          if (d && (d.state === 'progressing' || d.state === 'paused')) d.state = 'interrupted';
+        });
+      }
+    });
+  } catch (e) {}
+  setTimeout(_autoCheckForUpdates, 20000);
+  _startProxyWatchdog();
+  _startIdleLockPoller();
+  _refreshAutohideCache();
+  _refreshSitePermCache();
   if (initStore.windowOpacity !== undefined && initStore.windowOpacity < 1) {
     mainWindow.setOpacity(Math.max(0.1, Math.min(1, initStore.windowOpacity)));
   }
   await adblocker.initBlocker(mainWindow.webContents.session);
   applySecuritySettings();
+
+  // CSP for internal (file://) pages + Tor hardening CSP are BOTH injected by
+  // the single onHeadersReceived handler inside applySecuritySettings() —
+  // Electron allows only one listener per session, so a second registration
+  // here used to silently disable the hardening CSP.
   _startMemoryPoller();
 
   // Apply proxy if configured (from proxy.json or auto-detected at startup).
@@ -815,6 +1484,34 @@ app.whenReady().then(async () => {
   app.on('web-contents-created', (_, webContents) => {
     if (webContents.getType() !== 'webview') return;
 
+    // Lock down every <webview> at attach time: whatever attributes the
+    // renderer (or a compromised renderer) sets, nodeIntegration stays off
+    // and contextIsolation/webSecurity stay on.
+    webContents.on('will-attach-webview', (event, webPreferences, params) => {
+      try {
+        delete webPreferences.preloadURL;
+        webPreferences.nodeIntegration = false;
+        webPreferences.nodeIntegrationInWorker = false;
+        webPreferences.contextIsolation = true;
+        webPreferences.webSecurity = true;
+        webPreferences.allowRunningInsecureContent = false;
+      } catch(e0) {}
+    });
+
+    // Page → main IPC transport: injected main-world code calls
+    // window.__spzSend(kind, payload, cb) which logs a marked console line;
+    // responses are delivered back via executeJavaScript. This replaces the
+    // cross-world postMessage bridges that died in Electron 42 (dialog
+    // banners, hover-translate, Super Drag).
+    webContents.on('console-message', function(event, level, message) {
+      try {
+        var msg = (typeof message === 'string' && message) ? message : (event && event.message) || '';
+        if (!msg || msg.indexOf('__SPZIPC__') !== 0) return;
+        var req = JSON.parse(msg.slice(10));
+        _handlePageIpc(webContents, req);
+      } catch(e) {}
+    });
+
     // Apply the sec-ch-ua substitution to the webview session — CRITICAL for incognito,
     // since each incognito tab creates its own partition-session, on which
     // our default-session listener does not work. Without this Google in incognito
@@ -823,6 +1520,60 @@ app.whenReady().then(async () => {
     // Apply the current proxy settings to the new webview session (Tor/proxy),
     // otherwise incognito and new tabs go directly bypassing the proxy.
     try { _ensureProxyOnSession(webContents.session); } catch(e) {}
+
+    // Adblocker: attach to the webview's session. Incognito tabs each run in
+    // their own partition session — without this they had no ad/cookie-popup
+    // blocking at all. reEnable() is idempotent for the default session.
+    try {
+      if (adblocker && adblocker.isEnabled && adblocker.isEnabled()) {
+        adblocker.reEnable(webContents.session, _secBeforeRequest);
+      }
+    } catch(e) {}
+
+    // Engine-level UA/userAgentData override via CDP — eliminates the timing
+    // race where BotGuard read navigator.userAgentData (with the "Electron"
+    // brand) before the preload's async JS patch landed.
+    try { _applyUAOverrideViaDebugger(webContents); } catch(e) {}
+    webContents.on('did-start-navigation', function (_e, navUrl, _isInPlace, isMainFrame) {
+      // MAIN FRAME ONLY: subframe navigations (gstatic iframes on the Google
+      // login page, ad frames, etc.) fire this event too — acting on them
+      // flipped the UA between Firefox/Chrome mid-load and setUserAgent
+      // RESTARTED the whole page → infinite reload loop.
+      if (!isMainFrame) return;
+      // navUrl = the DESTINATION of this navigation — the only reliable
+      // moment to decide whether the debugger must be attached or detached.
+      try { _applyUAOverrideViaDebugger(webContents, navUrl); } catch(e) {}
+    });
+    // NOTE: no did-start-loading hook here — at that moment getURL() still
+    // returns the PREVIOUS page, so the auth/non-auth decision is wrong and
+    // the resulting setUserAgent ping-pong restarted the load endlessly.
+    // did-start-navigation above fires for every navigation WITH the correct
+    // destination URL.
+
+    // Per-site JavaScript toggle (Site Info panel). Enforced at the engine
+    // level via CDP so it works live, without recreating the webview.
+    // Re-applied on every navigation because the flag resets per document.
+    function _applySiteJsPolicy(navUrlArg) {
+      try {
+        if (!webContents || webContents.isDestroyed()) return;
+        // Prefer the navigation DESTINATION — getURL() at navigation start
+        // still returns the previous page (wrong host for the policy).
+        var url = (typeof navUrlArg === 'string' && navUrlArg) || webContents.getURL();
+        if (!url || (url.indexOf('http://') !== 0 && url.indexOf('https://') !== 0)) return;
+        var host = '';
+        try { host = new URL(url).hostname; } catch(e) { return; }
+        var v = _sitePermFor(host, 'javascript');
+        if (v === undefined) return;
+        // Never (re-)attach the debugger on login pages — an attached CDP
+        // session is a BotGuard signal there.
+        if (_isAuthSensitiveUrl(url)) return;
+        var dbg = webContents.debugger;
+        try { if (!dbg.isAttached()) dbg.attach('1.3'); } catch(e) {}
+        dbg.sendCommand('Emulation.setScriptExecutionDisabled', { value: v === false }).catch(function() {});
+      } catch(e) {}
+    }
+    webContents.on('did-start-navigation', function (_e, navUrl) { _applySiteJsPolicy(navUrl); });
+    webContents.on('dom-ready', function () { _applySiteJsPolicy(); });
 
     webContents.on('before-input-event', (event, input) => {
       _handleBrowserShortcut(event, input, webContents);
@@ -852,99 +1603,57 @@ function _saveWindowState() {
 
 app.on('window-all-closed', () => {
   _saveWindowState();
+  _clearSessionMarker();
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
-// IPC handlers for window controls
-ipcMain.on('window-minimize', () => {
-  if (mainWindow) mainWindow.minimize();
+// IPC handlers for window controls (act on the window that sent the request —
+// the incognito shell window must not control the main window)
+ipcMain.on('window-minimize', (event) => {
+  var win = _shellWindowOf(event.sender);
+  if (win) win.minimize();
 });
 
-ipcMain.on('window-maximize', () => {
-  if (!mainWindow) return;
-  if (mainWindow.isMaximized()) {
-    mainWindow.unmaximize();
+ipcMain.on('window-maximize', (event) => {
+  var win = _shellWindowOf(event.sender);
+  if (!win) return;
+  if (win.isMaximized()) {
+    win.unmaximize();
   } else {
-    mainWindow.maximize();
+    win.maximize();
   }
 });
 
-ipcMain.on('window-close', () => {
-  if (!mainWindow) return;
-  try {
-    const store = readStorage();
-    store.saveTabs = saveTabsSetting;
-    store.saveInternalPages = saveInternalPagesSetting;
-    store.savedTabs = savedTabs;
-    writeStorage(store);
-  } catch(e) {}
-  mainWindow.close();
+ipcMain.on('window-close', (event) => {
+  var win = _shellWindowOf(event.sender);
+  if (!win) return;
+  if (win === mainWindow) {
+    try {
+      const store = readStorage();
+      store.saveTabs = saveTabsSetting;
+      store.saveInternalPages = saveInternalPagesSetting;
+      store.savedTabs = savedTabs;
+      writeStorage(store);
+    } catch(e) {}
+  }
+  win.close();
 });
 
-// ============== IN-MEMORY STORAGE (simple stubs for API) ==============
-// In a real browser this data should be persisted to files/DB
-const Store = require('electron').app.getPath ? null : null;
-
-// Simple JSON file-based storage
-const storagePath = path.join(electronApp.getPath('userData'), 'settings.json');
+// Central storage: cached reads + atomic writes (see storage.js). The
+// wrappers keep the 200+ legacy call sites untouched; new code should prefer
+// updateStorage(fn) for race-free read-modify-write.
+const storage = require('./storage');
+const storagePath = storage.storagePath();
 function readStorage() {
-  try {
-    if (fs.existsSync(storagePath)) {
-      return JSON.parse(fs.readFileSync(storagePath, 'utf-8'));
-    }
-  } catch(e) {}
-  return {};
+  return storage.read();
 }
 function writeStorage(data) {
-  try {
-    if (!data || typeof data !== 'object') return;
-    // === Bloat guard ===
-    // settings.json is read synchronously on every IPC call. If it grows
-    // past a couple of MB the whole browser becomes sluggish and crashes.
-    // We hard-cap the worst offenders on every write.
-    try {
-      // 1) blockedLog — limit to 200 entries.
-      if (Array.isArray(data.blockedLog) && data.blockedLog.length > 200) {
-        data.blockedLog = data.blockedLog.slice(-200);
-      }
-      // 2) Base64 background images can balloon to 250KB each and are often
-      //    stored 2-3 times (customization + mainPage). Hard-cap each to
-      //    100KB and de-duplicate identical strings.
-      var cust = (data.customization && typeof data.customization === 'object') ? data.customization : null;
-      var mp = (data.mainPage && typeof data.mainPage === 'object') ? data.mainPage : null;
-      var cbi = cust ? cust.customBackgroundImage : '';
-      // Pairwise dedup: if mainPageBackground / startpozi_background equal
-      // customBackgroundImage, drop the duplicates (keep just one copy).
-      if (cbi && typeof cbi === 'string' && cbi.length > 5000) {
-        if (cust && cust.mainPageBackground === cbi) delete cust.mainPageBackground;
-        if (mp && mp.startpozi_background === cbi) delete mp.startpozi_background;
-      } else if (cust && mp && cust.mainPageBackground && cust.mainPageBackground === mp.startpozi_background) {
-        delete mp.startpozi_background;
-      }
-      // Cap individual long base64 strings at 100KB to keep the file
-      // bounded even if dedup did not catch them.
-      function capStr(parent, key) {
-        if (parent && typeof parent === 'object' && typeof parent[key] === 'string' && parent[key].length > 100000) {
-          parent[key] = parent[key].slice(0, 100000);
-        }
-      }
-      capStr(cust, 'customBackgroundImage');
-      capStr(cust, 'mainPageBackground');
-      capStr(mp, 'startpozi_background');
-      // 3) Sanity cap: if the whole settings.json somehow exceeds 1.5 MB
-      //    after the above, drop blockedLog entirely and re-trim. This is
-      //    a last-resort safety so the browser can never lock itself out.
-      try {
-        var preview = JSON.stringify(data);
-        if (preview.length > 1500000) {
-          data.blockedLog = (data.blockedLog || []).slice(-50);
-        }
-      } catch(_) {}
-    } catch(_) {}
-    fs.writeFileSync(storagePath, JSON.stringify(data, null, 2), 'utf-8');
-  } catch(e) {}
+  storage.write(data);
+}
+function updateStorage(fn) {
+  return storage.update(fn);
 }
 
 // ============== BACKGROUND IMAGE PERSISTENCE ==============
@@ -1454,12 +2163,12 @@ function cleanTrackingUrl(rawUrl) {
   }
 }
 
+var _dntEnabled = true;
 function applySecuritySettings() {
   if (!_mainWindow) return;
   var ses = _mainWindow.webContents.session;
   var store = readStorage();
   var sec = store.security || {};
-
   if (_secBeforeSendHeaders) { try { ses.webRequest.onBeforeSendHeaders(null); } catch(e) {} _secBeforeSendHeaders = null; }
 
   var needBeforeRequest = sec.httpsOnly || sec.blockMixedContent || sec.urlClean;
@@ -1502,7 +2211,10 @@ function applySecuritySettings() {
   // Permission handler is now owned by _makePermissionHandler (single source
   // of truth). Security toggles are evaluated inside it, so we just refresh
   // the bound config — never overwrite with a stripped-down handler again.
-  try { ses.setPermissionRequestHandler(_makePermissionHandler(sec)); } catch(e) {}
+  try {
+    ses.setPermissionRequestHandler(_makePermissionHandler(sec));
+    ses.setPermissionCheckHandler(_makePermissionCheckHandler(sec));
+  } catch(e) {}
 
   if (sec.blockThirdPartyCookies) {
     _secBeforeSendHeaders = function(details, callback) {
@@ -1557,37 +2269,57 @@ function applySecuritySettings() {
   // Always wrap the listener so the security logic runs BEFORE
   // the sec-ch-ua substitution (substitution must be at the very end — it is critical for
   // Google login and must not be dropped by any privacy settings).
+  _dntEnabled = sec.dnt !== false;
   var securityHandler = _secBeforeSendHeaders;
   _secBeforeSendHeaders = function(details, callback) {
     if (!securityHandler) {
       var h0 = details.requestHeaders || {};
-      _applyChromeHeadersToObject(h0);
+      if (_dntEnabled) { h0['DNT'] = '1'; h0['Sec-GPC'] = '1'; }
+      _stripSiteCookies(details, h0);
+      _applyChromeHeadersToObject(h0, details.url, _wcProfile(details));
       callback({ requestHeaders: h0 });
       return;
     }
     securityHandler(details, function(res) {
       var h1 = (res && res.requestHeaders) || details.requestHeaders || {};
-      _applyChromeHeadersToObject(h1);
+      if (_dntEnabled) { h1['DNT'] = '1'; h1['Sec-GPC'] = '1'; }
+      _stripSiteCookies(details, h1);
+      _applyChromeHeadersToObject(h1, details.url, _wcProfile(details));
       callback({ requestHeaders: h1 });
     });
   };
 
   ses.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, _secBeforeSendHeaders);
-  _chromeHeaderSessions.add('default');
+  _chromeHeaderSessions.add(ses);
 
-  // === TOR HARDENING — CSP injection via onHeadersReceived ===
+  // === CSP injection via onHeadersReceived (SINGLE handler) ===
+  // Electron allows only ONE onHeadersReceived listener per session, so the
+  // internal-page CSP (file://) and the Tor-hardening CSP (http/https) MUST
+  // share this handler. Previously applySecuritySettings() installed the
+  // hardening handler and app.whenReady() then replaced it with the file://
+  // CSP handler — silently disabling all hardening until the next toggle.
   // store.security.torHardening = { js, webgl, fonts, plugins, iframes, base }
-  // Each option is independent. Applied to http/https (we do not touch file://).
+  // Each option is independent. Applied to http/https (we do not touch file://
+  // beyond the minimal internal-page CSP).
   // IMPORTANT: in Electron details.responseHeaders — is an OBJECT {name: value},
   // not an array (previously there was headers.push here → it crashed).
   try { ses.webRequest.onHeadersReceived(null); } catch(e) {}
   var th = sec.torHardening || {};
   var anyHardening = th.js || th.fonts || th.plugins || th.iframes || th.base;
   // webgl separately — via preload-webview (CSP does not block it correctly).
-  if (anyHardening) {
-    ses.webRequest.onHeadersReceived({ urls: ['http://*/*', 'https://*/*'] }, function(details, callback) {
-      try {
-        // Build CSP from individual toggles
+  ses.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, function(details, callback) {
+    try {
+      var durl = details.url || '';
+      var csp = null;
+
+      if (durl.indexOf('file://') === 0) {
+        // Content-Security-Policy for internal (file://) pages only.
+        // Deliberately minimal so it cannot break the app (inline
+        // scripts/styles stay allowed), but it closes two real vectors:
+        // <object>/<embed> plugin attacks and <base href> hijack.
+        csp = "object-src 'none'; base-uri 'self'";
+      } else if (anyHardening && (durl.indexOf('http://') === 0 || durl.indexOf('https://') === 0)) {
+        // Tor hardening — build CSP from individual toggles.
         var parts = [];
         if (th.js) {
           parts.push("script-src 'none'");
@@ -1604,52 +2336,129 @@ function applySecuritySettings() {
         if (th.base) {
           parts.push("base-uri 'self'");
         }
-        if (parts.length === 0) { callback({}); return; }
-        var csp = parts.join('; ');
-        var headers = details.responseHeaders;
-        if (!headers) { callback({}); return; }
-        // Object format (Electron)
-        if (!Array.isArray(headers)) {
-          var existingKey = null;
-          Object.keys(headers).forEach(function(k) {
-            if (k && k.toLowerCase() === 'content-security-policy') existingKey = k;
-          });
-          if (existingKey) {
-            var ev = headers[existingKey];
-            var firstVal = Array.isArray(ev) ? (ev[0] || '') : (ev || '');
-            var rest = Array.isArray(ev) ? ev.slice(1) : [];
-            headers[existingKey] = [csp + '; ' + firstVal].concat(rest);
-          } else {
-            headers['Content-Security-Policy'] = csp;
+        if (parts.length > 0) csp = parts.join('; ');
+      }
+
+      if (!csp) {
+        // Even without a CSP to inject, per-site cookie blocking must strip
+        // Set-Cookie from the response.
+        try {
+          var _ckHost0 = '';
+          try { _ckHost0 = new URL(durl).hostname; } catch(e) {}
+          var _hdrs0 = details.responseHeaders;
+          if (_ckHost0 && !Array.isArray(_hdrs0) && _hdrs0 &&
+              _sitePermFor(_ckHost0, 'cookies') === false) {
+            Object.keys(_hdrs0).forEach(function(k) {
+              if (k && k.toLowerCase() === 'set-cookie') delete _hdrs0[k];
+            });
+            callback({ responseHeaders: _hdrs0 });
+            return;
           }
-          callback({ responseHeaders: headers });
-          return;
-        }
-        // Array format (just in case)
-        var existingIdx = -1;
-        for (var i = 0; i < headers.length; i++) {
-          if (headers[i] && headers[i].name && headers[i].name.toLowerCase() === 'content-security-policy') {
-            existingIdx = i; break;
+        } catch(e2) {}
+        callback({});
+        return;
+      }
+      var headers = details.responseHeaders;
+      if (!headers) { callback({}); return; }
+      // Per-site cookie blocking — drop Set-Cookie from responses of sites
+      // the user blocked cookies for (object header format).
+      if (!Array.isArray(headers)) {
+        try {
+          var _ckHost = '';
+          try { _ckHost = new URL(durl).hostname; } catch(e) {}
+          if (_ckHost && _sitePermFor(_ckHost, 'cookies') === false) {
+            Object.keys(headers).forEach(function(k) {
+              if (k && k.toLowerCase() === 'set-cookie') delete headers[k];
+            });
           }
-        }
-        if (existingIdx >= 0) {
-          headers[existingIdx].value = csp + '; ' + (headers[existingIdx].value || '');
+        } catch(e2) {}
+      }
+      // Object format (Electron)
+      if (!Array.isArray(headers)) {
+        var existingKey = null;
+        Object.keys(headers).forEach(function(k) {
+          if (k && k.toLowerCase() === 'content-security-policy') existingKey = k;
+        });
+        if (existingKey) {
+          var ev = headers[existingKey];
+          var firstVal = Array.isArray(ev) ? (ev[0] || '') : (ev || '');
+          var rest = Array.isArray(ev) ? ev.slice(1) : [];
+          headers[existingKey] = [csp + '; ' + firstVal].concat(rest);
         } else {
-          headers.push({ name: 'Content-Security-Policy', value: csp });
+          headers['Content-Security-Policy'] = csp;
         }
         callback({ responseHeaders: headers });
-      } catch(e) {
-        callback({});
+        return;
       }
-    });
-  }
+      // Array format (just in case)
+      var existingIdx = -1;
+      for (var i = 0; i < headers.length; i++) {
+        if (headers[i] && headers[i].name && headers[i].name.toLowerCase() === 'content-security-policy') {
+          existingIdx = i; break;
+        }
+      }
+      if (existingIdx >= 0) {
+        headers[existingIdx].value = csp + '; ' + (headers[existingIdx].value || '');
+      } else {
+        headers.push({ name: 'Content-Security-Policy', value: csp });
+      }
+      callback({ responseHeaders: headers });
+    } catch(e) {
+      callback({});
+    }
+  });
 }
 
 // === Substitute sec-ch-ua / User-Agent to Chrome ===
 // Applied to ALL sessions, including incognito-partitions, otherwise in incognito
 // Google will see the "Electron" brand again and block login.
-function _applyChromeHeadersToObject(headers) {
+// Firefox UA for login pages: Google's Chromium-build fingerprinting blocks
+// ANY Electron build regardless of the Chrome masquerade (verified by the
+// community, incl. castlabs). Presenting as Firefox switches Google to a
+// different code path without the Chrome attestation — Firefox sends NO
+// client hints at all (no sec-ch-ua headers, no navigator.userAgentData,
+// no window.chrome), which we mirror exactly.
+var _firefoxUa = process.platform === 'win32'
+  ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0'
+  : process.platform === 'darwin'
+  ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:148.0) Gecko/20100101 Firefox/148.0'
+  : 'Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0';
+
+// UA profile per webContents: 'ff' while the tab shows a login page (Firefox
+// masquerade via CDP), 'chrome' otherwise. The header rewriter consults this
+// instead of the request URL — subresources of an auth page must carry the
+// SAME UA as the document (real Firefox never mixes sec-ch-ua into a page),
+// and a normal page embedding an accounts.google.com iframe must not flip.
+var _uaProfileByWc = new Map();
+function _wcProfile(details) {
+  try {
+    var id = details && details.webContentsId;
+    if (id && _uaProfileByWc.has(id)) return _uaProfileByWc.get(id);
+  } catch (e) {}
+  return 'chrome';
+}
+
+function _applyChromeHeadersToObject(headers, requestUrl, profileOverride) {
   if (!headers) return headers;
+  if (profileOverride === 'ff') {
+    // Firefox profile: strip EVERY client hint + set the Firefox UA.
+    try {
+      Object.keys(headers).forEach(function(k) {
+        var lk = k.toLowerCase();
+        if (lk === 'sec-ch-ua' || lk === 'sec-ch-ua-mobile' || lk === 'sec-ch-ua-platform' ||
+            lk === 'sec-ch-ua-arch' || lk === 'sec-ch-ua-bitness' || lk === 'sec-ch-ua-full-version' ||
+            lk === 'sec-ch-ua-full-version-list' || lk === 'sec-ch-ua-model' ||
+            lk === 'sec-ch-ua-platform-version' || lk === 'sec-ch-ua-wow64' || lk === 'x-client-data') {
+          delete headers[k];
+        }
+      });
+      var uaKey = null;
+      Object.keys(headers).forEach(function(k) { if (k.toLowerCase() === 'user-agent') uaKey = k; });
+      if (uaKey) headers[uaKey] = _firefoxUa;
+      else headers['User-Agent'] = _firefoxUa;
+    } catch (e) {}
+    return headers;
+  }
   // Remove ALL variants of sec-ch-ua headers (different cases) before setting our own.
   Object.keys(headers).forEach(function(k) {
     var lk = k.toLowerCase();
@@ -1689,32 +2498,32 @@ function _applyChromeHeadersToObject(headers) {
   }
   var uaKey = null;
   Object.keys(headers).forEach(function(k) { if (k.toLowerCase() === 'user-agent') uaKey = k; });
-  if (!uaKey || headers[uaKey].indexOf('Electron') > -1) {
-    if (uaKey) delete headers[uaKey];
-    headers['User-Agent'] = _uaPlatformString;
-  }
+  // Always force the Chrome UA on non-auth requests: the webContents may
+  // still carry the Firefox UA from a previous login-page visit.
+  if (uaKey) headers[uaKey] = _uaPlatformString;
+  else headers['User-Agent'] = _uaPlatformString;
   return headers;
 }
-var _chromeHeaderSessions = new Set();
+var _chromeHeaderSessions = new WeakSet();
 // Applies sec-ch-ua substitution to ANY session (default is skipped — it is configured by
 // applySecuritySettings with the security+sec-ch-ua chain). Called from
 // web-contents-created for each new webview, including incognito.
+// Keyed by session OBJECT (WeakSet): the old string key via
+// `ses.partition || storagePath` collapsed every in-memory incognito session
+// into 'storage:null' — the 2nd+ incognito tab got NO masquerade at all.
 function _ensureChromeHeadersOnSession(ses) {
   if (!ses) return;
   var isDefault = false;
   try { isDefault = (ses === session.defaultSession); } catch(e) {}
-  var key = null;
-  try {
-    if (isDefault) key = 'default';
-    else { key = ses.partition || ('storage:' + ses.getStoragePath()); }
-  } catch(e) { key = 'unknown-' + Date.now(); }
-  if (!key || _chromeHeaderSessions.has(key)) return;
-  _chromeHeaderSessions.add(key);
+  if (_chromeHeaderSessions.has(ses)) return;
+  _chromeHeaderSessions.add(ses);
   if (isDefault) return; // default is configured in applySecuritySettings
   try {
     ses.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, function(details, callback) {
       var h = details.requestHeaders || {};
-      _applyChromeHeadersToObject(h);
+      if (_dntEnabled) { h['DNT'] = '1'; h['Sec-GPC'] = '1'; }
+      _stripSiteCookies(details, h);
+      _applyChromeHeadersToObject(h, details.url, _wcProfile(details));
       callback({ requestHeaders: h });
     });
     try { ses.setUserAgent(_uaPlatformString); } catch(e) {}
@@ -1736,6 +2545,7 @@ try {
 // Save tabs when app quits
 app.on('before-quit', () => {
   _saveWindowState();
+  _clearSessionMarker();
   const store = readStorage();
   store.saveTabs = saveTabsSetting;
   store.saveInternalPages = saveInternalPagesSetting;
@@ -1815,18 +2625,29 @@ ipcMain.on('permission-response', (event, data) => {
 });
 
 // IPC from preload override (alert/confirm/prompt in webview pages)
-ipcMain.handle('dialog-request', (event, data) => {
+// Shared dialog logic: used by the 'dialog-request' IPC (preload-webview of
+// internal pages) and by the console transport of external pages.
+function _requestPageDialog(senderWc, data) {
   return new Promise((resolve) => {
-    if (!mainWindow || mainWindow.isDestroyed()) { resolve(null); return; }
+    var dlgShell = _shellWindowOf(senderWc);
+    if (!dlgShell || dlgShell.isDestroyed()) { resolve(null); return; }
     var dialogId = 'drq-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
-    _pendingDialogs[dialogId] = { type: data.type, resolve: resolve };
+    var settled = false;
+    _pendingDialogs[dialogId] = { type: data.type, resolve: function(v) { settled = true; resolve(v); } };
+    // Safety timeout: never leave the page's dialog promise pending forever.
+    setTimeout(function() {
+      var pending = _pendingDialogs[dialogId];
+      if (!pending || settled) return;
+      delete _pendingDialogs[dialogId];
+      try { pending.resolve(null); } catch(e) {}
+    }, 120000);
     var pageUrl = '';
     var pageDomain = '';
     try {
-      pageUrl = event && event.sender && event.sender.getURL ? event.sender.getURL() : '';
+      pageUrl = senderWc && senderWc.getURL ? senderWc.getURL() : '';
       if (pageUrl) pageDomain = new URL(pageUrl).hostname;
     } catch(e) {}
-    mainWindow.webContents.send('show-webview-dialog', {
+    dlgShell.webContents.send('show-webview-dialog', {
       dialogId: dialogId,
       type: data.type,
       message: data.message || '',
@@ -1835,7 +2656,44 @@ ipcMain.handle('dialog-request', (event, data) => {
       domain: pageDomain
     });
   });
+}
+
+ipcMain.handle('dialog-request', (event, data) => {
+  return _requestPageDialog(event.sender, data || {});
 });
+
+// Console-transport dispatcher (see the 'console-message' listener in
+// web-contents-created). Kinds: dialog, translate, superdrag.
+function _handlePageIpc(wc, req) {
+  if (!req || !wc || wc.isDestroyed()) return;
+  var kind = req.kind;
+  var id = req.id;
+  function respond(result) {
+    try {
+      if (!wc || wc.isDestroyed() || !id) return;
+      wc.executeJavaScript(
+        'window.__spzIpcResponse && window.__spzIpcResponse(' + JSON.stringify(id) + ', ' + JSON.stringify(result === undefined ? null : result) + ')',
+        false
+      ).catch(function() {});
+    } catch(e) {}
+  }
+  try {
+    if (kind === 'dialog') {
+      var d = req.payload || {};
+      _requestPageDialog(wc, { type: d.type, message: d.message || '', defaultText: d.defaultText || '' })
+        .then(respond);
+    } else if (kind === 'translate') {
+      var tp = req.payload || {};
+      _translateText(String(tp.text || ''), tp.from, tp.to).then(respond);
+    } else if (kind === 'superdrag') {
+      var sp = req.payload || {};
+      _superDragAction(wc, String(sp.kind || ''), sp.payload || '');
+      respond({ ok: true });
+    }
+  } catch(e) {
+    try { respond(null); } catch(e2) {}
+  }
+}
 
 // ============== THEME ==============
 ipcMain.handle('get-theme', () => {
@@ -1861,8 +2719,17 @@ ipcMain.handle('set-window-opacity', (_, opacity) => {
   const store = readStorage();
   store.windowOpacity = opacity;
   writeStorage(store);
+  var clamped = Math.max(0.1, Math.min(1, opacity));
   if (mainWindow) {
-    try { mainWindow.setOpacity(Math.max(0.1, Math.min(1, opacity))); } catch(e) {}
+    try { mainWindow.setOpacity(clamped); } catch(e) {}
+    // Notify the renderer so it applies the CSS-based opacity/blur layer.
+    // The native setOpacity() has no visible effect on Linux when the window
+    // is created with transparent:true, so the renderer's --win-opacity /
+    // blur background is what actually produces the dimming. Without this
+    // broadcast the slider moved but nothing changed on screen.
+    try {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-opacity-changed', clamped);
+    } catch(e) {}
   }
   return { success: true };
 });
@@ -1906,42 +2773,84 @@ ipcMain.handle('set-search-engine', (_, url) => {
   return { success: true };
 });
 
-ipcMain.handle('search-suggest', (_, query) => {
-  return new Promise((resolve) => {
-    if (!query || query.length < 2) return resolve([]);
-    const store = readStorage();
-    const se = store.searchEngine || '';
-    let suggestUrl;
-    if (se.indexOf('google') !== -1) {
-      suggestUrl = 'https://suggestqueries.google.com/complete/search?client=firefox&q=' + encodeURIComponent(query);
-    } else if (se.indexOf('yandex') !== -1) {
-      suggestUrl = 'https://suggest.yandex.com/suggest-ff.cgi?part=' + encodeURIComponent(query) + '&uil=ru&v=3&sn=5&lr=213';
-    } else {
-      suggestUrl = 'https://duckduckgo.com/ac/?q=' + encodeURIComponent(query);
+// ============== EXTERNAL SERVICES ==============
+// Every third-party endpoint the browser can talk to, in one place. Each
+// network-touching feature can be disabled in Settings → Security →
+// "External services" (keys of store.security): suggestEnabled,
+// translateEnabled, hibpEnabled, diagnosticsEnabled.
+const EXTERNAL_SERVICES = {
+  suggest: {
+    google: 'https://suggestqueries.google.com/complete/search?client=firefox&q=',
+    yandex: 'https://suggest.yandex.com/suggest-ff.cgi?part=',
+    duckduckgo: 'https://duckduckgo.com/ac/?q='
+  },
+  translate: 'https://translate.googleapis.com/translate_a/single',
+  hibp: 'https://api.pwnedpasswords.com/range/',
+  torCheck: 'https://check.torproject.org/api/ip',
+  geo: 'https://ipapi.co/json/',
+  geoFallback: 'https://ipinfo.io/json',
+  speedTest: 'https://speed.cloudflare.com/__down?bytes='
+};
+
+function _svcEnabled(key) {
+  // Every service is opt-out; absence of the setting means ENABLED.
+  try {
+    var sec = readStorage().security || {};
+    return sec[key] !== false;
+  } catch (e) { return true; }
+}
+
+ipcMain.handle('get-external-services', () => {
+  return {
+    success: true,
+    services: [
+      { key: 'suggestEnabled',      url: 'suggestqueries.google.com / suggest.yandex.com / duckduckgo.com' },
+      { key: 'translateEnabled',    url: 'translate.googleapis.com' },
+      { key: 'hibpEnabled',         url: 'api.pwnedpasswords.com' },
+      { key: 'diagnosticsEnabled',  url: 'check.torproject.org / ipapi.co / ipinfo.io / speed.cloudflare.com' }
+    ],
+    enabled: {
+      suggestEnabled: _svcEnabled('suggestEnabled'),
+      translateEnabled: _svcEnabled('translateEnabled'),
+      hibpEnabled: _svcEnabled('hibpEnabled'),
+      diagnosticsEnabled: _svcEnabled('diagnosticsEnabled')
     }
-    const req = https.get(suggestUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' }, timeout: 3000 }, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          let suggestions = [];
-          if (Array.isArray(json)) {
-            if (Array.isArray(json[1])) {
-              suggestions = json[1].map(s => typeof s === 'string' ? s : (s.phrase || s.text || '')).filter(Boolean);
-            } else {
-              suggestions = json.map(s => typeof s === 'string' ? s : (s.phrase || s.text || '')).filter(Boolean);
-            }
-          } else if (json && Array.isArray(json.suggestions)) {
-            suggestions = json.suggestions.map(s => typeof s === 'string' ? s : (s.value || s.text || '')).filter(Boolean);
-          }
-          resolve(suggestions.slice(0, 6));
-        } catch(e) { resolve([]); }
+  };
+});
+
+
+ipcMain.handle('search-suggest', async (_, query) => {
+  if (!_svcEnabled('suggestEnabled')) return [];
+  if (!query || query.length < 2) return [];
+  const store = readStorage();
+  const se = store.searchEngine || '';
+  let suggestUrl;
+  if (se.indexOf('google') !== -1) {
+    suggestUrl = EXTERNAL_SERVICES.suggest.google + encodeURIComponent(query);
+  } else if (se.indexOf('yandex') !== -1) {
+    suggestUrl = EXTERNAL_SERVICES.suggest.yandex + encodeURIComponent(query) + '&uil=ru&v=3&sn=5&lr=213';
+  } else {
+    suggestUrl = EXTERNAL_SERVICES.suggest.duckduckgo + encodeURIComponent(query);
+  }
+  try {
+    const resp = await require('electron').net.fetch(suggestUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' },
+      signal: AbortSignal.timeout(3000)
     });
-  });
-    req.on('error', () => resolve([]));
-    req.on('timeout', () => { req.destroy(); resolve([]); });
-  });
+    if (!resp.ok) return [];
+    const json = await resp.json();
+    let suggestions = [];
+    if (Array.isArray(json)) {
+      if (Array.isArray(json[1])) {
+        suggestions = json[1].map(s => typeof s === 'string' ? s : (s.phrase || s.text || '')).filter(Boolean);
+      } else {
+        suggestions = json.map(s => typeof s === 'string' ? s : (s.phrase || s.text || '')).filter(Boolean);
+      }
+    } else if (json && Array.isArray(json.suggestions)) {
+      suggestions = json.suggestions.map(s => typeof s === 'string' ? s : (s.value || s.text || '')).filter(Boolean);
+    }
+    return suggestions.slice(0, 6);
+  } catch(e) { return []; }
 });
 
 // ============== STARTUP ==============
@@ -2136,16 +3045,18 @@ function _tmProcessLabel(type) {
 }
 
 // Actions from Task Manager → forward to the renderer for execution
-ipcMain.on('task-manager-action', (_, action, tabId) => {
-  if (_mainWindow && !_mainWindow.isDestroyed()) {
-    _mainWindow.webContents.send('task-manager-action', { action: action, tabId: tabId });
+ipcMain.on('task-manager-action', (event, action, tabId) => {
+  var win = _shellWindowOf(event.sender);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('task-manager-action', { action: action, tabId: tabId });
   }
 });
 
 // Bulk optimization operations from Settings.html (which has no access to tabs[])
-ipcMain.on('optimization-sleep-all', () => {
-  if (_mainWindow && !_mainWindow.isDestroyed()) {
-    _mainWindow.webContents.send('task-manager-action', { action: 'sleepAll' });
+ipcMain.on('optimization-sleep-all', (event) => {
+  var win = _shellWindowOf(event.sender);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('task-manager-action', { action: 'sleepAll' });
   }
 });
 
@@ -2172,7 +3083,9 @@ ipcMain.handle('remove-filter-list', (_, url) => {
   return { success: true };
 });
 ipcMain.handle('update-filter-lists', () => {
-  if (adblocker && adblocker.reloadFromLists) {
+  if (adblocker && adblocker.updateAllLists) {
+    adblocker.updateAllLists();
+  } else if (adblocker && adblocker.reloadFromLists) {
     adblocker.reloadFromLists();
   }
   return { success: true };
@@ -2192,13 +3105,19 @@ ipcMain.handle('save-custom-hide-styles', (_, text) => {
 
 // ============== BLOCKED LOG ==============
 ipcMain.handle('get-blocked-log', () => {
-  const store = readStorage();
-  return store.blockedLog || [];
+  return (adblocker && adblocker.getBlockedLog) ? adblocker.getBlockedLog() : [];
 });
 ipcMain.handle('clear-blocked-log', () => {
+  if (adblocker && adblocker.clearBlockedLog) adblocker.clearBlockedLog();
   const store = readStorage();
-  store.blockedLog = [];
-  writeStorage(store);
+  if (store.blockedLog) { store.blockedLog = []; writeStorage(store); }
+  return { success: true };
+});
+ipcMain.handle('get-blocker-log-persistent', () => {
+  return !!(adblocker && adblocker.isLogPersistent && adblocker.isLogPersistent());
+});
+ipcMain.handle('set-blocker-log-persistent', (_, val) => {
+  if (adblocker && adblocker.setLogPersistent) adblocker.setLogPersistent(!!val);
   return { success: true };
 });
 
@@ -2239,6 +3158,12 @@ ipcMain.on('get-geo-override-sync', (event, domain) => {
 
 ipcMain.handle('get-security-setting', (_, key) => {
   const store = readStorage();
+  // Opt-out settings: absent means ENABLED (DNT signal, external services).
+  var optOutKeys = ['dnt', 'suggestEnabled', 'translateEnabled', 'hibpEnabled', 'diagnosticsEnabled'];
+  if (optOutKeys.indexOf(key) !== -1) {
+    if (!store.security || store.security[key] === undefined) return true;
+    return !!store.security[key];
+  }
   if (!store.security) return false;
   return !!store.security[key];
 });
@@ -2253,6 +3178,252 @@ ipcMain.handle('set-security-setting', (_, key, val) => {
 ipcMain.handle('get-all-security-settings', () => {
   const store = readStorage();
   return store.security || {};
+});
+
+// ===== DoH (DNS-over-HTTPS) settings =====
+// Applied via command-line switches at startup (see applyDnsThroughProxyFlag),
+// so a change needs a browser restart — the setter reports that back.
+ipcMain.handle('doh-get-settings', () => {
+  const store = readStorage();
+  return store.doh || { enabled: false, server: '', mode: 'automatic' };
+});
+ipcMain.handle('doh-set-settings', (_, cfg) => {
+  const store = readStorage();
+  var next = {
+    enabled: !!(cfg && cfg.enabled),
+    server: (cfg && typeof cfg.server === 'string') ? cfg.server.trim() : '',
+    mode: (cfg && cfg.mode === 'secure') ? 'secure' : 'automatic'
+  };
+  if (next.enabled && !/^https:\/\/[^\s]+/.test(next.server)) next.enabled = false;
+  var prev = store.doh || { enabled: false, server: '', mode: 'automatic' };
+  var changed = !prev || prev.enabled !== next.enabled || prev.server !== next.server || prev.mode !== next.mode;
+  store.doh = next;
+  writeStorage(store);
+  return { success: true, needRestart: changed };
+});
+
+// ===== "Open site as app" (minimal SSB) =====
+// A chromeless window per origin: no tabs/url bar, just the site. Windows
+// are keyed by origin — a second "open" focuses the existing one.
+var _appWindows = {};
+ipcMain.handle('open-site-as-app', (_, url) => {
+  try {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { ok: false };
+    var u = new URL(url);
+    var key = u.origin;
+    if (_appWindows[key]) {
+      var ex = _appWindows[key];
+      if (!ex.isDestroyed()) { ex.show(); ex.focus(); return { ok: true }; }
+      delete _appWindows[key];
+    }
+    var w = new BrowserWindow({
+      width: 1280,
+      height: 860,
+      title: u.hostname,
+      backgroundColor: '#16161e',
+      autoHideMenuBar: true,
+      webPreferences: {
+        session: session.defaultSession,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+    _appWindows[key] = w;
+    w.on('closed', function() { delete _appWindows[key]; });
+    // Block window.open popups inside app windows (keep the app single-window).
+    w.webContents.setWindowOpenHandler(function() { return { action: 'deny' }; });
+    w.loadURL(url);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+// ===== Torrent client — REMOVED =====
+// The webtorrent-based client was dropped: its dependency tree pulls
+// ip@2.0.1 (unfixable advisory GHSA-2p57-rm9w-gvfp — no patched release
+// exists) which broke `npm audit fix` (it tried a webtorrent 0.7.3
+// downgrade depending on an unpublished package). Any residual
+// store.torrents key in settings.json is inert and ignored.
+
+// ===== File viewer =====
+// Viewer.html (JSON/Markdown/font/image) asks for local file content.
+// Internal file:// pages are trusted the but the surface is still limited:
+// only viewer-capable extensions are readable, and the browser's own data
+// directory (settings.json with passwords, backups, Tor state) is off-limits
+// so a compromised viewer page cannot exfiltrate profile secrets.
+const VIEWER_ALLOWED_EXTS = new Set([
+  'json', 'geojson', 'har',
+  'md', 'markdown', 'mdown',
+  'ttf', 'otf', 'woff', 'woff2',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'ico'
+]);
+function _pathInside(dir, p) {
+  try {
+    var rel = path.relative(dir, p);
+    return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  } catch (e) { return false; }
+}
+ipcMain.handle('viewer-read-file', (event, filePath, encoding) => {
+  try {
+    // Only the viewer page itself may read files: a compromised internal
+    // page (e.g. via injected theme CSS) must not gain arbitrary file reads.
+    var senderUrl = '';
+    try { senderUrl = event.senderFrame && event.senderFrame.url || ''; } catch (e0) {}
+    var senderPath = '';
+    try { senderPath = decodeURIComponent(new URL(senderUrl).pathname); } catch (e1) {}
+    if (process.platform === 'win32' && senderPath.startsWith('/')) senderPath = senderPath.slice(1);
+    var appDir = electronApp.getAppPath();
+    if (!senderPath || path.basename(senderPath) !== 'Viewer.html' || !_pathInside(appDir, path.dirname(senderPath))) {
+      return { ok: false, error: 'viewer access denied' };
+    }
+    if (typeof filePath !== 'string' || !filePath) return { ok: false, error: 'bad path' };
+    // Reject anything that is not a plain local path.
+    if (filePath.indexOf('file://') === 0) {
+      try { filePath = decodeURIComponent(new URL(filePath).pathname); } catch (e) {}
+    }
+    var extMatch = filePath.toLowerCase().match(/\.([a-z0-9]+)$/);
+    if (!extMatch || !VIEWER_ALLOWED_EXTS.has(extMatch[1])) {
+      return { ok: false, error: 'file type not supported by viewer' };
+    }
+    var resolved = path.resolve(filePath);
+    if (_pathInside(app.getPath('userData'), resolved)) {
+      return { ok: false, error: 'browser data directory is not readable' };
+    }
+    if (!fs.existsSync(resolved)) return { ok: false, error: 'not found' };
+    var st = fs.statSync(resolved);
+    if (!st.isFile()) return { ok: false, error: 'not a file' };
+    if (st.size > 64 * 1024 * 1024) return { ok: false, error: 'file too large (64 MB limit)' };
+    if (encoding === 'base64') {
+      return { ok: true, data: fs.readFileSync(resolved).toString('base64'), size: st.size };
+    }
+    var text = fs.readFileSync(resolved, 'utf8');
+    return { ok: true, data: text.length > 2000000 ? text.slice(0, 2000000) + '\n… (truncated at 2 MB)' : text, size: st.size };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+// ===== OCR (tesseract.js) =====
+// Takes a PNG (base64) captured by the OCR tool, recognizes text offline
+// (language data is downloaded once into userData/tessdata and cached).
+// Language: rus+eng when the UI language is Russian, eng otherwise.
+var _ocrWorker = null;
+var _ocrWorkerLang = '';
+var _ocrBusy = false;
+function _ocrLangs() {
+  try {
+    const store = readStorage();
+    return store.language === 'ru' ? 'rus+eng' : 'eng';
+  } catch (e) { return 'eng'; }
+}
+ipcMain.handle('ocr-recognize', async (_, pngBase64) => {
+  try {
+    if (_ocrBusy) return { ok: false, error: 'busy' };
+    if (typeof pngBase64 !== 'string' || pngBase64.length < 64) return { ok: false, error: 'bad image' };
+    var T = null;
+    try { T = require('tesseract.js'); } catch (e) { return { ok: false, error: 'tesseract.js not installed' }; }
+    _ocrBusy = true;
+    var lang = _ocrLangs();
+    try {
+      if (!_ocrWorker || _ocrWorkerLang !== lang) {
+        if (_ocrWorker) { try { await _ocrWorker.terminate(); } catch (e2) {} _ocrWorker = null; }
+        _ocrWorker = await T.createWorker(lang, 1, {
+          cachePath: path.join(electronApp.getPath('userData'), 'tessdata'),
+          logger: function() {}
+        });
+        _ocrWorkerLang = lang;
+      }
+      var buf = Buffer.from(pngBase64, 'base64');
+      var res = await _ocrWorker.recognize(buf);
+      var text = (res && res.data && res.data.text) || '';
+      return { ok: true, text: text.trim() };
+    } finally {
+      _ocrBusy = false;
+    }
+  } catch (e) {
+    _ocrBusy = false;
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+// ===== Per-page notes =====
+// Stored in settings.json under `pageNotes`: { [normalizedUrl]: text }.
+// Key = scheme://host/path?query (hash stripped) — the note follows the page,
+// not the session. Gated by security.pageNotes toggle in the renderer.
+function _pageNoteKey(url) {
+  try {
+    var u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    // Lowercase ONLY the origin: paths are case-sensitive on many servers
+    // (/A/b and /a/b can be different pages).
+    return (u.origin.toLowerCase() + u.pathname + u.search);
+  } catch(e) { return null; }
+}
+ipcMain.handle('page-notes-get', (_, url) => {
+  var k = _pageNoteKey(url);
+  if (!k) return null;
+  const store = readStorage();
+  var notes = store.pageNotes || {};
+  return notes[k] || '';
+});
+ipcMain.handle('page-notes-set', (_, url, text) => {
+  var k = _pageNoteKey(url);
+  if (!k) return { success: false };
+  const store = readStorage();
+  if (!store.pageNotes) store.pageNotes = {};
+  if (typeof text === 'string' && text.trim()) {
+    store.pageNotes[k] = text.slice(0, 20000);
+  } else {
+    delete store.pageNotes[k];
+  }
+  // Hard cap: keep at most 500 notes (oldest keys dropped).
+  var keys = Object.keys(store.pageNotes);
+  if (keys.length > 500) {
+    keys.slice(0, keys.length - 500).forEach(function(kk) { delete store.pageNotes[kk]; });
+  }
+  writeStorage(store);
+  return { success: true };
+});
+
+// Cookie-banner blocker: inject the shared payload into EVERY frame of the
+// target webview. Cross-origin CMP iframes (spiegel.de → sourcepoint.spiegel.de,
+// consentmanager, …) are unreachable from the top document, so the reject
+// click must happen inside the frame itself. The payload is idempotent
+// (guards on window.__spzCookieBlocker). CMP iframes tend to attach late, so
+// the frame tree is re-walked a few times; Sourcepoint even swaps the iframe
+// URL when opening the privacy manager, and the later walks catch that frame.
+ipcMain.handle('inject-cookie-blocker-frames', async (_, wcId) => {
+  try {
+    if (typeof wcId !== 'number' || !_cookieBlockerPayload) return false;
+    var wc = webContents.fromId(wcId);
+    if (!wc || wc.isDestroyed()) return false;
+    try { if (wc.getType() !== 'webview') return false; } catch (e) { return false; }
+    var code = '(' + _cookieBlockerPayload.toString() + ')()';
+    async function walk() {
+      if (!wc || wc.isDestroyed()) return;
+      try {
+        var mainFrame = wc.mainFrame;
+        if (!mainFrame) return;
+        var frames = [mainFrame];
+        try { if (Array.isArray(mainFrame.framesInSubtree) && mainFrame.framesInSubtree.length) frames = mainFrame.framesInSubtree; } catch (e) {}
+        for (var i = 0; i < frames.length; i++) {
+          var f = frames[i];
+          if (!f || f === mainFrame) continue; // top document — renderer already injected there
+          if (typeof f.executeJavaScript !== 'function') continue;
+          try { if (typeof f.url === 'string' && f.url.indexOf('http') !== 0) continue; } catch (e) { continue; }
+          try { await f.executeJavaScript(code); } catch (e) {} // frame may navigate away mid-injection
+        }
+      } catch (e) {}
+    }
+    await walk();
+    setTimeout(function() { walk(); }, 700);
+    setTimeout(function() { walk(); }, 2000);
+    setTimeout(function() { walk(); }, 4500);
+    return true;
+  } catch (e) {
+    return false;
+  }
 });
 
 ipcMain.handle('clean-url', (_, url) => {
@@ -2342,8 +3513,10 @@ ipcMain.handle('complete-setup', (_, settings) => {
       mainWindow.webContents.send('window-opacity-changed', Math.max(0.1, Math.min(1, settings.opacity)));
     } } catch(e) {}
   }
-  // Accent color
+  // Accent color — store in customization (the renderer reads it from there)
   if (settings.accent) {
+    if (!store.customization || typeof store.customization !== 'object') store.customization = {};
+    store.customization.accentColor = settings.accent;
     store.accentColor = settings.accent;
     store.accentRgb = settings.accentRgb || '';
     store.accentLight = settings.accentLight || '';
@@ -2545,6 +3718,21 @@ ipcMain.on('vim-action', (_, action, arg) => {
   } catch(e) {}
 });
 
+// Relay Super Drag actions (webview → renderer). kind: 'text' (search),
+// 'link' (background tab), 'image' (reverse image search).
+ipcMain.on('super-drag-action', (event, kind, payload) => {
+  _superDragAction(event.sender, kind, payload);
+});
+
+function _superDragAction(senderWc, kind, payload) {
+  try {
+    var w = (senderWc && _shellWindowOf(senderWc)) || _mainWindow || mainWindow;
+    if (w && !w.isDestroyed()) {
+      w.webContents.send('super-drag-action', { kind: kind, payload: payload });
+    }
+  } catch(e) {}
+}
+
 // ============== TOR HARDENING (individual toggles) ==============
 // store.security.torHardening = {
 //   js: bool       — CSP script-src 'none' (disables JavaScript)
@@ -2610,7 +3798,25 @@ ipcMain.handle('set-tor-security-level', (_, lvl) => {
 });
 
 // ============== HISTORY ==============
-ipcMain.handle('get-history', () => {
+// An incognito context must not even SEE the shared history: Library opened
+// in an incognito window shows an empty list (and incognito tabs never write
+// to it — see the renderer addHistory guards).
+// In-memory sessions (incognito tabs, torn-out tabs) have no storage path —
+// `session.partition` does not exist in Electron, so the old partition-string
+// checks were dead code.
+function _sessionIsIncognito(ses) {
+  try { return !!ses && !ses.getStoragePath(); } catch (e) { return false; }
+}
+
+function _senderIsIncognito(event) {
+  try {
+    var ses = event && event.sender && event.sender.session;
+    return _sessionIsIncognito(ses);
+  } catch (e) { return false; }
+}
+
+ipcMain.handle('get-history', (event) => {
+  if (_senderIsIncognito(event)) return [];
   const store = readStorage();
   return store.history || [];
 });
@@ -2673,6 +3879,7 @@ ipcMain.handle('set-site-permission', (_, domain, permission, value) => {
     store.sitePermissions[domain][_normalisePermKey(permission)] = value;
   }
   writeStorage(store);
+  _refreshSitePermCache();
   return { success: true };
 });
 
@@ -2772,13 +3979,16 @@ ipcMain.handle('remove-cookie', async (_, url, name) => {
   }
 });
 
-ipcMain.handle('clear-cookies', async () => {
+ipcMain.handle('clear-cookies', async (event) => {
   try {
-    const cookies = await mainWindow.webContents.session.cookies.get({});
+    // Act on the window that requested it (incognito shell included).
+    var shell = (event && _shellWindowOf(event.sender)) || mainWindow;
+    var ses = shell && !shell.isDestroyed() ? shell.webContents.session : mainWindow.webContents.session;
+    const cookies = await ses.cookies.get({});
     for (const c of cookies) {
       const proto = c.secure ? 'https' : 'http';
       const url = proto + '://' + c.domain.replace(/^\./, '') + c.path;
-      await mainWindow.webContents.session.cookies.remove(url, c.name);
+      await ses.cookies.remove(url, c.name);
     }
     return { success: true };
   } catch(e) {
@@ -2817,7 +4027,8 @@ ipcMain.handle('break-loupe', async () => {
 });
 
 // ============== DOWNLOADS ==============
-ipcMain.handle('get-downloads', () => {
+ipcMain.handle('get-downloads', (event) => {
+  if (_senderIsIncognito(event)) return [];
   const store = readStorage();
   return store.downloads || [];
 });
@@ -2828,8 +4039,30 @@ ipcMain.handle('get-session-downloads', () => {
   return (store.downloads || []).filter(d => d.startTime >= sessionStart);
 });
 
+// Restrict renderer-requested file operations to plausible download locations.
+// Without this, a compromised renderer could call openDownloadFile() on an
+// arbitrary path (e.g. a system executable) and have shell.openPath launch it.
+function _pathWithinAllowedDownloadDir(filePath) {
+  try {
+    if (!filePath || typeof filePath !== 'string') return false;
+    var resolved = path.resolve(filePath);
+    var store = readStorage();
+    var roots = [];
+    if (store.downloadPath) roots.push(path.resolve(store.downloadPath));
+    if (store.screenshotPath) roots.push(path.resolve(store.screenshotPath));
+    try { roots.push(path.resolve(electronApp.getPath('downloads'))); } catch(e) {}
+    try { roots.push(path.resolve(electronApp.getPath('userData'))); } catch(e) {}
+    return roots.some(function (r) {
+      return resolved === r || resolved.indexOf(r + path.sep) === 0;
+    });
+  } catch(e) { return false; }
+}
+
 ipcMain.handle('open-download-file', (_, filePath) => {
   try {
+    if (!_pathWithinAllowedDownloadDir(filePath)) {
+      return { success: false, message: 'Path is outside the allowed directories' };
+    }
     if (fs.existsSync(filePath)) {
       shell.openPath(filePath);
       return { success: true };
@@ -2850,6 +4083,9 @@ ipcMain.handle('check-files-exist', (_, paths) => {
 
 ipcMain.handle('open-download-folder', (_, filePath) => {
   try {
+    if (!_pathWithinAllowedDownloadDir(filePath)) {
+      return { success: false, message: 'Path is outside the allowed directories' };
+    }
     if (fs.existsSync(filePath)) {
       shell.showItemInFolder(filePath);
       return { success: true };
@@ -3054,6 +4290,14 @@ ipcMain.handle('toggle-script', (_, id, enabled) => {
   return { success: false, message: 'Script not found' };
 });
 
+// Convert a user glob pattern (*://*/*) into a RegExp. All regex special
+// characters are escaped first — an unescaped ( or [ made new RegExp throw
+// and the old catch() returned true, running the script on EVERY page.
+function _globPatternToRegExp(pat) {
+  var escaped = String(pat).replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  escaped = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
+  return new RegExp('^' + escaped + '$');
+}
 ipcMain.handle('get-scripts-for-page', (event, url) => {
   const store = readStorage();
   const scripts = (store.scripts || []).filter(s => s.enabled);
@@ -3063,15 +4307,29 @@ ipcMain.handle('get-scripts-for-page', (event, url) => {
     try {
       var patterns = s.match.split(',').map(p => p.trim());
       return patterns.some(function(pat) {
-        var re = new RegExp('^' + pat.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
-        return re.test(url);
+        return _globPatternToRegExp(pat).test(url);
       });
-    } catch(e) { return true; }
+    } catch(e) { return false; } // invalid pattern → never match (fail closed)
   });
   return matched.map(s => ({ id: s.id, code: s.code, runAt: s.runAt || 'document-idle', runInFrames: !!s.runInFrames }));
 });
 
 // ============== CUSTOMIZATION ==============
+// Cached autohide flag — read at startup and refreshed whenever the user
+// toggles the "Auto-hide top bar" setting. The cursor-edge poller below reads
+// this in-memory (no settings.json read every 200 ms).
+var _autohideTopbar = false;
+var _autohideVertical = false;
+var _autohideSidebarW = 180;
+function _refreshAutohideCache() {
+  try {
+    const s = readStorage();
+    const c = s.customization || {};
+    _autohideTopbar = !!c.autohideTopbar;
+    _autohideVertical = c.tabLayout === 'vertical';
+    _autohideSidebarW = parseInt(c.verticalTabWidth, 10) || 180;
+  } catch(e) {}
+}
 ipcMain.handle('get-customization-settings', () => {
   const store = readStorage();
   return { success: true, settings: store.customization || {} };
@@ -3091,14 +4349,29 @@ ipcMain.handle('save-customization-settings', (_, settings) => {
   store.customization = { ...(store.customization || {}), ...settings };
   writeStorage(store);
   _broadcastCustomization(store.customization);
+  if ('autohideTopbar' in (settings || {}) || 'tabLayout' in (settings || {}) || 'verticalTabWidth' in (settings || {})) {
+    _refreshAutohideCache();
+  }
   return { success: true };
 });
 
+// === Auto-hide top chrome — NOTE on the approach ===
+// Originally this used screen.getCursorScreenPoint() polling. That does NOT
+// work on Wayland / some sandboxed environments (always returns {0,0}), which
+// made the poller think the cursor was permanently in the top-left corner and
+// revealed the chrome unconditionally. The mechanism now lives ENTIRELY in the
+// renderer: a thin transparent hotspot <div> sits over the top edge of the
+// window (on top of the <webview>, which a renderer mousemove can't otherwise
+// see), plus mouseenter/mouseleave on the chrome itself. No global cursor
+// query, no IPC — works on every platform.
+
 // Request from Settings for a forced Session Guard check in all tabs.
 // Settings is a webview, it has no access to tabs[]; we ask the main window.
-ipcMain.handle('session-guard-scan', function() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('session-guard-scan-request');
+ipcMain.handle('session-guard-scan', function(event) {
+  // Reply to the window that asked (incognito shell included).
+  var shell = (event && _shellWindowOf(event.sender)) || mainWindow;
+  if (shell && !shell.isDestroyed()) {
+    shell.webContents.send('session-guard-scan-request');
     return { success: true };
   }
   return { success: false };
@@ -3167,9 +4440,9 @@ ipcMain.handle('save-toolbar-buttons', (_, data) => {
   const store = readStorage();
   store.toolbarButtons = data;
   writeStorage(store);
-  if (mainWindow) {
-    mainWindow.webContents.send('toolbar-buttons-changed', data);
-  }
+  _allShells().forEach(function (sh) {
+    try { sh.webContents.send('toolbar-buttons-changed', data); } catch(e) {}
+  });
   return { success: true };
 });
 
@@ -3211,71 +4484,371 @@ ipcMain.handle('update-bookmark', (_, id, data) => {
   return { success: true };
 });
 
-ipcMain.handle('add-bookmark-folder', async () => {
-  try {
-    const result = await dialog.showMessageBox(mainWindow, {
-      type: 'question',
-      title: 'New bookmark folder',
-      message: 'Enter folder name',
-      buttons: ['OK', 'Cancel'],
-      defaultId: 0
-    });
-    if (result.response !== 0) return { success: false, message: 'Cancelled' };
-    return { success: false, message: 'Use the bookmarks context menu' };
-  } catch(e) {
-    return { success: false, message: 'Error: ' + e.message };
+// --- Bookmark import helpers (shared by file import and browser import) ---
+
+// Parse a Netscape Bookmark File — the format Chrome/Firefox/Safari/Edge all
+// export/import. Preserves folder nesting. Returns [{title, url, folder}].
+// The old importer used a single regex that dropped every folder and stored the
+// title under the wrong key (name instead of title), so imported bookmarks
+// showed their URL as the name and lost all structure.
+function _parseNetscapeBookmarks(html) {
+  var results = [];
+  var folderStack = [];
+  var pendingFolder = null;
+  var tokenRe = /(<\/DL>|<DL[^>]*>|<DT>\s*<H3[^>]*>([\s\S]*?)<\/H3>|<DT>\s*<A[^>]*\bHREF\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/A>)/gi;
+  var m;
+  while ((m = tokenRe.exec(html)) !== null) {
+    var tok = m[0];
+    if (/^<\/DL>/i.test(tok)) { if (folderStack.length) folderStack.pop(); continue; }
+    if (/^<DL/i.test(tok)) {
+      if (pendingFolder !== null) { folderStack.push(pendingFolder); pendingFolder = null; }
+      continue;
+    }
+    if (/^<DT>\s*<H3/i.test(tok)) {
+      pendingFolder = (m[2] || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim();
+      continue;
+    }
+    var url = m[3];
+    var title = (m[4] || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim();
+    if (url) results.push({ title: title || url, url: url, folder: folderStack.filter(Boolean).join('/') });
   }
-});
+  return results;
+}
+
+// Walk a Chromium Bookmarks JSON node tree into a flat [{title,url,folder}] list.
+function _flattenChromiumNodes(nodes, folderPath, out) {
+  out = out || [];
+  (nodes || []).forEach(function (n) {
+    if (n.type === 'folder' || (!n.url && n.children)) {
+      var fp = folderPath ? (folderPath + '/' + (n.name || '')) : (n.name || '');
+      _flattenChromiumNodes(n.children || [], fp, out);
+    } else if ((n.type === 'url' || n.url) && n.url) {
+      out.push({ title: n.name || n.title || n.url, url: n.url, folder: folderPath });
+    }
+  });
+  return out;
+}
+
+// Insert a batch of bookmarks into the store. The app models a folder as a
+// bookmark entry with folder==='__folder__' and a unique id; normal bookmarks
+// reference that id via their own `folder` field. We create folder entries for
+// each unique folder path (de-duplicated by leaf name against existing folders).
+function _addBookmarksBatch(store, items) {
+  if (!store.bookmarks) store.bookmarks = [];
+  var folderIds = {};                 // folderPath -> folderEntryId
+  var existingFolderByTitle = {};
+  store.bookmarks.forEach(function (b) {
+    if (b.folder === '__folder__' && b.id) existingFolderByTitle[(b.title || '').toLowerCase()] = b.id;
+  });
+  var now = Date.now();
+  var imported = 0;
+  items.forEach(function (item, i) {
+    var folderId = '';
+    if (item.folder) {
+      folderId = folderIds[item.folder];
+      if (!folderId) {
+        var leaf = (item.folder.split('/').pop() || 'Imported').trim();
+        var fid = existingFolderByTitle[leaf.toLowerCase()];
+        if (!fid) {
+          fid = 'bmf-' + now + '-' + i;
+          store.bookmarks.push({ id: fid, title: leaf, url: '', folder: '__folder__', createdAt: now });
+          existingFolderByTitle[leaf.toLowerCase()] = fid;
+        }
+        folderIds[item.folder] = fid;
+        folderId = fid;
+      }
+    }
+    var url = item.url || '';
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = 'https://' + url.replace(/^\/+/, '');
+    if (!/^https?:\/\//i.test(url) && !/^(ftp|file):/i.test(url)) return; // skip javascript:/data: etc.
+    store.bookmarks.push({
+      id: 'bm-' + now + '-' + i,
+      title: item.title || url,
+      url: url,
+      folder: folderId,
+      createdAt: now + i
+    });
+    imported++;
+  });
+  return imported;
+}
 
 ipcMain.handle('import-bookmarks', async () => {
   try {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Import bookmarks',
-      filters: [{ name: 'JSON', extensions: ['json'] }, { name: 'HTML', extensions: ['html', 'htm'] }],
+      filters: [{ name: 'HTML', extensions: ['html', 'htm'] }, { name: 'JSON', extensions: ['json'] }],
       properties: ['openFile']
     });
     if (result.canceled || result.filePaths.length === 0) return { success: false, message: 'Cancelled' };
     const filePath = result.filePaths[0];
     const content = fs.readFileSync(filePath, 'utf-8');
     const store = readStorage();
-    if (!store.bookmarks) store.bookmarks = [];
-    let imported = 0;
-    if (filePath.endsWith('.json')) {
-      const data = JSON.parse(content);
-      const items = Array.isArray(data) ? data : (data.bookmarks || data.children || []);
-      items.forEach(item => {
-        const url = item.url || item.href || item.link || '';
-        if (!url) return;
-        store.bookmarks.push({
-          id: 'bm-' + Date.now() + '-' + imported,
-          name: item.name || item.title || new URL(url.startsWith('http') ? url : 'https://' + url).hostname,
-          url: url.startsWith('http') ? url : 'https://' + url,
-          folder: item.folder || '',
-          createdAt: Date.now()
+    var items = [];
+    if (filePath.toLowerCase().endsWith('.json')) {
+      var data = JSON.parse(content);
+      var list = Array.isArray(data) ? data : (data.bookmarks || data.children || []);
+      if (!Array.isArray(list) && data && data.roots) {
+        // Chrome/Edge "Bookmarks" JSON file dropped directly.
+        list = [];
+        ['bookmark_bar', 'other', 'synced'].forEach(function (k) {
+          if (data.roots[k] && data.roots[k].children) list = list.concat(_flattenChromiumNodes(data.roots[k].children, data.roots[k].name || ''));
         });
-        imported++;
+      }
+      (Array.isArray(list) ? list : []).forEach(function (n) {
+        if (n && (n.children || n.type === 'folder') && !n.url) return;
+        if (n && n.url) items.push({ title: n.title || n.name || n.url, url: n.url, folder: n.folder || '' });
       });
     } else {
-      const linkRegex = /<a[^>]+href="([^"]+)"[^>]*>([^<]*)<\/a>/gi;
-      let match;
-      while ((match = linkRegex.exec(content)) !== null) {
-        var bkName = match[2].trim();
-        var bkUrl = match[1];
-        try { if (!bkName) bkName = new URL(bkUrl).hostname; } catch(e) { bkName = bkUrl; }
-        store.bookmarks.push({
-          id: 'bm-' + Date.now() + '-' + imported,
-          name: bkName,
-          url: bkUrl,
-          createdAt: Date.now()
-        });
-        imported++;
-      }
+      items = _parseNetscapeBookmarks(content);
     }
+    var imported = _addBookmarksBatch(store, items);
     writeStorage(store);
-    return { success: true, message: `Imported ${imported} bookmarks` };
+    return { success: true, message: 'Imported ' + imported + ' bookmarks' };
   } catch(e) {
     return { success: false, message: 'Import error: ' + e.message };
   }
+});
+
+// ============== IMPORT FROM INSTALLED BROWSERS (Chrome / Edge / Brave / Vivaldi / Firefox) ==============
+// Detects installed browser profiles and imports bookmarks + history.
+//   - Bookmarks (Chromium): read the plain JSON "Bookmarks" file (no deps).
+//   - Bookmarks (Firefox):  read places.sqlite (moz_bookmarks).
+//   - History (both):       read the SQLite DBs via sql.js (pure WASM, no
+//                            native compilation — better-sqlite3 won't build).
+// Chrome locks "History" on Windows; the user is told to close the browser.
+
+// sql.js is optional: lazy-load once, cache the promise. If absent, history
+// import degrades gracefully instead of crashing.
+var _sqlJsPromise = null;
+function _sqlJsAvailable() {
+  try { require.resolve('sql.js/dist/sql-wasm.wasm'); return true; } catch(e) { return false; }
+}
+function _getSqlJs() {
+  if (_sqlJsPromise) return _sqlJsPromise;
+  _sqlJsPromise = new Promise(function (resolve) {
+    try {
+      var initSqlJs = require('sql.js');
+      var wasmPath = require.resolve('sql.js/dist/sql-wasm.wasm');
+      var wasmBinary = fs.readFileSync(wasmPath);
+      initSqlJs({ wasmBinary: wasmBinary }).then(resolve, function () { resolve(null); });
+    } catch (e) { resolve(null); }
+  });
+  return _sqlJsPromise;
+}
+
+// Read a (possibly locked) SQLite file and return rows for a query.
+function _querySqlite(filePath, sql) {
+  return _getSqlJs().then(function (SQL) {
+    if (!SQL) return { error: 'SQLite engine unavailable (sql.js not installed)' };
+    var data = fs.readFileSync(filePath); // throws on exclusive lock (Chrome on Windows)
+    var db = new SQL.Database(new Uint8Array(data));
+    try {
+      var stmt = db.prepare(sql);
+      var rows = [];
+      while (stmt.step()) rows.push(stmt.getAsObject());
+      stmt.free();
+      return { rows: rows };
+    } finally {
+      try { db.close(); } catch (e) {}
+    }
+  });
+}
+
+// Chrome/WebKit timestamps: microseconds since 1601-01-01.
+function _webkitToMs(t) { if (!t || t < 0) return Date.now(); return Math.floor(t / 1000) - 11644473600000; }
+// Firefox timestamps: microseconds since 1970.
+function _ffToMs(t) { if (!t || t < 0) return Date.now(); return Math.floor(t / 1000); }
+
+function _candidateBrowserDefs() {
+  var home = os.homedir();
+  var defs = [];
+  if (process.platform === 'win32') {
+    var local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    var roaming = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    defs.push({ id: 'chrome', name: 'Google Chrome', engine: 'chromium', root: path.join(local, 'Google', 'Chrome', 'User Data') });
+    defs.push({ id: 'edge', name: 'Microsoft Edge', engine: 'chromium', root: path.join(local, 'Microsoft', 'Edge', 'User Data') });
+    defs.push({ id: 'brave', name: 'Brave', engine: 'chromium', root: path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data') });
+    defs.push({ id: 'vivaldi', name: 'Vivaldi', engine: 'chromium', root: path.join(local, 'Vivaldi', 'User Data') });
+    defs.push({ id: 'chromium', name: 'Chromium', engine: 'chromium', root: path.join(local, 'Chromium', 'User Data') });
+    defs.push({ id: 'firefox', name: 'Mozilla Firefox', engine: 'firefox', root: path.join(roaming, 'Mozilla', 'Firefox') });
+  } else if (process.platform === 'darwin') {
+    var as = path.join(home, 'Library', 'Application Support');
+    defs.push({ id: 'chrome', name: 'Google Chrome', engine: 'chromium', root: path.join(as, 'Google', 'Chrome') });
+    defs.push({ id: 'edge', name: 'Microsoft Edge', engine: 'chromium', root: path.join(as, 'Microsoft Edge') });
+    defs.push({ id: 'brave', name: 'Brave', engine: 'chromium', root: path.join(as, 'BraveSoftware', 'Brave-Browser') });
+    defs.push({ id: 'vivaldi', name: 'Vivaldi', engine: 'chromium', root: path.join(as, 'Vivaldi') });
+    defs.push({ id: 'chromium', name: 'Chromium', engine: 'chromium', root: path.join(as, 'Chromium') });
+    defs.push({ id: 'firefox', name: 'Mozilla Firefox', engine: 'firefox', root: path.join(as, 'Firefox') });
+  } else {
+    var cfg = path.join(home, '.config');
+    defs.push({ id: 'chrome', name: 'Google Chrome', engine: 'chromium', root: path.join(cfg, 'google-chrome') });
+    defs.push({ id: 'edge', name: 'Microsoft Edge', engine: 'chromium', root: path.join(cfg, 'microsoft-edge') });
+    defs.push({ id: 'brave', name: 'Brave', engine: 'chromium', root: path.join(cfg, 'BraveSoftware', 'Brave-Browser') });
+    defs.push({ id: 'vivaldi', name: 'Vivaldi', engine: 'chromium', root: path.join(cfg, 'vivaldi') });
+    defs.push({ id: 'chromium', name: 'Chromium', engine: 'chromium', root: path.join(cfg, 'chromium') });
+    defs.push({ id: 'opera', name: 'Opera', engine: 'chromium', root: path.join(cfg, 'opera') });
+    defs.push({ id: 'firefox', name: 'Mozilla Firefox', engine: 'firefox', root: path.join(home, '.mozilla', 'firefox') });
+  }
+  return defs;
+}
+
+function _findChromiumProfiles(root) {
+  var profiles = [];
+  try {
+    if (!fs.existsSync(root)) return profiles;
+    ['Default', 'Profile 1', 'Profile 2', 'Profile 3', 'Profile 4', 'Profile 5'].forEach(function (p) {
+      var d = path.join(root, p);
+      if (fs.existsSync(path.join(d, 'Bookmarks')) || fs.existsSync(path.join(d, 'History'))) profiles.push(d);
+    });
+    if (profiles.length === 0 && (fs.existsSync(path.join(root, 'Bookmarks')) || fs.existsSync(path.join(root, 'History')))) profiles.push(root);
+  } catch (e) {}
+  return profiles;
+}
+
+function _findFirefoxProfiles(root) {
+  var profiles = [];
+  try {
+    if (!fs.existsSync(root)) return profiles;
+    fs.readdirSync(root).forEach(function (name) {
+      var d = path.join(root, name);
+      try { if (fs.statSync(d).isDirectory() && /default/i.test(name) && fs.existsSync(path.join(d, 'places.sqlite'))) profiles.push(d); } catch (e) {}
+    });
+  } catch (e) {}
+  return profiles;
+}
+
+ipcMain.handle('import-detect-browsers', async () => {
+  var found = [];
+  _candidateBrowserDefs().forEach(function (def) {
+    var profiles = def.engine === 'firefox' ? _findFirefoxProfiles(def.root) : _findChromiumProfiles(def.root);
+    profiles.forEach(function (p) {
+      var has = { bookmarks: false, history: false };
+      if (def.engine === 'firefox') {
+        var ps = fs.existsSync(path.join(p, 'places.sqlite'));
+        has.bookmarks = ps; has.history = ps;
+      } else {
+        has.bookmarks = fs.existsSync(path.join(p, 'Bookmarks'));
+        has.history = fs.existsSync(path.join(p, 'History'));
+      }
+      if (has.bookmarks || has.history) {
+        found.push({ browserId: def.id, name: def.name, engine: def.engine, profilePath: p, profileName: path.basename(p), has: has });
+      }
+    });
+  });
+  return { success: true, browsers: found, sqliteAvailable: _sqlJsAvailable() };
+});
+
+function _importBookmarksFromChromium(profilePath, store) {
+  var file = path.join(profilePath, 'Bookmarks');
+  if (!fs.existsSync(file)) return 0;
+  var data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  var roots = data.roots || {};
+  var items = [];
+  ['bookmark_bar', 'other', 'synced'].forEach(function (k) {
+    if (roots[k] && roots[k].children) items = items.concat(_flattenChromiumNodes(roots[k].children, roots[k].name || ''));
+  });
+  return _addBookmarksBatch(store, items);
+}
+
+function _importBookmarksFromFirefox(profilePath, store) {
+  var db = path.join(profilePath, 'places.sqlite');
+  if (!fs.existsSync(db)) return Promise.resolve(0);
+  // moz_bookmarks: type 1 = url (fk -> moz_places.id), type 2 = folder.
+  return _querySqlite(db, 'SELECT b.id AS bid, b.type, b.title AS btitle, b.parent, p.url AS purl, p.title AS ptitle FROM moz_bookmarks b LEFT JOIN moz_places p ON b.fk = p.id').then(function (res) {
+    if (!res || res.error || !res.rows) return 0;
+    var byId = {};
+    res.rows.forEach(function (r) { byId[r.bid] = r; });
+    function folderPath(id) {
+      var parts = []; var cur = byId[id]; var guard = 0;
+      while (cur && cur.type === 2 && guard < 64) { if (cur.btitle) parts.unshift(cur.btitle); cur = byId[cur.parent]; guard++; }
+      return parts.join('/');
+    }
+    var items = [];
+    res.rows.forEach(function (r) {
+      if (r.type === 1 && r.purl && /^https?:\/\//i.test(r.purl)) {
+        items.push({ title: r.btitle || r.ptitle || r.purl, url: r.purl, folder: folderPath(r.parent) });
+      }
+    });
+    return _addBookmarksBatch(store, items);
+  });
+}
+
+function _importHistoryFromChromium(profilePath, store) {
+  var historyDb = path.join(profilePath, 'History');
+  if (!fs.existsSync(historyDb)) return Promise.resolve(0);
+  return _querySqlite(historyDb, 'SELECT url, title, visit_count, last_visit_time FROM urls').then(function (res) {
+    if (!res || res.error || !res.rows) return 0;
+    if (!store.history) store.history = [];
+    var existing = {}; store.history.forEach(function (h) { existing[h.url] = h; });
+    var added = 0;
+    res.rows.forEach(function (r) {
+      if (!r.url || /^(chrome|about|edge|blob|data):/i.test(r.url)) return;
+      if (existing[r.url]) {
+        existing[r.url].visitCount = (existing[r.url].visitCount || 0) + (r.visit_count || 0);
+      } else {
+        store.history.push({ url: r.url, title: r.title || '', time: _webkitToMs(r.last_visit_time), visitCount: r.visit_count || 1 });
+        added++;
+      }
+    });
+    return added;
+  });
+}
+
+function _importHistoryFromFirefox(profilePath, store) {
+  var db = path.join(profilePath, 'places.sqlite');
+  if (!fs.existsSync(db)) return Promise.resolve(0);
+  return _querySqlite(db, "SELECT p.url AS url, p.title AS title, p.visit_count AS visit_count, MAX(v.visit_date) AS last FROM moz_places p LEFT JOIN moz_historyvisits v ON v.place_id = p.id WHERE p.url LIKE 'http%' GROUP BY p.id").then(function (res) {
+    if (!res || res.error || !res.rows) return 0;
+    if (!store.history) store.history = [];
+    var existing = {}; store.history.forEach(function (h) { existing[h.url] = h; });
+    var added = 0;
+    res.rows.forEach(function (r) {
+      if (!r.url) return;
+      if (existing[r.url]) {
+        existing[r.url].visitCount = (existing[r.url].visitCount || 0) + (r.visit_count || 0);
+      } else {
+        store.history.push({ url: r.url, title: r.title || '', time: _ffToMs(r.last), visitCount: r.visit_count || 1 });
+        added++;
+      }
+    });
+    return added;
+  });
+}
+
+// opts: { profilePath, engine, bookmarks:true, history:true }
+ipcMain.handle('import-from-browser', async (_, opts) => {
+  opts = opts || {};
+  var result = { success: true, bookmarks: 0, history: 0, warnings: [] };
+  try {
+    if (!opts.profilePath) return { success: false, warnings: ['No profile selected'] };
+    var store = readStorage();
+    if (opts.bookmarks) {
+      try {
+        result.bookmarks = opts.engine === 'firefox'
+          ? (await _importBookmarksFromFirefox(opts.profilePath, store) || 0)
+          : (_importBookmarksFromChromium(opts.profilePath, store) || 0);
+      } catch (e) { result.warnings.push('Bookmarks: ' + e.message); }
+    }
+    if (opts.history) {
+      try {
+        result.history = opts.engine === 'firefox'
+          ? (await _importHistoryFromFirefox(opts.profilePath, store) || 0)
+          : (await _importHistoryFromChromium(opts.profilePath, store) || 0);
+      } catch (e) {
+        var msg = e.code === 'ENOENT' ? 'history file is locked — close the source browser first' : e.message;
+        result.warnings.push('History: ' + msg);
+      }
+    }
+    writeStorage(store);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.send('history-updated'); } catch (e) {}
+    }
+  } catch (e) {
+    result.success = false;
+    result.warnings.push(e.message);
+  }
+  return result;
 });
 
 ipcMain.handle('export-bookmarks', async () => {
@@ -3379,9 +4952,10 @@ ipcMain.handle('rename-profile', (_, profileId, newName) => {
 
 // ============== INCOGNITO ==============
 var _incognitoPartitions = {};
-ipcMain.handle('create-incognito-tab', (_, url) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('open-incognito-tab', url || '');
+ipcMain.handle('create-incognito-tab', (event, url) => {
+  var win = _shellWindowOf(event.sender);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('open-incognito-tab', url || '');
   }
   return { success: true };
 });
@@ -3421,15 +4995,105 @@ ipcMain.handle('clear-incognito-partition', async (_, partition) => {
   }
 });
 
+// ============== CONTAINER TABS ==============
+// Firefox-style cookie-isolated containers. Each container maps to a
+// persistent Chromium partition ("persist:container-<id>"), so cookies,
+// localStorage and cache are fully separated between containers and from
+// the default session. Disabled by default; enabled in Settings → Containers.
+function _defaultContainers() {
+  return [
+    { id: 'personal', name: 'Personal', color: '#4caf50', icon: '🟢' },
+    { id: 'work',     name: 'Work',     color: '#1da1f2', icon: '💼' },
+    { id: 'shopping', name: 'Shopping', color: '#ff9800', icon: '🛒' }
+  ];
+}
+function _sanitizeContainers(raw) {
+  var out = [];
+  (Array.isArray(raw) ? raw : []).slice(0, 20).forEach(function(c) {
+    if (!c || typeof c !== 'object') return;
+    var id = String(c.id || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 32) || 'c' + Date.now();
+    out.push({
+      id: id,
+      name: String(c.name || 'Container').slice(0, 40),
+      color: /^#[0-9a-f]{3,8}$/i.test(String(c.color)) ? String(c.color) : '#1da1f2',
+      icon: String(c.icon || '🗂').slice(0, 4)
+    });
+  });
+  return out;
+}
+ipcMain.handle('get-containers', () => {
+  const store = readStorage();
+  return {
+    enabled: !!store.containersEnabled,
+    containers: _sanitizeContainers(store.containers && store.containers.length ? store.containers : _defaultContainers())
+  };
+});
+ipcMain.handle('set-containers-enabled', (_, val) => {
+  const store = readStorage();
+  store.containersEnabled = !!val;
+  // Seed the default set the first time the feature is switched on, so the
+  // user immediately has something to open tabs in.
+  if (val && (!store.containers || !store.containers.length)) store.containers = _defaultContainers();
+  writeStorage(store);
+  return { success: true };
+});
+ipcMain.handle('save-containers', (_, list) => {
+  const store = readStorage();
+  store.containers = _sanitizeContainers(list);
+  writeStorage(store);
+  return { success: true };
+});
+ipcMain.handle('clear-container-data', async (_, containerId) => {
+  try {
+    var id = String(containerId || '').replace(/[^a-z0-9_-]/gi, '');
+    if (!id) return { success: false };
+    var ses = session.fromPartition('persist:container-' + id);
+    try {
+      var cookies = await ses.cookies.get({});
+      for (var i = 0; i < cookies.length; i++) {
+        try { await ses.cookies.remove(cookies[i].url || ('http://' + cookies[i].domain), cookies[i].name); } catch(e) {}
+      }
+    } catch(e) {}
+    try {
+      await ses.clearCache();
+      await ses.clearStorageData({
+        storages: ['appcache', 'filesystem', 'indexdb', 'localstorage',
+                   'shadercache', 'websql', 'serviceworkers', 'cookies']
+      });
+      await ses.clearAuthCache();
+      await ses.clearHostResolverCache();
+    } catch(e) {}
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // ============== PASSWORDS ==============
+// Notify every renderer (main window + open Library tabs) that the password
+// list changed so UIs can refresh themselves.
+function _notifyPasswordsUpdated() {
+  const payload = { updatedAt: Date.now() };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('passwords-updated', payload);
+  }
+  try {
+    for (const wc of webContents.getAllWebContents()) {
+      try {
+        const u = wc.getURL() || '';
+        if (/Library\.html/.test(u) && wc !== mainWindow.webContents) {
+          wc.send('passwords-updated', payload);
+        }
+      } catch(e) {}
+    }
+  } catch(e) {}
+}
+
 ipcMain.handle('get-passwords', () => {
   const store = readStorage();
-  if (store.passwordVault && store.masterAuth) {
-    if (!_vaultKey) return { locked: true };
-    try { return _decryptVault(store.passwordVault, _vaultKey); }
-    catch(e) { return { locked: true }; }
-  }
-  return store.passwords || [];
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { locked: true };
+  return passwords;
 });
 
 ipcMain.handle('add-password', (_, pw) => {
@@ -3441,6 +5105,7 @@ ipcMain.handle('add-password', (_, pw) => {
   passwords.push(pw);
   if (!_writePasswords(store, passwords)) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
+  _notifyPasswordsUpdated();
   return { success: true };
 });
 
@@ -3453,6 +5118,7 @@ ipcMain.handle('update-password', (_, id, pwData) => {
     passwords[idx] = { ...passwords[idx], ...pwData };
     if (!_writePasswords(store, passwords)) return { success: false, locked: true, message: 'Vault is locked' };
     writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true };
   }
   return { success: false };
@@ -3465,6 +5131,7 @@ ipcMain.handle('delete-password', (_, id) => {
   const filtered = passwords.filter(p => p.id !== id);
   if (!_writePasswords(store, filtered)) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
+  _notifyPasswordsUpdated();
   return { success: true };
 });
 
@@ -3472,6 +5139,7 @@ ipcMain.handle('clear-passwords', () => {
   const store = readStorage();
   if (!_writePasswords(store, [])) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
+  _notifyPasswordsUpdated();
   return { success: true };
 });
 
@@ -3480,6 +5148,7 @@ ipcMain.handle('clear-all-passwords', () => {
   const store = readStorage();
   if (!_writePasswords(store, [])) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
+  _notifyPasswordsUpdated();
   return { success: true };
 });
 
@@ -3492,6 +5161,7 @@ ipcMain.handle('toggle-password-favorite', (_, id, favorite) => {
     passwords[idx].favorite = favorite;
     if (!_writePasswords(store, passwords)) return { success: false, locked: true, message: 'Vault is locked' };
     writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true };
   }
   return { success: false };
@@ -3592,6 +5262,7 @@ ipcMain.handle('import-passwords', async () => {
     }
     if (!_writePasswords(store, passwords)) return { success: false, message: 'Vault is locked' };
     writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true, message: `Imported ${imported} passwords` };
   } catch(e) {
     return { success: false, message: 'Import error: ' + e.message };
@@ -3600,28 +5271,15 @@ ipcMain.handle('import-passwords', async () => {
 
 ipcMain.handle('check-breached', async () => {
   try {
+    if (!_svcEnabled('hibpEnabled')) {
+      return { success: false, message: 'Breach check is disabled in Settings' };
+    }
     const store = readStorage();
     const passwords = _readPasswordsDecrypted(store);
     if (passwords === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
     let breachedCount = 0;
     for (const p of passwords) {
-      const sha1 = crypto.createHash('sha1').update(p.password).digest('hex').toUpperCase();
-      const prefix = sha1.substring(0, 5);
-      const suffix = sha1.substring(5);
-      const count = await new Promise((resolve) => {
-        https.get('https://api.pwnedpasswords.com/range/' + prefix, (res) => {
-          let body = '';
-          res.on('data', chunk => body += chunk);
-          res.on('end', () => {
-            const lines = body.split('\n');
-            for (const line of lines) {
-              const [hashSuffix, count] = line.trim().split(':');
-              if (hashSuffix === suffix) { resolve(parseInt(count) || 0); return; }
-            }
-            resolve(0);
-          });
-        }).on('error', () => resolve(0));
-      });
+      const count = await _hibpCountForPassword(p.password);
       if (count > 0) breachedCount++;
     }
     return { success: true, message: breachedCount > 0 ? `Found ${breachedCount} breaches` : 'No breaches found' };
@@ -3697,6 +5355,7 @@ ipcMain.handle('import-from-ga', (_, content) => {
     });
     if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true, imported, errors: [] };
   } catch(e) {
     return { success: false, imported: 0, errors: ['Parse error: ' + e.message] };
@@ -3736,15 +5395,17 @@ ipcMain.handle('import-txt-passwords', (_, content) => {
     });
     if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true, imported, errors };
   } catch(e) {
     return { success: false, imported: 0, errors: ['Error: ' + e.message] };
   }
 });
 
-ipcMain.handle('test-autofill', () => {
-  if (mainWindow) {
-    mainWindow.webContents.send('open-in-new-tab', 'https://httpbin.org/forms/post');
+ipcMain.handle('test-autofill', (event) => {
+  var win = _shellWindowOf(event.sender);
+  if (win) {
+    win.webContents.send('open-in-new-tab', 'https://httpbin.org/forms/post');
   }
   return { success: true };
 });
@@ -3830,6 +5491,82 @@ function _decryptVault(vault, keyBuf) {
   return JSON.parse(pt.toString('utf8'));
 }
 
+// ============== No-master-password storage (OS-sealed) ==============
+// When the user has NOT set a master password, passwords are still never
+// written to disk in plaintext: the array is sealed with Electron
+// safeStorage (DPAPI on Windows, Keychain on macOS, libsecret on Linux).
+// If the OS backend is unavailable (rare headless Linux setups), a locally
+// generated 0600 key file is used as a fallback — weaker than a keychain,
+// but the password database is never stored in cleartext.
+function _fallbackKeyPath() {
+  return path.join(electronApp.getPath('userData'), 'passwords-fallback.key');
+}
+function _fallbackKey() {
+  try {
+    var p = _fallbackKeyPath();
+    if (fs.existsSync(p)) return fs.readFileSync(p);
+    var k = crypto.randomBytes(32);
+    fs.writeFileSync(p, k, { mode: 0o600 });
+    return k;
+  } catch(e) { return null; }
+}
+function _sealNoVault(data) {
+  try {
+    var json = JSON.stringify(data);
+    var ss = null;
+    try { ss = require('electron').safeStorage; } catch(e0) { ss = null; }
+    if (ss && ss.isEncryptionAvailable && ss.isEncryptionAvailable()) {
+      return { v: 1, alg: 'safeStorage', ct: ss.encryptString(json).toString('base64') };
+    }
+  } catch(e) {}
+  var key = _fallbackKey();
+  if (!key) return null;
+  var iv = crypto.randomBytes(12);
+  var cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  var pt = Buffer.from(JSON.stringify(data), 'utf8');
+  var ct = Buffer.concat([cipher.update(pt), cipher.final()]);
+  return { v: 1, alg: 'local-key', iv: iv.toString('base64'), ct: ct.toString('base64'), tag: cipher.getAuthTag().toString('base64') };
+}
+function _unsealNoVault(sealed) {
+  if (!sealed || typeof sealed !== 'object') return null;
+  try {
+    if (sealed.alg === 'safeStorage') {
+      var ss = null;
+      try { ss = require('electron').safeStorage; } catch(e0) { ss = null; }
+      if (!ss) return null;
+      return JSON.parse(ss.decryptString(Buffer.from(sealed.ct, 'base64')));
+    }
+    if (sealed.alg === 'local-key') {
+      var key = _fallbackKey();
+      if (!key) return null;
+      var decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(sealed.iv, 'base64'));
+      decipher.setAuthTag(Buffer.from(sealed.tag, 'base64'));
+      var pt = Buffer.concat([decipher.update(Buffer.from(sealed.ct, 'base64')), decipher.final()]);
+      return JSON.parse(pt.toString('utf8'));
+    }
+  } catch(e) { return null; }
+  return null;
+}
+// One-time migration: convert legacy plaintext `passwords` to the sealed form.
+function _migratePlaintextPasswords() {
+  try {
+    var store = readStorage();
+    if (store.passwordVault && store.masterAuth) {
+      if (store.passwords) { delete store.passwords; writeStorage(store); }
+      return;
+    }
+    if (!Array.isArray(store.passwords) || store.passwords.length === 0) {
+      if (store.passwords) { delete store.passwords; writeStorage(store); }
+      return;
+    }
+    var sealed = _sealNoVault(store.passwords);
+    if (!sealed) return;
+    delete store.passwords;
+    store.passwordsSealed = sealed;
+    writeStorage(store);
+  } catch(e) {}
+}
+
 // Read the decrypted passwords array. Returns null when the vault is locked.
 function _readPasswordsDecrypted(store) {
   if (store.passwordVault && store.masterAuth) {
@@ -3837,18 +5574,29 @@ function _readPasswordsDecrypted(store) {
     try { return _decryptVault(store.passwordVault, _vaultKey); }
     catch(e) { return null; }
   }
+  if (store.passwordsSealed) {
+    return _unsealNoVault(store.passwordsSealed) || [];
+  }
   return store.passwords || [];
 }
 
-// Persist the passwords array — encrypts when a vault exists.
-// Returns true on success, false when the vault is locked.
+// Persist the passwords array — encrypts when a vault exists, seals with the
+// OS backend otherwise. Returns true on success, false when the vault is locked.
 function _writePasswords(store, passwords) {
   if (store.passwordVault && store.masterAuth) {
     if (!_vaultKey) return false;
     store.passwordVault = _encryptVault(passwords, _vaultKey);
     delete store.passwords;
+    delete store.passwordsSealed;
   } else {
-    store.passwords = passwords;
+    var sealed = _sealNoVault(passwords);
+    delete store.passwords;
+    delete store.passwordsSealed;
+    if (sealed) {
+      store.passwordsSealed = sealed;
+    } else {
+      try { console.error('[vault] Failed to seal passwords: not persisted'); } catch(e0) {}
+    }
   }
   return true;
 }
@@ -3890,6 +5638,7 @@ ipcMain.handle('unlock-vault', (_, pw) => {
 
 ipcMain.handle('lock-vault', () => {
   _vaultKey = null;
+  _notifyPasswordsUpdated();
   return { success: true };
 });
 
@@ -3917,25 +5666,24 @@ function _doSetMasterPassword(store, pw) {
   const salt = crypto.randomBytes(16);
   const key = _deriveKey(pw, salt);
   const verifier = _verifierOf(key);
-  const existing = store.passwords || [];
+  const existing = _readPasswordsDecrypted(store) || [];
   store.passwordVault = _encryptVault(existing, key);
   store.masterAuth = { v: 1, kdf: 'scrypt', salt: salt.toString('base64'), verifier: verifier };
   delete store.passwords;
-  // The moment a master password exists, secure Settings and the Backup
-  // section by default (user can still turn them off later with the password).
-  // This prevents the "set a password but protection stayed off" gap.
-  store.libraryProtection = Object.assign({}, _defaultLibraryProtection(), store.libraryProtection || {}, {
-    protectSettings: true,
-    protectBackup: true
-  });
+  delete store.passwordsSealed;
+  // All protection toggles stay OFF by default — even when a master password
+  // is first created. The user must explicitly opt in to each protection.
+  // (Previously this force-enabled protectSettings and protectBackup.)
+  store.libraryProtection = Object.assign({}, _defaultLibraryProtection(), store.libraryProtection || {});
   writeStorage(store);
   _vaultKey = key;
+  _notifyPasswordsUpdated();
   return { success: true, message: 'Master password set. ' + existing.length + ' passwords encrypted.' };
 }
 
 ipcMain.handle('set-master-password', (_, pw) => {
-  if (!pw || pw.length < 4) {
-    return { success: false, message: 'Password must be at least 4 characters' };
+  if (!pw || pw.length < 8) {
+    return { success: false, message: 'Password must be at least 8 characters' };
   }
   const store = readStorage();
   if (store.passwordVault && store.masterAuth) {
@@ -3955,14 +5703,14 @@ ipcMain.handle('change-master-password', (_, oldPw, newPw) => {
     if (typeof newPw === 'undefined' || newPw === null) {
       return { success: false, message: 'No master password is set' };
     }
-    if (!newPw || newPw.length < 4) {
-      return { success: false, message: 'New password must be at least 4 characters' };
+    if (!newPw || newPw.length < 8) {
+      return { success: false, message: 'New password must be at least 8 characters' };
     }
     try { return _doSetMasterPassword(store, newPw); }
     catch(e) { return { success: false, message: 'Failed to set master password: ' + e.message }; }
   }
-  if (!newPw || newPw.length < 4) {
-    return { success: false, message: 'New password must be at least 4 characters' };
+  if (!newPw || newPw.length < 8) {
+    return { success: false, message: 'New password must be at least 8 characters' };
   }
   try {
     const oldSalt = Buffer.from(store.masterAuth.salt, 'base64');
@@ -3979,6 +5727,7 @@ ipcMain.handle('change-master-password', (_, oldPw, newPw) => {
     store.masterAuth = { v: 1, kdf: 'scrypt', salt: newSalt.toString('base64'), verifier: newVerifier };
     writeStorage(store);
     _vaultKey = newKey;
+    _notifyPasswordsUpdated();
     return { success: true, message: 'Master password changed' };
   } catch(e) {
     return { success: false, message: 'Failed to change master password' };
@@ -3986,7 +5735,7 @@ ipcMain.handle('change-master-password', (_, oldPw, newPw) => {
 });
 
 ipcMain.handle('remove-master-password', (_, pw) => {
-  // Removes the master password and stores passwords as plaintext again.
+  // Removes the master password and re-seals passwords with the OS backend.
   const store = readStorage();
   if (!store.masterAuth || !store.passwordVault) {
     return { success: false, message: 'No master password is set' };
@@ -3999,11 +5748,12 @@ ipcMain.handle('remove-master-password', (_, pw) => {
       return { success: false, message: 'Wrong master password' };
     }
     const plaintext = _decryptVault(store.passwordVault, key);
-    store.passwords = plaintext;
     delete store.passwordVault;
     delete store.masterAuth;
-    writeStorage(store);
     _vaultKey = null;
+    _writePasswords(store, plaintext);
+    writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true, message: 'Master password removed' };
   } catch(e) {
     return { success: false, message: 'Wrong master password' };
@@ -4031,12 +5781,14 @@ let _backupUnlocked = false;    // Backup section (unused for gating — always 
 
 function _defaultLibraryProtection() {
   return {
-    passwordRequired: true,    // protect Library
+    passwordRequired: false,   // protect Library — OFF by default (no master pw at first launch)
     biometricRequired: false,
     enhancedProtection: false,
     protectSettings: false,    // require auth to open Settings
     protectBackup: false,      // re-auth on entering Backup section
-    appLock: false             // lock whole browser on startup
+    appLock: false,            // lock whole browser on startup
+    idleLock: false,           // auto-lock the browser after N minutes of inactivity
+    idleLockMinutes: 5         // default inactivity threshold (minutes)
   };
 }
 
@@ -4224,7 +5976,7 @@ ipcMain.handle('check-app-lock', () => {
   const lp = store.libraryProtection || _defaultLibraryProtection();
   const hasMaster = !!(store.masterAuth && store.passwordVault);
   return {
-    needsAuth: !!lp.appLock && hasMaster && !_appUnlocked,
+    needsAuth: (!!lp.appLock || !!lp.idleLock) && hasMaster && !_appUnlocked,
     biometricRequired: !!lp.biometricRequired,
     biometricAvailable: _biometricAvailable(),
     hasMasterPassword: hasMaster,
@@ -4243,17 +5995,54 @@ ipcMain.handle('app-biometric-auth', async () => {
   return res;
 });
 
+// ===== Auto-lock on inactivity (idleLock) =====
+// Polls powerMonitor.getSystemIdleTime() every 15s. When the user has been
+// inactive for longer than the configured threshold AND a master password is
+// set AND idleLock is enabled, we reset _appUnlocked and tell the renderer to
+// cover the UI with #appLockScreen (same one used by the startup lock).
+let _idleLockArmed = true; // false while the lock screen is already up
+function _startIdleLockPoller() {
+  try {
+    const { powerMonitor } = require('electron');
+    setInterval(function() {
+      if (!_idleLockArmed) return;
+      const store = readStorage();
+      const lp = store.libraryProtection || _defaultLibraryProtection();
+      if (!lp.idleLock) return;
+      if (!store.masterAuth || !store.passwordVault) return;
+      const threshold = Math.max(1, parseInt(lp.idleLockMinutes, 10) || 5) * 60;
+      let idle = -1;
+      try { idle = powerMonitor.getSystemIdleTime(); } catch(e) { return; }
+      if (idle >= threshold) {
+        _appUnlocked = false;
+        _idleLockArmed = false;
+        try {
+          // Lock EVERY shell window (main + dedicated incognito).
+          _allShells().forEach(function (sh) {
+            try { sh.webContents.send('idle-lock-triggered'); } catch(e2) {}
+          });
+        } catch(e) {}
+      }
+    }, 15000);
+    // Re-arm after unlock — the renderer fires 'idle-lock-rearm' once the
+    // master password has been entered on the lock screen.
+    ipcMain.on('idle-lock-rearm', () => { _idleLockArmed = true; });
+  } catch(e) {}
+}
+
 ipcMain.handle('set-library-protection', (_, settings, password) => {
   const store = readStorage();
   const current = store.libraryProtection || _defaultLibraryProtection();
   settings = settings || {};
   const next = Object.assign({}, _defaultLibraryProtection(), current, {
-    passwordRequired: settings.passwordRequired !== false,
+    passwordRequired: !!settings.passwordRequired,
     biometricRequired: !!settings.biometricRequired,
     enhancedProtection: !!settings.enhancedProtection,
     protectSettings: !!settings.protectSettings,
     protectBackup: !!settings.protectBackup,
-    appLock: !!settings.appLock
+    appLock: !!settings.appLock,
+    idleLock: !!settings.idleLock,
+    idleLockMinutes: Math.max(1, parseInt(settings.idleLockMinutes, 10) || 5)
   });
   // Turning a protection OFF requires the master password to prevent
   // unauthorised tampering. Turning things ON never requires it.
@@ -4261,7 +6050,8 @@ ipcMain.handle('set-library-protection', (_, settings, password) => {
                             (current.enhancedProtection && !next.enhancedProtection) ||
                             (current.protectSettings && !next.protectSettings) ||
                             (current.protectBackup && !next.protectBackup) ||
-                            (current.appLock && !next.appLock);
+                            (current.appLock && !next.appLock) ||
+                            (current.idleLock && !next.idleLock);
   if (disablingSecurity) {
     if (!store.masterAuth) {
       return { success: false, message: 'No master password is set' };
@@ -4456,6 +6246,7 @@ ipcMain.handle('theme-list', () => {
 // Apply a theme by id (persist + broadcast)
 ipcMain.handle('theme-apply', (_, themeId) => {
   try {
+    themeId = sanitizeThemeId(themeId);
     const themesDir = getThemesDir();
     const themeDir = path.join(themesDir, themeId);
     if (!fs.existsSync(themeDir)) return { success: false, error: 'Theme not found' };
@@ -4491,6 +6282,7 @@ ipcMain.handle('theme-get-active', () => {
 
 // Get CSS for a theme
 ipcMain.handle('theme-get-css', (_, themeId) => {
+  themeId = sanitizeThemeId(themeId);
   const themesDir = getThemesDir();
   const themeDir = path.join(themesDir, themeId);
   return readThemeCss(themeDir);
@@ -4499,6 +6291,7 @@ ipcMain.handle('theme-get-css', (_, themeId) => {
 // Delete a theme
 ipcMain.handle('theme-delete', (_, themeId) => {
   try {
+    themeId = sanitizeThemeId(themeId);
     const themesDir = getThemesDir();
     const themeDir = path.join(themesDir, themeId);
     if (fs.existsSync(themeDir)) fs.rmSync(themeDir, { recursive: true, force: true });
@@ -4519,6 +6312,7 @@ ipcMain.handle('theme-delete', (_, themeId) => {
 ipcMain.handle('theme-export', async (_, themeId) => {
   if (!AdmZip) return { success: false, error: 'adm-zip not available' };
   try {
+    themeId = sanitizeThemeId(themeId);
     const themesDir = getThemesDir();
     const themeDir = path.join(themesDir, themeId);
     if (!fs.existsSync(themeDir)) return { success: false, error: 'Theme not found' };
@@ -4631,7 +6425,8 @@ ipcMain.handle('skit-import', async (_, filePath) => {
     zip.getEntries().forEach(function(entry) {
       var en = entry.entryName;
       if (en === 'script.json' || en === mainFile) return;
-      if (/\.(js|ts|py|css|json|txt)$/i.test(en) && en.indexOf('..') === -1) {
+      if (/\.(js|ts|py|css|json|txt)$/i.test(en) && en.indexOf('..') === -1 &&
+          en.charAt(0) !== '/' && en.charAt(0) !== '\\' && !/^[a-zA-Z]:/.test(en)) {
         try {
           var entryDir = path.dirname(path.join(skitDir, en));
           if (!fs.existsSync(entryDir)) fs.mkdirSync(entryDir, { recursive: true });
@@ -4716,6 +6511,7 @@ ipcMain.handle('skit-toggle', (_, skitId, enabled) => {
 // Delete a .skit package
 ipcMain.handle('skit-delete', (_, skitId) => {
   try {
+    skitId = sanitizeSkitId(skitId);
     var skitsDir = getSkitsDir();
     var skitDir = path.join(skitsDir, skitId);
     if (fs.existsSync(skitDir)) fs.rmSync(skitDir, { recursive: true, force: true });
@@ -4730,6 +6526,7 @@ ipcMain.handle('skit-delete', (_, skitId) => {
 ipcMain.handle('skit-export', async (_, skitId) => {
   if (!AdmZip) return { success: false, error: 'adm-zip not available' };
   try {
+    skitId = sanitizeSkitId(skitId);
     var skitsDir = getSkitsDir();
     var skitDir = path.join(skitsDir, skitId);
     if (!fs.existsSync(skitDir)) return { success: false, error: 'Package not found' };
@@ -4758,21 +6555,79 @@ ipcMain.handle('skit-pick-file', async () => {
   return result.filePaths[0];
 });
 
+// ============== HIBP k-anonymity helpers ==============
+// Cache of range responses keyed by 5-char SHA-1 prefix, so checking many
+// passwords that share a prefix (or repeated checks) cost no extra requests.
+const _hibpRangeCache = new Map();
+const _HIBP_CACHE_LIMIT = 200;
+
+function _hibpLookupRange(prefix) {
+  if (_hibpRangeCache.has(prefix)) return _hibpRangeCache.get(prefix);
+  const promise = require('electron').net.fetch(EXTERNAL_SERVICES.hibp + prefix, {
+    headers: { 'Add-Padding': 'true', 'User-Agent': 'StartPOZI-Browser' },
+    signal: AbortSignal.timeout(8000)
+  }).then(async (res) => {
+    if (!res.ok) return null;
+    const body = await res.text();
+    const map = {};
+    for (const line of body.split('\n')) {
+      const sep = line.indexOf(':');
+      if (sep <= 0) continue;
+      map[line.slice(0, sep).trim()] = parseInt(line.slice(sep + 1).trim()) || 0;
+    }
+    return map;
+  }).catch(() => null).finally(() => {
+    // Replace the in-flight promise with its resolved value on completion.
+    promise.then(map => {
+      if (_hibpRangeCache.size >= _HIBP_CACHE_LIMIT) {
+        const firstKey = _hibpRangeCache.keys().next().value;
+        _hibpRangeCache.delete(firstKey);
+      }
+      _hibpRangeCache.set(prefix, Promise.resolve(map));
+    });
+  });
+  _hibpRangeCache.set(prefix, promise);
+  return promise;
+}
+
+async function _hibpCountForPassword(password) {
+  const sha1 = crypto.createHash('sha1').update(String(password || '')).digest('hex').toUpperCase();
+  const map = await _hibpLookupRange(sha1.substring(0, 5));
+  if (!map) return -1; // network/API failure — unknown
+  const c = map[sha1.substring(5)];
+  return typeof c === 'number' ? c : 0;
+}
+
 // ============== SINGLE PASSWORD BREACH CHECK ==============
-ipcMain.handle('check-password-breached', (_, password) => {
-  // Stub — real implementation would use HIBP API (k-anonymity)
-  return { breached: false, count: 0 };
+ipcMain.handle('check-password-breached', async (_, password) => {
+  if (typeof password !== 'string' || !password) return { breached: false, count: 0, error: 'empty' };
+  const count = await _hibpCountForPassword(password);
+  if (count < 0) return { breached: false, count: 0, error: 'network' };
+  return { breached: count > 0, count };
 });
 
 // ============== CHECK ALL PASSWORDS BREACHED ==============
-ipcMain.handle('check-all-passwords-breached', () => {
+ipcMain.handle('check-all-passwords-breached', async () => {
   const store = readStorage();
-  const passwords = _readPasswordsDecrypted(store) || [];
+  const passwords = _readPasswordsDecrypted(store);
+  if (passwords === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
+  const results = [];
+  let breachedCount = 0;
+  let networkFailed = false;
+  for (const p of passwords) {
+    const count = await _hibpCountForPassword(p.password);
+    if (count < 0) { networkFailed = true; results.push({ id: p.id, count: 0, error: 'network' }); continue; }
+    if (count > 0) breachedCount++;
+    results.push({ id: p.id, count });
+    // Be polite to the HIBP API when checking large vaults.
+    await new Promise(r => setTimeout(r, 120));
+  }
   return {
     success: true,
-    breachedCount: 0,
+    breachedCount,
     totalCount: passwords.length,
-    results: passwords.map(p => ({ id: p.id, count: 0 }))
+    results,
+    networkFailed
   };
 });
 
@@ -4786,21 +6641,22 @@ ipcMain.handle('generate-totp', (_, secret, opts) => {
     var timeCounter = Math.floor(epoch / period);
     var timeRemaining = period - (epoch % period);
 
-    var cleanedSecret = secret.replace(/\s/g, '').toUpperCase();
+    var cleanedSecret = secret.replace(/[\s=-]/g, '').toUpperCase();
     var base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    // Standard streaming base32 decode (RFC 4648): every 5 chars yield
+    // bits, each full 8 bits is one key byte. The previous chunked shifting
+    // produced misaligned bytes and therefore wrong TOTP codes for every
+    // secret.
     var keyBytes = [];
-    for (var i = 0; i < cleanedSecret.length; i += 8) {
-      var chunk = cleanedSecret.slice(i, i + 8);
-      var val = 0;
-      for (var j = 0; j < chunk.length; j++) {
-        var idx = base32Chars.indexOf(chunk[j]);
-        if (idx < 0) continue;
-        val = (val << 5) | idx;
-      }
-      for (var k = 2; k < 8; k++) {
-        if (chunk.length >= k) {
-          keyBytes.push((val >> (5 * (chunk.length - k))) & 0xFF);
-        }
+    var bitBuf = 0, bitLen = 0;
+    for (var i = 0; i < cleanedSecret.length; i++) {
+      var idx = base32Chars.indexOf(cleanedSecret[i]);
+      if (idx < 0) continue;
+      bitBuf = (bitBuf << 5) | idx;
+      bitLen += 5;
+      if (bitLen >= 8) {
+        keyBytes.push((bitBuf >>> (bitLen - 8)) & 0xFF);
+        bitLen -= 8;
       }
     }
     if (keyBytes.length === 0) return { success: false, error: 'Invalid secret' };
@@ -4811,7 +6667,7 @@ ipcMain.handle('generate-totp', (_, secret, opts) => {
       timeCounter = Math.floor(timeCounter / 256);
     }
 
-    var hmac = crypto.createHmac(algorithm.toLowerCase().replace('sha', 'sha'), Buffer.from(keyBytes));
+    var hmac = crypto.createHmac(algorithm.toLowerCase(), Buffer.from(keyBytes));
     hmac.update(buf);
     var hash = hmac.digest();
 
@@ -4900,8 +6756,9 @@ ipcMain.handle('autofill-password', (_, id) => {
     if (passwords === null) return { success: false, error: 'Vault is locked' };
     const pw = passwords.find(p => p.id === id);
     if (!pw) return { success: false, error: 'Password not found' };
-    if (mainWindow) {
-      mainWindow.webContents.send('autofill-credentials', { username: pw.username, password: pw.password, site: pw.site || '' });
+    var afWin = _focusedShell();
+    if (afWin) {
+      afWin.webContents.send('autofill-credentials', { username: pw.username, password: pw.password, site: pw.site || '' });
     }
     return { success: true, username: pw.username, password: pw.password };
   } catch(e) {
@@ -4954,6 +6811,7 @@ ipcMain.handle('import-ga-export', (_, content) => {
     });
     if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true, imported, errors: [] };
   } catch(e) {
     return { success: false, imported: 0, errors: ['Error: ' + e.message] };
@@ -4987,6 +6845,7 @@ ipcMain.handle('import-txt-file', (_, content) => {
     });
     if (!_writePasswords(store, passwords)) return { success: false, imported: 0, errors: ['Vault is locked'] };
     writeStorage(store);
+    _notifyPasswordsUpdated();
     return { success: true, imported, errors };
   } catch(e) {
     return { success: false, imported: 0, errors: ['Error: ' + e.message] };
@@ -5006,10 +6865,13 @@ ipcMain.handle('get-platform-info', () => {
   };
 });
 
-ipcMain.handle('register-system', () => {
+ipcMain.handle('register-system', async () => {
   try {
     const exePath = electronApp.getPath('exe');
     const iconPath = path.join(path.dirname(exePath), 'resources', 'icon.png');
+    // Register the startpozi:// protocol handler through Electron as well —
+    // the manual entries below only claim file associations.
+    try { electronApp.setAsDefaultProtocolClient('startpozi'); } catch {}
     if (process.platform === 'linux') {
       const desktopEntry = `[Desktop Entry]
 Type=Application
@@ -5019,28 +6881,31 @@ Exec="${exePath}" %u
 Icon=${fs.existsSync(iconPath) ? iconPath : 'internet-web-browser'}
 Terminal=false
 Categories=Network;WebBrowser;
-MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/startpozi;text/html;
 StartupNotify=true
 `;
       const desktopDir = path.join(process.env.HOME || '/tmp', '.local', 'share', 'applications');
       if (!fs.existsSync(desktopDir)) fs.mkdirSync(desktopDir, { recursive: true });
       const desktopFile = path.join(desktopDir, 'startpozi-browser.desktop');
       fs.writeFileSync(desktopFile, desktopEntry, 'utf-8');
-      try { execSync(`chmod +x "${desktopFile}"`); } catch {}
-      try { execSync(`update-desktop-database "${desktopDir}" 2>/dev/null || true`); } catch {}
-      try { execSync(`xdg-settings set default-web-browser startpozi-browser.desktop 2>/dev/null || true`); } catch {}
+      // Argv arrays (no shell) so a HOME or path value containing shell
+      // metacharacters can never be interpreted.
+      await _execFileOk('chmod', ['+x', desktopFile]);
+      await _execFileOk('update-desktop-database', [desktopDir]);
+      await _execFileOk('xdg-settings', ['set', 'default-web-browser', 'startpozi-browser.desktop']);
       return { success: true, message: 'Browser registered in the system' };
     }
     if (process.platform === 'win32') {
-      const regEntries = [
-        `reg add "HKCU\\Software\\Classes\\StartPOZI" /ve /d "URL:StartPOZI Protocol" /f`,
-        `reg add "HKCU\\Software\\Classes\\StartPOZI" /v "URL Protocol" /d "" /f`,
-        `reg add "HKCU\\Software\\Classes\\StartPOZI\\shell\\open\\command" /ve /d "\\"${exePath}\\" \\"%1\\"" /f`,
-        `reg add "HKCU\\Software\\Classes\\.html\\OpenWithList\\StartPOZI" /ve /d "" /f`,
-        `reg add "HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI" /ve /d "StartPOZI Browser" /f`,
-        `reg add "HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\shell\\open\\command" /ve /d "\\"${exePath}\\"" /f`
+      // reg.exe invoked directly (no shell) with explicit argv.
+      const regArgs = [
+        ['add', 'HKCU\\Software\\Classes\\StartPOZI', '/ve', '/d', 'URL:StartPOZI Protocol', '/f'],
+        ['add', 'HKCU\\Software\\Classes\\StartPOZI', '/v', 'URL Protocol', '/d', '', '/f'],
+        ['add', 'HKCU\\Software\\Classes\\StartPOZI\\shell\\open\\command', '/ve', '/d', '"' + exePath + '" "%1"', '/f'],
+        ['add', 'HKCU\\Software\\Classes\\.html\\OpenWithList\\StartPOZI', '/ve', '/d', '', '/f'],
+        ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI', '/ve', '/d', 'StartPOZI Browser', '/f'],
+        ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\shell\\open\\command', '/ve', '/d', '"' + exePath + '"', '/f']
       ];
-      regEntries.forEach(cmd => { try { execSync(cmd, { windowsHide: true }); } catch {} });
+      for (const a of regArgs) await _execFileOk('reg', a);
       return { success: true, message: 'Browser registered in the system' };
     }
     return { success: false, message: 'Platform not supported' };
@@ -5049,23 +6914,24 @@ StartupNotify=true
   }
 });
 
-ipcMain.handle('unregister-system', () => {
+ipcMain.handle('unregister-system', async () => {
   try {
+    try { electronApp.removeAsDefaultProtocolClient('startpozi'); } catch {}
     if (process.platform === 'linux') {
       const desktopFile = path.join(process.env.HOME || '/tmp', '.local', 'share', 'applications', 'startpozi-browser.desktop');
       if (fs.existsSync(desktopFile)) {
         fs.unlinkSync(desktopFile);
         const desktopDir = path.dirname(desktopFile);
-        try { execSync(`update-desktop-database "${desktopDir}" 2>/dev/null || true`); } catch {}
+        await _execFileOk('update-desktop-database', [desktopDir]);
       }
       return { success: true, message: 'Registration removed' };
     }
     if (process.platform === 'win32') {
-      const cmds = [
-        `reg delete "HKCU\\Software\\Classes\\StartPOZI" /f`,
-        `reg delete "HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI" /f`
+      const delArgs = [
+        ['delete', 'HKCU\\Software\\Classes\\StartPOZI', '/f'],
+        ['delete', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI', '/f']
       ];
-      cmds.forEach(cmd => { try { execSync(cmd, { windowsHide: true }); } catch {} });
+      for (const a of delArgs) await _execFileOk('reg', a);
       return { success: true, message: 'Registration removed' };
     }
     return { success: false, message: 'Platform not supported' };
@@ -5074,7 +6940,7 @@ ipcMain.handle('unregister-system', () => {
   }
 });
 
-ipcMain.handle('check-registration', () => {
+ipcMain.handle('check-registration', async () => {
   try {
     if (process.platform === 'linux') {
       const desktopFile = path.join(process.env.HOME || '/tmp', '.local', 'share', 'applications', 'startpozi-browser.desktop');
@@ -5082,12 +6948,8 @@ ipcMain.handle('check-registration', () => {
       return { success: true, registered, message: registered ? 'Browser registered in the system' : 'Browser not registered in the system' };
     }
     if (process.platform === 'win32') {
-      try {
-        execSync('reg query "HKCU\\Software\\Classes\\StartPOZI"', { windowsHide: true });
-        return { success: true, registered: true, message: 'Browser registered in the system' };
-      } catch {
-        return { success: true, registered: false, message: 'Browser not registered in the system' };
-      }
+      const registered = await _execFileOk('reg', ['query', 'HKCU\\Software\\Classes\\StartPOZI']);
+      return { success: true, registered, message: registered ? 'Browser registered in the system' : 'Browser not registered in the system' };
     }
     return { success: true, registered: false, message: 'Check not supported on this platform' };
   } catch(e) {
@@ -5142,12 +7004,15 @@ ipcMain.handle('save-page-as', async (_, url) => {
     if (result.canceled) return { success: false };
     const https = require('https');
     const http = require('http');
-    const client = url.startsWith('https') ? https : http;
     return new Promise((resolve) => {
       const fs = require('fs');
       const file = fs.createWriteStream(result.filePath);
       var redirectCount = 0;
       function doGet(u) {
+        // Pick the client per-request: a cross-protocol redirect
+        // (https → http or vice versa) must use the matching module,
+        // otherwise the request fails with a protocol error.
+        var client = String(u).indexOf('https') === 0 ? https : http;
         client.get(u, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (response) => {
           if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && redirectCount < 5) {
             redirectCount++;
@@ -5199,26 +7064,171 @@ ipcMain.handle('copy-screenshot', async (_, pngBase64) => {
   }
 });
 
-ipcMain.handle('open-url-from-settings', (_, url) => {
-  if (mainWindow) {
+ipcMain.handle('open-url-from-settings', (event, url) => {
+  var win = _shellWindowOf(event.sender);
+  if (win) {
     if (url === 'startpozi://customize-toolbar') {
-      mainWindow.webContents.send('toggle-customize-mode');
+      win.webContents.send('toggle-customize-mode');
     } else {
-      mainWindow.webContents.send('open-in-new-tab', url);
+      win.webContents.send('open-in-new-tab', url);
     }
   }
   return { success: true };
 });
 
-ipcMain.on('open-in-current-tab', (_, url) => {
-  if (mainWindow) {
-    mainWindow.webContents.send('navigate-current-tab', url);
+// ============== ADDITIONAL SHELL WINDOWS ==============
+// A dedicated incognito window is a frameless shell loaded as
+// index.html?incognito=1: every tab opened there is an incognito tab and the
+// regular profile is never touched. Like Chrome, each invocation opens a NEW
+// incognito window. Regular additional windows (Ctrl+N / "New window") run
+// as index.html?fresh=1 — they start with a blank start page and never
+// restore or overwrite the primary session.
+ipcMain.handle('open-incognito-window', function() {
+  try {
+    createShellWindow({ incognito: true });
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: e.message };
   }
 });
 
-ipcMain.on('go-back', () => {
-  if (mainWindow) {
-    mainWindow.webContents.send('navigate-current-back');
+ipcMain.handle('open-new-window', function() {
+  try {
+    createShellWindow({});
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Tab tear-out: open `url` in a brand-new window. meta.incognito moves the
+// tab into a new incognito window; meta.partition carries the source tab's
+// in-memory incognito partition so cookies survive the move.
+ipcMain.handle('open-window-with-tab', function(event, url, meta) {
+  try {
+    meta = meta || {};
+    if (typeof url !== 'string' || !url) return { success: false, error: 'no url' };
+    var win = createShellWindow({
+      incognito: !!meta.incognito,
+      tab: { url: url, title: meta.title || '', partition: meta.partition || '' }
+    });
+    // Appear under the cursor when tearing out by drag (point provided by
+    // the drag poller), clamped into the nearest display's work area.
+    if (typeof meta.x === 'number' && typeof meta.y === 'number') {
+      try {
+        var size = win.getSize();
+        var wa = require('electron').screen.getDisplayNearestPoint({ x: meta.x, y: meta.y }).workArea;
+        var nx = Math.min(Math.max(meta.x - Math.round(size[0] / 2), wa.x), wa.x + wa.width - size[0]);
+        var ny = Math.min(Math.max(meta.y - 20, wa.y), wa.y + wa.height - size[1]);
+        win.setPosition(nx, ny);
+      } catch(e) {}
+    }
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Physical cursor position vs the calling window's bounds. HTML5 dragend
+// coordinates are unreliable when the mouse is released outside the window
+// (last in-window position, 0,0 or DPI-scaled values), so the renderer asks
+// us where the cursor REALLY is before deciding the drag was a tear-off.
+ipcMain.handle('is-cursor-outside-window', function(event) {
+  try {
+    var win = _shellWindowOf(event.sender);
+    if (!win || win.isDestroyed()) return false;
+    var screen = require('electron').screen;
+    var pt = screen.getCursorScreenPoint();
+    var b = win.getBounds();
+    var m = 8;
+    return pt.x < b.x - m || pt.x > b.x + b.width + m ||
+           pt.y < b.y - m || pt.y > b.y + b.height + m;
+  } catch(e) {
+    return false;
+  }
+});
+
+// ===== TAB DRAG TEAR-OFF POLLER =====
+// On Linux the renderer's dragend event never fires when the mouse is
+// released OUTSIDE the window, so "dropped outside" is undetectable from
+// the DOM. Instead: while a tab drag is active the renderer notifies us,
+// and we watch the physical cursor — once it moves beyond the source
+// window's bounds by a margin, the tab is torn into a new window right
+// away. Works identically on every platform; dragend is only used to STOP
+// the poller when the drag ends normally inside the window.
+var _tabDragPoller = null;
+function _stopTabDragPoller() {
+  if (_tabDragPoller) { clearInterval(_tabDragPoller); _tabDragPoller = null; }
+}
+ipcMain.on('tab-drag-start', function(event, tabId) {
+  _stopTabDragPoller();
+  var win = _shellWindowOf(event.sender);
+  if (!win || typeof tabId !== 'string' || !tabId) return;
+  var scr = require('electron').screen;
+  var margin = 40; // px beyond the window edge that triggers the tear
+  var startedAt = Date.now();
+  // Wayland guard: getCursorScreenPoint() may return a frozen point there.
+  // Only treat "outside" as a tear once the reported point has actually
+  // MOVED since the drag started; a frozen point never tears.
+  var origin = null;
+  try { origin = scr.getCursorScreenPoint(); } catch(e) { return; }
+  _tabDragPoller = setInterval(function() {
+    if (!win || win.isDestroyed() || Date.now() - startedAt > 60000) {
+      _stopTabDragPoller();
+      return;
+    }
+    try {
+      var pt = scr.getCursorScreenPoint();
+      if (Math.abs(pt.x - origin.x) + Math.abs(pt.y - origin.y) < 10) return;
+      var b = win.getBounds();
+      if (pt.x < b.x - margin || pt.x > b.x + b.width + margin ||
+          pt.y < b.y - margin || pt.y > b.y + b.height + margin) {
+        // Cursor left the source window — but if it is inside ANOTHER shell
+        // window, the user is moving the tab there, not tearing it out.
+        var overOtherShell = _allShells().some(function (sh) {
+          if (sh === win || sh.isDestroyed()) return false;
+          try {
+            var ob = sh.getBounds();
+            return pt.x >= ob.x && pt.x <= ob.x + ob.width &&
+                   pt.y >= ob.y && pt.y <= ob.y + ob.height;
+          } catch(e2) { return false; }
+        });
+        if (overOtherShell) return;
+        _stopTabDragPoller();
+        try { win.webContents.send('tear-out-tab', { tabId: tabId, x: pt.x, y: pt.y }); } catch(e) {}
+      }
+    } catch(e) { _stopTabDragPoller(); }
+  }, 80);
+});
+ipcMain.on('tab-drag-end', function() { _stopTabDragPoller(); });
+
+// A tab was dropped onto another shell window: the accepting window already
+// created its copy — tell every OTHER shell to remove the original silently
+// (the source recognizes its own tabId; incognito partitions are NOT wiped,
+// the session simply continues in the accepting window).
+ipcMain.on('tab-move-to-window', function(event, payload) {
+  try {
+    if (!payload || typeof payload.tabId !== 'string' || !payload.tabId) return;
+    _allShells().forEach(function (sh) {
+      try {
+        if (sh.webContents === event.sender) return;
+        sh.webContents.send('close-foreign-dropped-tab', { tabId: payload.tabId });
+      } catch(e) {}
+    });
+  } catch(e) {}
+});
+
+ipcMain.on('open-in-current-tab', (event, url) => {
+  var win = _shellWindowOf(event.sender);
+  if (win) {
+    win.webContents.send('navigate-current-tab', url);
+  }
+});
+
+ipcMain.on('go-back', (event) => {
+  var win = _shellWindowOf(event.sender);
+  if (win) {
+    win.webContents.send('navigate-current-back');
   }
 });
 
@@ -5247,6 +7257,26 @@ ipcMain.handle('adblocker-toggle', (_, val) => {
 
 ipcMain.handle('adblocker-is-enabled', () => {
   return { success: true, enabled: adblocker.isEnabled() };
+});
+
+ipcMain.handle('adblocker-get-filterhub-catalog', () => {
+  return (adblocker && adblocker.getFilterhubCatalog)
+    ? adblocker.getFilterhubCatalog()
+    : { lists: [], levels: {}, defaultLevel: 'medium' };
+});
+
+ipcMain.handle('adblocker-get-filterhub-enabled', () => {
+  return (adblocker && adblocker.getFilterhubEnabled) ? adblocker.getFilterhubEnabled() : [];
+});
+
+ipcMain.handle('adblocker-set-filterhub-enabled', (_, nums) => {
+  if (adblocker && adblocker.setFilterhubEnabled) return adblocker.setFilterhubEnabled(nums);
+  return { success: false };
+});
+
+ipcMain.handle('adblocker-set-filterhub-preset', (_, level) => {
+  if (adblocker && adblocker.setFilterhubPreset) return adblocker.setFilterhubPreset(level);
+  return { success: false };
 });
 
 ipcMain.handle('adblocker-get-whitelist', () => {
@@ -5284,73 +7314,92 @@ function getSearchEngineName(url) {
 
 // ============== CONTEXT MENU ==============
 ipcMain.on('show-context-menu', (event, params) => {
+  // Menu actions must go to the window that opened the menu (main or
+  // dedicated incognito shell) — not blindly to mainWindow.
+  var shell = _shellWindowOf(event.sender) || mainWindow;
   if (params.type === 'tabbar') {
     var template = [];
 
     if (params.tabId) {
-      template.push({ label: t('Close tab'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeTab', tabId: params.tabId }); } });
-      template.push({ label: t('Close other tabs'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeOtherTabs', tabId: params.tabId }); } });
-      template.push({ label: t('Close tabs to the right'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeTabsToRight', tabId: params.tabId }); } });
+      template.push({ label: t('Close tab'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeTab', tabId: params.tabId }); } });
+      template.push({ label: t('Close other tabs'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeOtherTabs', tabId: params.tabId }); } });
+      template.push({ label: t('Close tabs to the right'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeTabsToRight', tabId: params.tabId }); } });
       if (params.tabUrl) {
         try {
           var tabDomain = new URL(params.tabUrl).hostname;
-          template.push({ label: t('Close tabs from this domain'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeTabsFromDomain', domain: tabDomain }); } });
+          template.push({ label: t('Close tabs from this domain'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeTabsFromDomain', domain: tabDomain }); } });
         } catch(e) {}
         template.push({ label: t('Copy address'), click: function() { clipboard.writeText(params.tabUrl); } });
-        template.push({ label: t('Duplicate tab'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'duplicateTab' }); } });
-        template.push({ label: t('Open in incognito'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'openIncognito', url: params.tabUrl }); } });
+        template.push({ label: t('Duplicate tab'), click: function() { shell.webContents.send('context-menu-action', { type: 'duplicateTab' }); } });
+        template.push({ label: t('Move tab to new window'), click: function() { shell.webContents.send('context-menu-action', { type: 'moveToNewWindow', tabId: params.tabId }); } });
+        template.push({ label: t('Open in incognito'), click: function() { shell.webContents.send('context-menu-action', { type: 'openIncognito', url: params.tabUrl }); } });
       }
-      template.push({ label: params.tabPinned ? t('Unpin tab') : t('Pin tab'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'pinTab', tabId: params.tabId, pinned: !params.tabPinned }); } });
-      template.push({ label: t('Put tab to sleep'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'sleepTab', tabId: params.tabId }); } });
+      template.push({ label: params.tabPinned ? t('Unpin tab') : t('Pin tab'), click: function() { shell.webContents.send('context-menu-action', { type: 'pinTab', tabId: params.tabId, pinned: !params.tabPinned }); } });
+      template.push({ label: t('Put tab to sleep'), click: function() { shell.webContents.send('context-menu-action', { type: 'sleepTab', tabId: params.tabId }); } });
       try {
         var _opt = readStorage().optimization || {};
         if (_opt.sleepOthersEnabled) {
-          template.push({ label: t('Put all others to sleep'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'sleepOthers' }); } });
+          template.push({ label: t('Put all others to sleep'), click: function() { shell.webContents.send('context-menu-action', { type: 'sleepOthers' }); } });
         }
       } catch(e) {}
       template.push({ label: t('Close after…'), submenu: [
-        { label: t('5 min'),  click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 5 }); } },
-        { label: t('15 min'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 15 }); } },
-        { label: t('30 min'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 30 }); } },
-        { label: t('60 min'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 60 }); } },
-        { label: t('2 hours'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 120 }); } },
+        { label: t('5 min'),  click: function() { shell.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 5 }); } },
+        { label: t('15 min'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 15 }); } },
+        { label: t('30 min'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 30 }); } },
+        { label: t('60 min'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 60 }); } },
+        { label: t('2 hours'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeAfter', tabId: params.tabId, minutes: 120 }); } },
         { type: 'separator' },
-        { label: t('Cancel timer'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'closeAfterCancel', tabId: params.tabId }); } }
+        { label: t('Cancel timer'), click: function() { shell.webContents.send('context-menu-action', { type: 'closeAfterCancel', tabId: params.tabId }); } }
       ] });
 
       if (params.tabGroups && params.tabGroups.length > 0) {
         template.push({ type: 'separator' });
         template.push({ label: t('Add to group'), submenu: params.tabGroups.map(function(g) {
-          return { label: g.name, click: function() { mainWindow.webContents.send('context-menu-action', { type: 'addToGroup', tabId: params.tabId, groupId: g.id }); } };
+          return { label: g.name, click: function() { shell.webContents.send('context-menu-action', { type: 'addToGroup', tabId: params.tabId, groupId: g.id }); } };
         }) });
-        template.push({ label: t('New group...'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'createGroup', tabId: params.tabId }); } });
+        template.push({ label: t('New group...'), click: function() { shell.webContents.send('context-menu-action', { type: 'createGroup', tabId: params.tabId }); } });
         if (params.tabGroupId) {
-          template.push({ label: t('Remove from group'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'removeFromGroup', tabId: params.tabId, groupId: params.tabGroupId }); } });
+          template.push({ label: t('Remove from group'), click: function() { shell.webContents.send('context-menu-action', { type: 'removeFromGroup', tabId: params.tabId, groupId: params.tabGroupId }); } });
           template.push({ label: t('Color group'), submenu: [
-            { label: t('Blue'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#4a90d9' }); } },
-            { label: t('Red'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#e74c3c' }); } },
-            { label: t('Green'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#2ecc71' }); } },
-            { label: t('Orange'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#f39c12' }); } },
-            { label: t('Purple'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#9b59b6' }); } },
-            { label: t('Pink'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#e91e90' }); } },
-            { label: t('Teal'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#1abc9c' }); } },
+            { label: t('Blue'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#4a90d9' }); } },
+            { label: t('Red'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#e74c3c' }); } },
+            { label: t('Green'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#2ecc71' }); } },
+            { label: t('Orange'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#f39c12' }); } },
+            { label: t('Purple'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#9b59b6' }); } },
+            { label: t('Pink'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#e91e90' }); } },
+            { label: t('Teal'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorGroup', groupId: params.tabGroupId, color: '#1abc9c' }); } },
           ] });
-          template.push({ label: t('Delete group'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'deleteGroup', groupId: params.tabGroupId }); } });
+          template.push({ label: t('Delete group'), click: function() { shell.webContents.send('context-menu-action', { type: 'deleteGroup', groupId: params.tabGroupId }); } });
         }
       } else {
-        template.push({ label: t('Create group'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'createGroup', tabId: params.tabId }); } });
+        template.push({ label: t('Create group'), click: function() { shell.webContents.send('context-menu-action', { type: 'createGroup', tabId: params.tabId }); } });
       }
 
       template.push({ type: 'separator' });
     }
 
-    template.push({ label: t('Reload all tabs'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'reloadAllTabs' }); } });
-    template.push({ label: t('New tab'), click: function() { mainWindow.webContents.send('open-in-new-tab', ''); } });
+    template.push({ label: t('Reload all tabs'), click: function() { shell.webContents.send('context-menu-action', { type: 'reloadAllTabs' }); } });
+    template.push({ label: t('New tab'), click: function() { shell.webContents.send('open-in-new-tab', ''); } });
+    // Container tabs (Settings → Containers). Submenu lists the user's
+    // containers; each opens a new tab in that container's partition.
+    try {
+      var _cStore = readStorage();
+      if (_cStore.containersEnabled && Array.isArray(_cStore.containers) && _cStore.containers.length) {
+        template.push({ label: t('New tab in container'), submenu: _cStore.containers.map(function(c) {
+          return {
+            label: (c.icon ? c.icon + ' ' : '') + (c.name || c.id),
+            click: function() {
+              shell.webContents.send('context-menu-action', { type: 'openContainerTab', containerId: c.id });
+            }
+          };
+        }) });
+      }
+    } catch(e) {}
     template.push({ type: 'separator' });
 
     if (params.closedTabs && params.closedTabs.length > 0) {
       params.closedTabs.forEach(function(item, idx) {
-        template.push({ label: '\u21A9 ' + item.title, click: function() { mainWindow.webContents.send('context-menu-action', { type: 'reopenTab', url: item.url, index: idx }); } });
+        template.push({ label: '\u21A9 ' + item.title, click: function() { shell.webContents.send('context-menu-action', { type: 'reopenTab', url: item.url, index: idx }); } });
       });
     } else {
       template.push({ label: t('No closed tabs'), enabled: false });
@@ -5363,15 +7412,30 @@ ipcMain.on('show-context-menu', (event, params) => {
 
   if (params.type === 'navbar') {
     var template = [];
-    template.push({ label: t('Paste'), accelerator: 'CmdOrCtrl+V', click: function() { mainWindow.webContents.paste(); } });
-    template.push({ label: t('Paste and go'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'pasteAndGo' }); } });
-    template.push({ label: t('Select all'), accelerator: 'CmdOrCtrl+A', click: function() { mainWindow.webContents.selectAll(); } });
+    template.push({ label: t('Paste'), accelerator: 'CmdOrCtrl+V', click: function() { shell.webContents.paste(); } });
+    template.push({ label: t('Paste and go'), click: function() { shell.webContents.send('context-menu-action', { type: 'pasteAndGo' }); } });
+    template.push({ label: t('Select all'), accelerator: 'CmdOrCtrl+A', click: function() { shell.webContents.selectAll(); } });
     var menu = Menu.buildFromTemplate(template);
     menu.popup({ window: mainWindow });
     return;
   }
 
   var template = [];
+
+  // Internal chrome pages (Settings, Library, MainPage, Viewer, about:*) get
+  // a trimmed menu: no devtools / view-source / inspector / zapper / translate
+  // — those either do nothing useful there or expose internals needlessly.
+  var _menuPageUrl = String(params.pageURL || '');
+  var _isInternalMenuPage = false;
+  if (_menuPageUrl.indexOf('about:') === 0 || _menuPageUrl.indexOf('startpozi://') === 0) {
+    _isInternalMenuPage = true;
+  } else if (_menuPageUrl.indexOf('file://') === 0) {
+    try {
+      var _mp = decodeURIComponent(new URL(_menuPageUrl).pathname);
+      if (process.platform === 'win32' && _mp.startsWith('/')) _mp = _mp.slice(1);
+      _isInternalMenuPage = _pathInside(electronApp.getAppPath(), path.dirname(_mp));
+    } catch(e) { _isInternalMenuPage = true; }
+  }
 
   if (params.misspelledWord && params.dictionarySuggestions && params.dictionarySuggestions.length > 0) {
     params.dictionarySuggestions.forEach(function(s) {
@@ -5381,7 +7445,7 @@ ipcMain.on('show-context-menu', (event, params) => {
   }
 
   if (params.linkURL) {
-    template.push({ label: t('Open link in new tab'), click: function() { mainWindow.webContents.send('open-in-new-tab', params.linkURL); } });
+    template.push({ label: t('Open link in new tab'), click: function() { shell.webContents.send('open-in-new-tab', params.linkURL); } });
     template.push({ label: t('Open in system browser'), click: function() { shell.openExternal(params.linkURL); } });
     template.push({ type: 'separator' });
     template.push({ label: t('Copy link address'), click: function() { clipboard.writeText(params.linkURL); } });
@@ -5389,12 +7453,12 @@ ipcMain.on('show-context-menu', (event, params) => {
       template.push({ label: t('Copy link text'), click: function() { clipboard.writeText(params.linkText); } });
     }
     template.push({ type: 'separator' });
-    template.push({ label: t('Open in incognito'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'openIncognito', url: params.linkURL }); } });
+    template.push({ label: t('Open in incognito'), click: function() { shell.webContents.send('context-menu-action', { type: 'openIncognito', url: params.linkURL }); } });
   }
 
   if (params.mediaType === 'image' && params.hasImageContents && params.srcURL) {
-    template.push({ label: t('Open image'), click: function() { mainWindow.webContents.send('open-in-new-tab', params.srcURL); } });
-    template.push({ label: t('Copy image'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'copyImage', url: params.srcURL }); } });
+    template.push({ label: t('Open image'), click: function() { shell.webContents.send('open-in-new-tab', params.srcURL); } });
+    template.push({ label: t('Copy image'), click: function() { shell.webContents.send('context-menu-action', { type: 'copyImage', url: params.srcURL }); } });
     template.push({ label: t('Copy image address'), click: function() { clipboard.writeText(params.srcURL); } });
     template.push({ label: t('Save image as...'), click: function() {
       var parsed = require('url').parse(params.srcURL);
@@ -5414,32 +7478,32 @@ ipcMain.on('show-context-menu', (event, params) => {
   }
 
   if (params.mediaType === 'video' || params.mediaType === 'audio') {
-    template.push({ label: t('Play / Pause'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'mediaPlayPause' }); } });
-    template.push({ label: t('Mute'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'mediaMute' }); } });
-    template.push({ label: t('Copy address'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'copyMediaUrl', url: params.srcURL }); } });
+    template.push({ label: t('Play / Pause'), click: function() { shell.webContents.send('context-menu-action', { type: 'mediaPlayPause' }); } });
+    template.push({ label: t('Mute'), click: function() { shell.webContents.send('context-menu-action', { type: 'mediaMute' }); } });
+    template.push({ label: t('Copy address'), click: function() { shell.webContents.send('context-menu-action', { type: 'copyMediaUrl', url: params.srcURL }); } });
     if (params.mediaType === 'video') {
-      template.push({ label: t('Picture in picture'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'mediaPiP' }); } });
+      template.push({ label: t('Picture in picture'), click: function() { shell.webContents.send('context-menu-action', { type: 'mediaPiP' }); } });
     }
     template.push({ type: 'separator' });
   }
 
   if (params.editFlags && params.editFlags.canCut) {
-    template.push({ label: t('Cut'), accelerator: 'CmdOrCtrl+X', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'cut' }); } });
+    template.push({ label: t('Cut'), accelerator: 'CmdOrCtrl+X', click: function() { shell.webContents.send('context-menu-action', { type: 'cut' }); } });
   }
   if (params.editFlags && params.editFlags.canCopy) {
-    template.push({ label: t('Copy'), accelerator: 'CmdOrCtrl+C', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'copy' }); } });
+    template.push({ label: t('Copy'), accelerator: 'CmdOrCtrl+C', click: function() { shell.webContents.send('context-menu-action', { type: 'copy' }); } });
   }
   if (params.editFlags && params.editFlags.canPaste) {
-    template.push({ label: t('Paste'), accelerator: 'CmdOrCtrl+V', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'paste' }); } });
+    template.push({ label: t('Paste'), accelerator: 'CmdOrCtrl+V', click: function() { shell.webContents.send('context-menu-action', { type: 'paste' }); } });
   }
   if (params.editFlags && params.editFlags.canUndo) {
-    template.push({ label: t('Undo'), accelerator: 'CmdOrCtrl+Z', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'undo' }); } });
+    template.push({ label: t('Undo'), accelerator: 'CmdOrCtrl+Z', click: function() { shell.webContents.send('context-menu-action', { type: 'undo' }); } });
   }
   if (params.editFlags && params.editFlags.canRedo) {
-    template.push({ label: t('Redo'), accelerator: 'CmdOrCtrl+Y', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'redo' }); } });
+    template.push({ label: t('Redo'), accelerator: 'CmdOrCtrl+Y', click: function() { shell.webContents.send('context-menu-action', { type: 'redo' }); } });
   }
   if (params.isEditable) {
-    template.push({ label: t('Select all'), accelerator: 'CmdOrCtrl+A', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'selectAll' }); } });
+    template.push({ label: t('Select all'), accelerator: 'CmdOrCtrl+A', click: function() { shell.webContents.send('context-menu-action', { type: 'selectAll' }); } });
   }
 
   if (params.selectionText) {
@@ -5448,7 +7512,7 @@ ipcMain.on('show-context-menu', (event, params) => {
     var searchName = getSearchEngineName(searchUrl);
     template.push({ label: t('Copy selection'), accelerator: 'CmdOrCtrl+C', click: function() { clipboard.writeText(params.selectionText); } });
     template.push({ label: t('Search in') + ' ' + searchName, click: function() {
-      mainWindow.webContents.send('open-in-new-tab', searchUrl + encodeURIComponent(params.selectionText));
+      shell.webContents.send('open-in-new-tab', searchUrl + encodeURIComponent(params.selectionText));
     }});
   }
 
@@ -5457,38 +7521,48 @@ ipcMain.on('show-context-menu', (event, params) => {
   }
 
   template.push({ type: 'separator' });
-  template.push({ label: t('Back'), accelerator: 'Alt+Left', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'goBack' }); } });
-  template.push({ label: t('Forward'), accelerator: 'Alt+Right', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'goForward' }); } });
-  template.push({ label: t('Reload'), accelerator: 'CmdOrCtrl+R', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'reload' }); } });
-  template.push({ label: t('Open page in incognito'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'openIncognitoPage' }); } });
+  template.push({ label: t('Back'), accelerator: 'Alt+Left', click: function() { shell.webContents.send('context-menu-action', { type: 'goBack' }); } });
+  template.push({ label: t('Forward'), accelerator: 'Alt+Right', click: function() { shell.webContents.send('context-menu-action', { type: 'goForward' }); } });
+  template.push({ label: t('Reload'), accelerator: 'CmdOrCtrl+R', click: function() { shell.webContents.send('context-menu-action', { type: 'reload' }); } });
+  if (!_isInternalMenuPage) {
+    template.push({ label: t('Open page in incognito'), click: function() { shell.webContents.send('context-menu-action', { type: 'openIncognitoPage' }); } });
+  }
   template.push({ type: 'separator' });
 
-  template.push({ label: t('View page source'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'viewSource' }); } });
-  template.push({ label: t('Element inspector'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'inspectElement', x: params.x, y: params.y }); } });
-  template.push({ label: t('Developer tools'), accelerator: 'F12', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'toggleDevTools' }); } });
+  if (!_isInternalMenuPage) {
+    template.push({ label: t('View page source'), click: function() { shell.webContents.send('context-menu-action', { type: 'viewSource' }); } });
+    template.push({ label: t('Element inspector'), click: function() { shell.webContents.send('context-menu-action', { type: 'inspectElement', x: params.x, y: params.y }); } });
+    template.push({ label: t('Developer tools'), accelerator: 'F12', click: function() { shell.webContents.send('context-menu-action', { type: 'toggleDevTools' }); } });
+  }
   template.push({ type: 'separator' });
 
-  template.push({ label: t('Screenshot tool (with annotations)'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'screenshotTool' }); } });
-  template.push({ label: t('Print...'), accelerator: 'CmdOrCtrl+P', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'print' }); } });
+  template.push({ label: t('Screenshot tool (with annotations)'), click: function() { shell.webContents.send('context-menu-action', { type: 'screenshotTool' }); } });
+  template.push({ label: t('OCR: grab text from screen'), click: function() { shell.webContents.send('context-menu-action', { type: 'ocrTool' }); } });
+  if (!_isInternalMenuPage) {
+    template.push({ label: t('Open site as application'), click: function() { shell.webContents.send('context-menu-action', { type: 'openAsApp' }); } });
+  }
+  template.push({ label: t('Print...'), accelerator: 'CmdOrCtrl+P', click: function() { shell.webContents.send('context-menu-action', { type: 'print' }); } });
 
   var zoomSubmenu = [
-    { label: t('Zoom in'), accelerator: 'CmdOrCtrl++', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'zoomIn' }); } },
-    { label: t('Zoom out'), accelerator: 'CmdOrCtrl+-', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'zoomOut' }); } },
-    { label: t('Reset'), accelerator: 'CmdOrCtrl+0', click: function() { mainWindow.webContents.send('context-menu-action', { type: 'zoomReset' }); } },
+    { label: t('Zoom in'), accelerator: 'CmdOrCtrl++', click: function() { shell.webContents.send('context-menu-action', { type: 'zoomIn' }); } },
+    { label: t('Zoom out'), accelerator: 'CmdOrCtrl+-', click: function() { shell.webContents.send('context-menu-action', { type: 'zoomOut' }); } },
+    { label: t('Reset'), accelerator: 'CmdOrCtrl+0', click: function() { shell.webContents.send('context-menu-action', { type: 'zoomReset' }); } },
   ];
   template.push({ label: t('Zoom'), submenu: zoomSubmenu });
 
   template.push({ type: 'separator' });
-  template.push({ label: t('Translate page'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'translate' }); } });
-  template.push({ label: t('Page QR code'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'qrPage' }); } });
+  if (!_isInternalMenuPage) {
+    template.push({ label: t('Translate page'), click: function() { shell.webContents.send('context-menu-action', { type: 'translate' }); } });
+    template.push({ label: t('Page QR code'), click: function() { shell.webContents.send('context-menu-action', { type: 'qrPage' }); } });
+  }
   template.push({ type: 'separator' });
-  template.push({ label: t('Eyedropper (Color Picker)'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'colorPicker' }); } });
-  template.push({ label: t('Reader mode'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'readerMode' }); } });
+  template.push({ label: t('Eyedropper (Color Picker)'), click: function() { shell.webContents.send('context-menu-action', { type: 'colorPicker' }); } });
+  template.push({ label: t('Reader mode'), click: function() { shell.webContents.send('context-menu-action', { type: 'readerMode' }); } });
   {
     var _zstore = readStorage();
     var _zenabled = _zstore.elementZapperEnabled !== false;
-    if (_zenabled) {
-      template.push({ label: t('Hide element (Zapper)'), click: function() { mainWindow.webContents.send('context-menu-action', { type: 'elementZapper' }); } });
+    if (_zenabled && !_isInternalMenuPage) {
+      template.push({ label: t('Hide element (Zapper)'), click: function() { shell.webContents.send('context-menu-action', { type: 'elementZapper' }); } });
     }
   }
 
@@ -5510,9 +7584,10 @@ ipcMain.on('context-menu-copy-image', (_, dataUrl) => {
   } catch(e) {}
 });
 
-ipcMain.on('context-menu-open-tab', (_, url) => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('open-in-new-tab', url);
+ipcMain.on('context-menu-open-tab', (event, url) => {
+  var win = _shellWindowOf(event.sender);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('open-in-new-tab', url);
   }
 });
 
@@ -5670,17 +7745,79 @@ ipcMain.handle('get-privacy-stats', () => {
 });
 
 // ============== BACKUP ==============
-const archiver = require('archiver');
-const extractZip = require('extract-zip');
+// Zip read/write for backups is built on AdmZip (already a dependency):
+//  - safeExtractZip: import side. Replaces the abandoned extract-zip —
+//    its latest release 2.0.1 (June 2020) carries GHSA-jmr9-qjv8-65gv
+//    (unvalidated symlink path traversal) and no patched version exists.
+//  - writeBackupZip: export side. Replaces archiver, which turned ESM-only
+//    in v8 and stopped being callable from this CommonJS main process
+//    ("archiver is not a function" — silently broke backup export).
+function safeExtractZip(zipPath, destDir) {
+  if (!AdmZip) throw new Error('adm-zip not available');
+  var zip = new AdmZip(zipPath);
+  var entries = zip.getEntries();
+  var totalSize = 0;
+  var MAX_TOTAL = 512 * 1024 * 1024;
+  for (var i = 0; i < entries.length; i++) {
+    var en = entries[i];
+    var name = en.entryName;
+    if (!name || name.indexOf('\0') !== -1) throw new Error('Invalid zip entry name');
+    if (/^[a-zA-Z]:/.test(name) || name.charAt(0) === '/' || name.charAt(0) === '\\') {
+      throw new Error('Absolute path in zip entry: ' + name);
+    }
+    var parts = name.split(/[\\/]/);
+    for (var p = 0; p < parts.length; p++) {
+      if (parts[p] === '..') throw new Error('Path traversal in zip entry: ' + name);
+    }
+    var mode = ((en.attr >>> 0) >>> 16) & 0xF000;
+    if (mode === 0xA000) continue; // S_IFLNK — skip symlinks (advisory vector)
+    if (en.isDirectory) {
+      fs.mkdirSync(path.join.apply(path, [destDir].concat(parts)), { recursive: true });
+      continue;
+    }
+    try { totalSize += (en.header && en.header.size) || 0; } catch(e2) {}
+    if (totalSize > MAX_TOTAL) throw new Error('Zip contents too large');
+    var target = path.join.apply(path, [destDir].concat(parts));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, en.getData());
+  }
+}
 
-function _gatherBackupData() {
-  const store = readStorage();
+function writeBackupZip(outPath, manifest, dataBuf) {
+  if (!AdmZip) throw new Error('adm-zip not available');
+  var zip = new AdmZip();
+  zip.addFile('manifest.json', Buffer.from(JSON.stringify(manifest), 'utf8'));
+  zip.addFile('data.bin', dataBuf);
+  zip.writeZip(outPath);
+}
+
+function _gatherBackupData(includeSecrets) {
+  // Always deep-clone: this function mutates the store copy (stripping and
+  // surfacing secrets) and must never touch the live settings object.
+  const store = JSON.parse(JSON.stringify(readStorage()));
   var data = {};
   data.metadata = {
     version: electronApp.getVersion(),
     date: new Date().toISOString(),
     platform: process.platform
   };
+  // The OS-sealed copy is machine-bound (DPAPI/Keychain/libsecret) and is
+  // never portable: secrets travel as plaintext `data.passwords` inside the
+  // AES-GCM-encrypted archive instead.
+  var sealedPlain = null;
+  if (store.passwordsSealed) {
+    if (includeSecrets) sealedPlain = _unsealNoVault(store.passwordsSealed);
+    delete store.passwordsSealed;
+  }
+  if (!includeSecrets) {
+    // Unencrypted destinations must never receive credential material:
+    // strip plaintext passwords, the vault and the masterAuth verifier
+    // (which would allow offline brute-force of the master password).
+    data.metadata.secretsExcluded = true;
+    delete store.passwords;
+    delete store.passwordVault;
+    delete store.masterAuth;
+  }
   // Never leak the plaintext store's sensitive auth material into the top
   // level of the backup; the vault travels inside data.settings and is also
   // surfaced under data.passwordVault so the restore UI can pick it up.
@@ -5688,9 +7825,12 @@ function _gatherBackupData() {
   if (store.history) data.history = store.history;
   if (store.scripts) data.scripts = store.scripts;
   if (store.bookmarks) data.bookmarks = store.bookmarks;
-  if (store.passwords) data.passwords = store.passwords;
-  if (store.passwordVault) data.passwordVault = store.passwordVault;
-  if (store.masterAuth) data.masterAuth = store.masterAuth;
+  if (includeSecrets) {
+    if (sealedPlain) data.passwords = sealedPlain;
+    if (store.passwords) data.passwords = store.passwords;
+    if (store.passwordVault) data.passwordVault = store.passwordVault;
+    if (store.masterAuth) data.masterAuth = store.masterAuth;
+  }
   if (store.security) data.security = store.security;
   if (store.siteThemes) data.siteThemes = store.siteThemes;
   if (store.blockedLog) data.blockedLog = store.blockedLog;
@@ -5701,25 +7841,38 @@ function _gatherBackupData() {
 }
 
 const BACKUP_LEGACY_SALT = 'startpozi-backup-salt';
+const BACKUP_MAGIC_V2 = Buffer.from('SPZ2', 'ascii');
 
-function _encryptBuffer(buf, password, salt) {
+function _encryptBuffer(buf, password) {
   var crypto2 = require('crypto');
-  var useSalt = salt || crypto2.randomBytes(16);
-  var key = crypto2.scryptSync(password, useSalt, 32);
-  var iv = crypto2.randomBytes(16);
-  var cipher = crypto2.createCipheriv('aes-256-cbc', key, iv);
-  var encrypted = Buffer.concat([iv, cipher.update(buf), cipher.final()]);
-  // Prepend the salt so the same salt is reused for decryption. Old backups
-  // (iv + ciphertext with a static salt) are still readable via the fallback
-  // path in _decryptBuffer.
-  return Buffer.concat([useSalt, encrypted]);
+  // Format v2 (default): 'SPZ2' + salt(16) + iv(12) + tag(16) + ciphertext.
+  // AES-256-GCM with a random salt and an integrity tag (CBC had neither
+  // authentication nor tamper detection). Old backups stay readable via the
+  // fallback paths in _decryptBuffer.
+  var salt = crypto2.randomBytes(16);
+  var key = crypto2.scryptSync(password, salt, 32);
+  var iv = crypto2.randomBytes(12);
+  var cipher = crypto2.createCipheriv('aes-256-gcm', key, iv);
+  var encrypted = Buffer.concat([cipher.update(buf), cipher.final()]);
+  var tag = cipher.getAuthTag();
+  return Buffer.concat([BACKUP_MAGIC_V2, salt, iv, tag, encrypted]);
 }
 
 function _decryptBuffer(buf, password, manifestSalt) {
   var crypto2 = require('crypto');
-  // New format: salt(16) + iv(16) + ciphertext. Old format: iv(16) + ciphertext.
-  // Try the new format when we have at least 32 bytes of header, and fall back
-  // to the legacy static salt otherwise.
+  // v2 (GCM): 'SPZ2' + salt(16) + iv(12) + tag(16) + ciphertext.
+  if (buf.length > 4 + 16 + 12 + 16 && buf.slice(0, 4).equals(BACKUP_MAGIC_V2)) {
+    var salt2 = buf.slice(4, 20);
+    var iv2 = buf.slice(20, 32);
+    var tag2 = buf.slice(32, 48);
+    var data2 = buf.slice(48);
+    var key2 = crypto2.scryptSync(password, salt2, 32);
+    var decipher2 = crypto2.createDecipheriv('aes-256-gcm', key2, iv2);
+    decipher2.setAuthTag(tag2);
+    return Buffer.concat([decipher2.update(data2), decipher2.final()]);
+  }
+  // v1 (CBC): salt(16) + iv(16) + ciphertext, or manifest-provided salt with
+  // iv(16) + ciphertext. Old format: iv(16) + ciphertext with a static salt.
   if (manifestSalt) {
     var saltB = Buffer.isBuffer(manifestSalt) ? manifestSalt : Buffer.from(manifestSalt, 'base64');
     var ivB = buf.slice(0, 16);
@@ -5756,32 +7909,22 @@ ipcMain.handle('backup-export', async (_, usePassword, password) => {
     });
     if (result.canceled) return { success: false, message: 'Cancelled' };
 
-    var data = _gatherBackupData();
+    var data = _gatherBackupData(!!usePassword);
     var jsonBuf = Buffer.from(JSON.stringify(data, null, 2), 'utf8');
 
     var tmpDir = path.join(electronApp.getPath('temp'), 'spzi-export-' + Date.now());
     fs.mkdirSync(tmpDir, { recursive: true });
 
     var manifest = { encrypted: !!usePassword, version: data.metadata.version, date: data.metadata.date };
-    fs.writeFileSync(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
-
     var dataToWrite = usePassword ? _encryptBuffer(jsonBuf, password) : jsonBuf;
-    fs.writeFileSync(path.join(tmpDir, 'data.bin'), dataToWrite);
-
-    await new Promise(function(resolve, reject) {
-      var output = fs.createWriteStream(result.filePath);
-      var archive = archiver('zip', { zlib: { level: 9 } });
-      output.on('close', function() { resolve(); });
-      output.on('error', function(err) { reject(err); });
-      archive.on('error', function(err) { reject(err); });
-      archive.pipe(output);
-      archive.directory(tmpDir, false);
-      archive.finalize();
-    });
+    writeBackupZip(result.filePath, manifest, dataToWrite);
 
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
 
-    return { success: true, path: result.filePath, size: fs.statSync(result.filePath).size };
+    return {
+      success: true, path: result.filePath, size: fs.statSync(result.filePath).size,
+      secretsExcluded: !usePassword
+    };
   } catch(e) {
     return { success: false, message: e.message };
   }
@@ -5792,7 +7935,7 @@ ipcMain.handle('backup-import', async (_, filePath, password, options) => {
     var tmpDir = path.join(electronApp.getPath('temp'), 'spzi-import-' + Date.now());
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    await extractZip(filePath, { dir: tmpDir });
+    safeExtractZip(filePath, tmpDir);
 
     var manifest = JSON.parse(fs.readFileSync(path.join(tmpDir, 'manifest.json'), 'utf8'));
     var dataBuf = fs.readFileSync(path.join(tmpDir, 'data.bin'));
@@ -5826,15 +7969,20 @@ ipcMain.handle('backup-import', async (_, filePath, password, options) => {
     if (options.scripts && data.scripts) store.scripts = data.scripts;
     if (options.bookmarks && data.bookmarks) store.bookmarks = data.bookmarks;
     if (options.passwords) {
-      // Prefer the encrypted vault when present; fall back to plaintext.
+      // Prefer the encrypted vault when present; fall back to plaintext
+      // (re-sealed with the OS backend so nothing lands on disk in clear).
       if (data.passwordVault) {
         store.passwordVault = data.passwordVault;
         if (data.masterAuth) store.masterAuth = data.masterAuth;
         delete store.passwords;
+        delete store.passwordsSealed;
         // Imported vault is locked by default until the user unlocks it.
         _vaultKey = null;
       } else if (data.passwords) {
-        store.passwords = data.passwords;
+        delete store.passwordVault;
+        delete store.masterAuth;
+        _vaultKey = null;
+        _writePasswords(store, data.passwords);
       }
     }
     if (options.siteThemes && data.siteThemes) store.siteThemes = data.siteThemes;
@@ -5874,7 +8022,7 @@ ipcMain.handle('backup-check-file', async (_, filePath) => {
   try {
     var tmpDir = path.join(electronApp.getPath('temp'), 'spzi-check-' + Date.now());
     fs.mkdirSync(tmpDir, { recursive: true });
-    await extractZip(filePath, { dir: tmpDir });
+    safeExtractZip(filePath, tmpDir);
     var manifest = JSON.parse(fs.readFileSync(path.join(tmpDir, 'manifest.json'), 'utf8'));
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
     return { success: true, encrypted: !!manifest.encrypted, version: manifest.version, date: manifest.date };
@@ -5907,24 +8055,11 @@ ipcMain.handle('backup-auto', async () => {
     if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
     var filename = 'auto-backup-' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.spzi';
     var filePath = path.join(backupDir, filename);
-    var data = _gatherBackupData();
+    // Auto-backups are written unencrypted — never include credentials.
+    var data = _gatherBackupData(false);
     var jsonBuf = Buffer.from(JSON.stringify(data), 'utf8');
-    var tmpDir = path.join(electronApp.getPath('temp'), 'spzi-auto-' + Date.now());
-    fs.mkdirSync(tmpDir, { recursive: true });
     var manifest = { encrypted: false, version: data.metadata.version, date: data.metadata.date };
-    fs.writeFileSync(path.join(tmpDir, 'manifest.json'), JSON.stringify(manifest));
-    fs.writeFileSync(path.join(tmpDir, 'data.bin'), jsonBuf);
-    await new Promise(function(resolve, reject) {
-      var output = fs.createWriteStream(filePath);
-      var archive = archiver('zip', { zlib: { level: 9 } });
-      output.on('close', resolve);
-      output.on('error', reject);
-      archive.on('error', reject);
-      archive.pipe(output);
-      archive.directory(tmpDir, false);
-      archive.finalize();
-    });
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
+    writeBackupZip(filePath, manifest, jsonBuf);
     var backups = fs.readdirSync(backupDir).filter(function(f) { return f.startsWith('auto-backup-') && f.endsWith('.spzi'); }).sort();
     while (backups.length > 10) {
       try { fs.unlinkSync(path.join(backupDir, backups[0])); } catch(e) {}
@@ -6020,7 +8155,11 @@ function _applyProxyToSessionObj(ses) {
   var enabled = _proxySettings.enabled && _proxySettings.host;
   var cfg;
 
-  if (enabled) {
+  if (_proxyLiveFallback) {
+    // Watchdog: the configured proxy is dead — keep the user online via a
+    // direct connection until it responds again (recovery re-applies).
+    cfg = { mode: 'direct' };
+  } else if (enabled) {
     // Proxy ON → everything proxied, bypass list exempted
     var rules = { proxyRules: _proxyUrl() };
     if (bypass.length > 0) rules.proxyBypassRules = bypass.join(';');
@@ -6309,17 +8448,39 @@ function torNewIdentity() {
 // configure the SOCKS5 proxy and apply it to all sessions.
 var _torDetectedInfo = null;  // { binary, port, host } or null
 
-// Synchronously search for the tor binary path via which/where.
+// Run a command asynchronously (no shell) and return its stdout, or null on failure.
+function _execFileText(cmd, args, timeoutMs) {
+  var execFile = require('child_process').execFile;
+  return new Promise(function(resolve) {
+    try {
+      execFile(cmd, args, { encoding: 'utf8', timeout: timeoutMs || 2000, windowsHide: true, stdio: ['ignore','pipe','ignore'] }, function(err, stdout) {
+        resolve(err ? null : stdout);
+      });
+    } catch(e) { resolve(null); }
+  });
+}
+
+// Run a command asynchronously (no shell), resolve to true on exit code 0.
+function _execFileOk(cmd, args, timeoutMs) {
+  var execFile = require('child_process').execFile;
+  return new Promise(function(resolve) {
+    try {
+      execFile(cmd, args, { timeout: timeoutMs || 5000, windowsHide: true, stdio: 'ignore' }, function(err) {
+        resolve(!err);
+      });
+    } catch(e) { resolve(false); }
+  });
+}
+
+// Search for the tor binary path via which/where (async, non-blocking).
 // Returns path (string) or null.
-function _findTorBinarySync() {
+async function _findTorBinary() {
   if (process.platform === 'win32') {
-    try { return execSync('where tor.exe', {encoding: 'utf8', stdio: ['ignore','pipe','ignore']}).split(/\r?\n/)[0].trim() || null; } catch(e) {}
-    return null;
+    var w = await _execFileText('where', ['tor.exe'], 2000);
+    return (w && w.split(/\r?\n/)[0].trim()) || null;
   }
-  try {
-    var p = execSync('which tor', {encoding: 'utf8', stdio: ['ignore','pipe','ignore']}).trim();
-    return p || null;
-  } catch(e) { return null; }
+  var p = await _execFileText('which', ['tor'], 2000);
+  return (p && p.trim()) || null;
 }
 
 // Check if something is listening on 127.0.0.1:port. Timeout 250ms.
@@ -6337,6 +8498,10 @@ function _probePort(host, port) {
     sock.on('connect', function() { finish(true); });
     sock.on('error', function() { finish(false); });
     sock.on('timeout', function() { finish(false); });
+    // A proxy that accepts TCP and then silently drops the connection must
+    // also count as DEAD — without this handler the probe promise NEVER
+    // resolves (accept+close is exactly how a dying VPN/firewall behaves).
+    sock.on('close', function() { finish(false); });
   });
 }
 
@@ -6367,18 +8532,19 @@ function _probeSocks5(host, port) {
     });
     sock.on('error', function() { finish(false); });
     sock.on('timeout', function() { finish(false); });
+    sock.on('close', function() { finish(false); });
   });
 }
 
 // Full auto-detect: find binary + scan ports + read torrc for bridges.
 // Returns { binary, host, port, bridges, transports } or null.
 async function _detectTorAuto() {
-  var binary = _findTorBinarySync();
+  var binary = await _findTorBinary();
   var host = '127.0.0.1';
   // 1) Standard Tor SOCKS ports in order of usage frequency
   var stdPorts = [9050, 9150, 9060, 9070, 9080, 9100, 9150, 39050, 39060];
   // 2) All listening local ports via ss/netstat
-  var systemPorts = _getLocalListeningPortsSync();
+  var systemPorts = await _getLocalListeningPorts();
   var allPorts = stdPorts.concat(systemPorts.filter(function(p) { return stdPorts.indexOf(p) === -1; }));
   var foundPort = null;
   for (var i = 0; i < allPorts.length; i++) {
@@ -6389,8 +8555,8 @@ async function _detectTorAuto() {
     if (isSocks5) { foundPort = port; break; }
   }
   // Read torrc — even if SOCKS does not respond, bridges may be useful
-  var torrcInfo = _readBridgesFromTorrc();
-  var transports = _detectPluggableTransports();
+  var torrcInfo = await _readBridgesFromTorrc();
+  var transports = await _detectPluggableTransports();
   if (foundPort) {
     return {
       binary: binary,
@@ -6418,7 +8584,7 @@ async function _detectTorAuto() {
 
 // List of ports listening on 127.0.0.1/localhost, via system utilities.
 // Linux: ss. macOS/BSD: netstat. Windows: netstat. Returns array of numbers.
-function _getLocalListeningPortsSync() {
+async function _getLocalListeningPorts() {
   var out = [];
   function tryParse(text) {
     if (!text) return;
@@ -6429,23 +8595,30 @@ function _getLocalListeningPortsSync() {
       if (p > 0 && p < 65536 && out.indexOf(p) === -1) out.push(p);
     }
   }
+  function listenOnly(text) {
+    if (!text) return '';
+    return text.split('\n').filter(function(l) { return /LISTEN/i.test(l); }).join('\n');
+  }
   // Linux: ss
   if (process.platform !== 'win32') {
-    try { tryParse(execSync('ss -tlnH 2>/dev/null', {encoding: 'utf8', stdio: ['ignore','pipe','ignore'], timeout: 1500})); } catch(e) {}
+    var ssOut = await _execFileText('ss', ['-tlnH'], 1500);
+    if (ssOut) tryParse(ssOut);
     // macOS / fallback netstat
     if (out.length === 0) {
-      try { tryParse(execSync('netstat -an -p tcp 2>/dev/null | grep -i LISTEN', {encoding: 'utf8', stdio: ['ignore','pipe','ignore'], timeout: 1500})); } catch(e) {}
+      var nsOut = await _execFileText('netstat', ['-an', '-p', 'tcp'], 1500);
+      if (nsOut) tryParse(listenOnly(nsOut));
     }
   } else {
     // Windows
-    try { tryParse(execSync('netstat -an -p tcp | findstr LISTENING', {encoding: 'utf8', stdio: ['ignore','pipe','ignore'], timeout: 1500})); } catch(e) {}
+    var wOut = await _execFileText('netstat', ['-an', '-p', 'tcp'], 1500);
+    if (wOut) tryParse(listenOnly(wOut));
   }
   return out;
 }
 
 // Reads the user's torrc and extracts already configured bridges.
 // Returns { bridges: string[], useBridges: bool, pathsChecked: string[] }.
-function _readBridgesFromTorrc() {
+async function _readBridgesFromTorrc() {
   var home = process.env.HOME || process.env.USERPROFILE || '/root';
   var paths = [];
   if (process.platform === 'win32') {
@@ -6475,7 +8648,11 @@ function _readBridgesFromTorrc() {
 
   // Also add the torrc-path from the running tor process (tor -f /path)
   try {
-    var pgrepOut = execSync('pgrep -a tor 2>/dev/null || ps aux | grep -E "[t]or " 2>/dev/null', {encoding: 'utf8', stdio: ['ignore','pipe','ignore'], timeout: 1500});
+    var pgrepOut = (await _execFileText('pgrep', ['-a', 'tor'], 1500)) || '';
+    if (!pgrepOut) {
+      var psOut = await _execFileText('ps', ['aux'], 1500);
+      if (psOut) pgrepOut = psOut.split('\n').filter(function(l) { return /[t]or /.test(l); }).join('\n');
+    }
     for (var mm = /-f\s+(\S+)/g, m2; (m2 = mm.exec(pgrepOut)) !== null;) {
       if (paths.indexOf(m2[1]) === -1) paths.push(m2[1]);
     }
@@ -6519,21 +8696,22 @@ function _readBridgesFromTorrc() {
     });
   }
 
-  function tryRead(p) {
+  async function tryRead(p) {
     pathsChecked.push(p);
     try {
       if (p.indexOf('*') !== -1) {
-        // Glob path — expand manually via ls/sh (for TBB tor-browser_*)
-        try {
-          var ls = execSync('ls -1 ' + p.replace(/\s/g, '\\ ') + ' 2>/dev/null', {encoding: 'utf8', stdio: ['ignore','pipe','ignore'], timeout: 1500});
-          ls.split(/\r?\n/).forEach(function(rp) {
-            rp = rp.trim();
-            if (!rp) return;
+        // Glob path — expand manually via sh (for TBB tor-browser_*)
+        var ls = await _execFileText('/bin/sh', ['-c', 'ls -1 ' + p.replace(/\s/g, '\\ ') + ' 2>/dev/null'], 1500);
+        if (ls) {
+          var lines = ls.split(/\r?\n/);
+          for (var li = 0; li < lines.length; li++) {
+            var rp = lines[li].trim();
+            if (!rp) continue;
             try {
               if (fs.existsSync(rp)) parseText(fs.readFileSync(rp, 'utf8'));
             } catch(e) {}
-          });
-        } catch(e) {}
+          }
+        }
         return;
       }
       if (!fs.existsSync(p)) return;
@@ -6541,8 +8719,8 @@ function _readBridgesFromTorrc() {
     } catch(e) {}
   }
 
-  paths.forEach(tryRead);
-  statePaths.forEach(tryRead);
+  for (var pi = 0; pi < paths.length; pi++) await tryRead(paths[pi]);
+  for (var si = 0; si < statePaths.length; si++) await tryRead(statePaths[si]);
 
   return { bridges: bridges, useBridges: useBridges, pathsChecked: pathsChecked };
 }
@@ -6559,46 +8737,34 @@ function _snowflakeBridgesPreset() {
 }
 
 // Check whether obfs4proxy / snowflake-client is installed
-function _detectPluggableTransports() {
+async function _detectPluggableTransports() {
   var found = {};
-  function tryWhich(name) {
-    try {
-      var cmd = process.platform === 'win32' ? ('where ' + name + '.exe') : ('which ' + name);
-      var p = execSync(cmd, {encoding: 'utf8', stdio: ['ignore','pipe','ignore'], timeout: 1000}).trim();
-      return p || null;
-    } catch(e) { return null; }
+  async function tryWhich(name) {
+    var cmd = process.platform === 'win32' ? 'where' : 'which';
+    var args = process.platform === 'win32' ? [name + '.exe'] : [name];
+    var p = await _execFileText(cmd, args, 1000);
+    return (p && p.trim()) || null;
   }
-  found.obfs4 = tryWhich('obfs4proxy');
-  found.snowflake = tryWhich('snowflake-client');
+  found.obfs4 = await tryWhich('obfs4proxy');
+  found.snowflake = await tryWhich('snowflake-client');
   return found;
 }
 
 // Apply auto-detected Tor: save to proxy.json + apply to sessions.
 // Returns true if the proxy was applied.
 async function _autoApplyTorIfNeeded() {
-  // If the user already configured the proxy manually — do not interfere
+  // DETECTION ONLY — never auto-hijack traffic. A system Tor that is running
+  // but cannot build circuits (censored network, no bridges) used to get all
+  // browser traffic routed into it automatically, black-holing every request
+  // "while Tor works". The user enables the proxy explicitly; detection only
+  // feeds the Settings UI (_torDetectedInfo / "Auto-detect" button).
   if (_proxySettings && _proxySettings.enabled && _proxySettings.host) return false;
   try {
     var info = await _detectTorAuto();
     if (!info) { _torDetectedInfo = null; return false; }
     _torDetectedInfo = info;
-    if (!info.host || !info.port) {
-      // Binary exists, but Tor is not running — do not apply, but remember
-      return false;
-    }
-    // Save to proxy.json
-    var newSettings = {
-      enabled: true,
-      type: 'socks5',
-      host: info.host,
-      port: String(info.port),
-      bridges: ''
-    };
-    _proxySettings = newSettings;
-    try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
-    applyProxyToSession();
-    return true;
-  } catch(e) { return false; }
+  } catch(e) {}
+  return false;
 }
 
 // IPC for manual launch from Settings ("Auto-detect" button)
@@ -6732,7 +8898,8 @@ app.on('before-quit', function() {
   try {
     var s = readStorage();
     if (s.autoBackup) {
-      var data = _gatherBackupData();
+      // Unencrypted auto-backup on quit — credentials are never included.
+      var data = _gatherBackupData(false);
       var backupDir = s.autoBackupPath || path.join(electronApp.getPath('userData'), 'backups');
       if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
       var fn = 'auto-backup-' + new Date().toISOString().slice(0,19).replace(/:/g,'-') + '.spzi';
@@ -6765,20 +8932,133 @@ ipcMain.handle('get-proxy-settings', function() {
   return _proxySettings;
 });
 
+function _sanitizeProxyHost(h) {
+  // The host is embedded into proxyRules and into a generated PAC script —
+  // strip everything that could break out of the PAC string literal.
+  return String(h || '').trim().replace(/[^A-Za-z0-9.\[\]:_-]/g, '');
+}
+function _sanitizeProxyPort(p) {
+  var s = String(p || '').trim().replace(/[^0-9]/g, '');
+  return s.length > 0 ? String(parseInt(s, 10)) : '';
+}
+
 ipcMain.handle('set-proxy-settings', function(_, settings) {
   _proxySettings = {
     enabled: !!settings.enabled,
-    type: settings.type || 'http',
-    host: (settings.host || '').trim(),
-    port: (settings.port || '').trim(),
+    type: ['http','https','socks4','socks5','tor'].indexOf(settings.type) !== -1 ? settings.type : 'http',
+    host: _sanitizeProxyHost(settings.host),
+    port: _sanitizeProxyPort(settings.port),
     bridges: settings.bridges || '',
     bypassDomains: _normalizeDomainList(settings.bypassDomains),
     forceDomains: _normalizeDomainList(settings.forceDomains)
   };
+  // A manual enable clears the auto-disable marker from the watchdog.
+  if (_proxySettings.enabled && _proxySettings.host) delete _proxySettings.proxyAutoDisabled;
   try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
+  // The user just changed the proxy by hand: drop any stale live-fallback
+  // so their explicit choice is applied immediately (not in 45s), and reset
+  // the fail counter.
+  _proxyLiveFallback = false;
+  _proxyWatchdogFails = 0;
   applyProxyToSession();
+  // The DNS-through-proxy startup flag cannot be unset at runtime: with it
+  // active, a "direct" connection has NO DNS at all. Offer a restart instead
+  // of silently black-holing every request.
+  if (!_proxySettings.enabled && _dnsThroughProxyActive) {
+    setTimeout(function() { _offerDirectRelaunch('Proxy disabled', 'DNS is still routed through the proxy until the browser restarts. Without a restart, no site will load. Restart now to restore the direct connection.'); }, 400);
+  }
   return { success: true };
 });
+
+// Restart the browser with the proxy turned off (host/port are kept in
+// proxy.json so the user can re-enable everything with one toggle).
+function _relaunchWithoutProxy() {
+  try {
+    _proxySettings.enabled = false;
+    // Marker: prevents the startup auto-detect from re-applying a dead proxy
+    // right after the restart (cleared when the user enables a proxy again).
+    _proxySettings.proxyAutoDisabled = true;
+    fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings));
+  } catch(e) {}
+  try { app.relaunch(); } catch(e) {}
+  app.exit(0);
+}
+
+function _offerDirectRelaunch(title, detail) {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (_directRelaunchOffered) return;
+    _directRelaunchOffered = true;
+    dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: t(title),
+      message: t(title),
+      detail: t(detail),
+      buttons: [t('Restart without proxy'), t('Keep proxy settings')],
+      defaultId: 0,
+      cancelId: 1
+    }).then(function(r) {
+      if (r.response === 0) _relaunchWithoutProxy();
+      else _directRelaunchOffered = false; // allow the offer again later
+    }).catch(function() { _directRelaunchOffered = false; });
+  } catch(e) {}
+}
+var _directRelaunchOffered = false;
+
+// Dead-proxy watchdog. Two modes:
+//  • DNS-flag active (hardened Tor): direct mode is impossible without a
+//    restart → offer one once.
+//  • Regular proxy: LIVE fallback — switch all sessions to direct
+//    immediately (works, because local DNS is available) and notify; when
+//    the proxy comes back, traffic is re-routed automatically.
+function _startProxyWatchdog() {
+  setInterval(function() {
+    try {
+      if (!_proxySettings.enabled || !_proxySettings.host) return;
+      var host = _proxySettings.host || '127.0.0.1';
+      var port = parseInt(_proxySettings.port, 10) || 9050;
+      var isSocks = _proxySettings.type === 'socks5' || _proxySettings.type === 'tor';
+      var probe = isSocks ? _probeSocks5(host, port) : _probePort(host, port);
+      probe.then(function(ok) {
+        if (ok) {
+          _proxyWatchdogFails = 0;
+          // Recovery: the proxy came back while we fell back to direct.
+          if (_proxyLiveFallback) {
+            _proxyLiveFallback = false;
+            console.error("[WD] RECOVERY: proxy back");
+            try { applyProxyToSession(); } catch(e) {}
+            _proxyNotify('Proxy restored', 'Traffic is routed through ' + host + ':' + port + ' again.');
+          }
+          return;
+        }
+        _proxyWatchdogFails++;
+        if (_proxyWatchdogFails < 2) return;
+        _proxyWatchdogFails = 0;
+        if (_dnsThroughProxyActive) {
+          // Hardened Tor mode: no DNS without the proxy — restart required.
+          _offerDirectRelaunch('Proxy is unreachable',
+            'The configured proxy (' + host + ':' + port + ') is not responding. Because DNS is routed through the proxy, nothing can load. Restart in direct mode?');
+        } else if (!_proxyLiveFallback) {
+          // Regular proxy: switch to direct right away, keep the settings.
+          _proxyLiveFallback = true;
+          console.error("[WD] FALLBACK -> direct");
+          try { applyProxyToSession(); } catch(e) {}
+          _proxyNotify('Proxy is unreachable',
+            'Switched to a direct connection. The proxy settings were kept and will be used again once ' + host + ':' + port + ' responds.');
+        }
+      });
+    } catch(e) {}
+  }, 45000);
+}
+var _proxyWatchdogFails = 0;
+var _proxyLiveFallback = false;
+
+function _proxyNotify(title, body) {
+  try {
+    var n = new Notification({ title: t(title), body: t(body) });
+    n.show();
+  } catch(e) {}
+}
 
 ipcMain.handle('tor-start', async function(_, settings) {
   _proxySettings.bridges = settings.bridges || '';
@@ -6812,7 +9092,14 @@ ipcMain.handle('tor-stop', function() {
   // — which made every request fail because nothing was listening any more.
   _proxySettings.enabled = false;
   try { fs.writeFileSync(_proxyConfigPath, JSON.stringify(_proxySettings)); } catch(e) {}
+  _proxyLiveFallback = false;
+  _proxyWatchdogFails = 0;
   try { applyProxyToSession(); } catch(e) {}
+  // With the DNS-through-proxy flag active, direct mode has no DNS —
+  // offer a restart instead of a silent blackout.
+  if (_dnsThroughProxyActive) {
+    setTimeout(function() { _offerDirectRelaunch('Tor stopped', 'DNS is still routed through Tor until the browser restarts. Without a restart, no site will load. Restart now?'); }, 400);
+  }
   return { stopped: true };
 });
 
@@ -6844,6 +9131,9 @@ ipcMain.handle('set-tor-autostart', function(_, val) {
 // ===== Connection test: detects exit IP, country, ISP, Tor status, speed =====
 // Goes through the current proxy/Tor (uses net.fetch which respects session proxy).
 ipcMain.handle('proxy-connection-test', async function() {
+  if (!_svcEnabled('diagnosticsEnabled')) {
+    return { success: false, error: 'Connection diagnostics are disabled in Settings' };
+  }
   var netMod = require('electron').net;
   function fetchWithTimeout(url, ms) {
     return new Promise(function(resolve, reject) {
@@ -6876,7 +9166,7 @@ ipcMain.handle('proxy-connection-test', async function() {
   // 1) IP + Tor detection via check.torproject.org
   var t0 = Date.now();
   try {
-    var r1 = await fetchWithTimeout('https://check.torproject.org/api/ip', 12000);
+    var r1 = await fetchWithTimeout(EXTERNAL_SERVICES.torCheck, 12000);
     if (r1.ok) {
       var j1 = await r1.json();
       out.ip = j1.IP || out.ip;
@@ -6890,7 +9180,7 @@ ipcMain.handle('proxy-connection-test', async function() {
 
   // 2) Geo / ISP via ipapi.co (fallback: ipinfo.io)
   try {
-    var r2 = await fetchWithTimeout('https://ipapi.co/json/', 12000);
+    var r2 = await fetchWithTimeout(EXTERNAL_SERVICES.geo, 12000);
     if (r2.ok) {
       var j2 = await r2.json();
       if (j2 && !j2.error) {
@@ -6905,7 +9195,7 @@ ipcMain.handle('proxy-connection-test', async function() {
   } catch(e) {
     // fallback to ipinfo.io
     try {
-      var r3 = await fetchWithTimeout('https://ipinfo.io/json', 10000);
+      var r3 = await fetchWithTimeout(EXTERNAL_SERVICES.geoFallback, 10000);
       if (r3.ok) {
         var j3 = await r3.json();
         if (!out.ip) out.ip = j3.ip;
@@ -6923,7 +9213,7 @@ ipcMain.handle('proxy-connection-test', async function() {
   try {
     var bytes = 524288;
     var ts = Date.now();
-    var r4 = await fetchWithTimeout('https://speed.cloudflare.com/__down?bytes=' + bytes, 15000);
+    var r4 = await fetchWithTimeout(EXTERNAL_SERVICES.speedTest + bytes, 15000);
     if (r4.ok && r4.body) {
       var buf = await r4.arrayBuffer();
       var dt = (Date.now() - ts) / 1000;
@@ -6941,11 +9231,25 @@ ipcMain.handle('proxy-connection-test', async function() {
   return out;
 });
 
-ipcMain.handle('translate-text', async function(_, text, from, to) {
+// Shared translate logic: used by the 'translate-text' IPC and the console
+// transport of the hover-translate bridge. Goes through net.fetch (respects
+// Tor/proxy).
+async function _translateText(text, from, to) {
   try {
-    var sl = from || 'auto';
-    var tl = to || 'en';
-    var url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=' + sl + '&tl=' + tl + '&dt=t&q=' + encodeURIComponent(text);
+    if (!_svcEnabled('translateEnabled')) {
+      return { success: false, error: 'Translation is disabled in Settings' };
+    }
+    // from/to arrive from page code — only accept plain language codes,
+    // otherwise they end up inside the request URL.
+    function _sanitizeLang(v, dflt) {
+      return (/^[a-zA-Z-]{2,10}$/.test(String(v || ''))) ? String(v).toLowerCase() : dflt;
+    }
+    var sl = _sanitizeLang(from, 'auto');
+    var tl = _sanitizeLang(to, 'en');
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return { success: false, error: 'Empty text' };
+    }
+    var url = EXTERNAL_SERVICES.translate + '?client=gtx&sl=' + sl + '&tl=' + tl + '&dt=t&q=' + encodeURIComponent(text.slice(0, 5000));
     var resp = await require('electron').net.fetch(url);
     var data = await resp.json();
     if (data && data[0]) {
@@ -6957,6 +9261,10 @@ ipcMain.handle('translate-text', async function(_, text, from, to) {
   } catch(e) {
     return { success: false, error: e.message || 'Network error' };
   }
+}
+
+ipcMain.handle('translate-text', async function(_, text, from, to) {
+  return _translateText(text, from, to);
 });
 
 // ============== KEYBINDINGS (hotkey editor) ==============
@@ -6969,7 +9277,14 @@ ipcMain.on('keybinding-recording', function(_, on) {
 });
 ipcMain.handle('get-keybindings', function() {
   if (!_keyBindings) _loadKeybindings();
-  return { bindings: _keyBindings, defaults: _defaultKeybindings(), actions: _keybindingActions };
+  var store = readStorage();
+  return { bindings: _keyBindings, defaults: _defaultKeybindings(), actions: _keybindingActions, overlayEnabled: store.hotkeysOverlay !== false };
+});
+ipcMain.handle('set-hotkeys-overlay', function(_, on) {
+  var store = readStorage();
+  store.hotkeysOverlay = !!on;
+  writeStorage(store);
+  return { success: true, overlayEnabled: !!on };
 });
 ipcMain.handle('set-keybinding', function(_, action, binding) {
   if (!_keyBindings) _loadKeybindings();
@@ -7050,6 +9365,192 @@ ipcMain.handle('set-element-zapper-enabled', function(_, val) {
   return { success: true };
 });
 
+// Start the element picker in a specific webview. The picker ALWAYS runs in
+// the page's MAIN world via executeJavaScript (privileged main-process call,
+// ignores page CSP). The old isolated-world (preload) picker proved
+// unreliable on heavy sites (YouTube: trusted mouseover reached the isolated
+// context but the picker's own listeners never fired), and the original
+// window.postMessage trigger is dead in Electron 42 (cross-world messaging
+// no longer works at all). Main-world capture listeners on `window` fire
+// before any document-level handlers of the page.
+ipcMain.handle('start-element-picker', async (event, webContentsId) => {
+  try {
+    var wc = webContents.fromId(Number(webContentsId));
+    if (!wc || wc.isDestroyed()) return { success: false };
+    // Only webview contents can be targeted — never arbitrary windows.
+    if (wc.getType() !== 'webview') return { success: false };
+
+    // Re-invocation while active cancels the running picker (toggle-like UX).
+    try {
+      var wasActive = await wc.executeJavaScript('!!window.__spzMwPickerActive', false);
+      if (wasActive) {
+        await wc.executeJavaScript('if(window.__spzMwCancel){window.__spzMwCancel();}0', false);
+        return { success: true, cancelled: true };
+      }
+    } catch (e0) {}
+
+    var picked;
+    try {
+      picked = await wc.executeJavaScript(_MAIN_WORLD_PICKER_CODE, true);
+    } catch (e1) {
+      return { success: false };
+    }
+    if (!picked) return { success: true, cancelled: true };
+
+    // Undo (U key): remove the most recent rule for this domain.
+    if (picked.undo && picked.domain) {
+      var ustore = readStorage();
+      var ulist = ustore.elementHidingRules && ustore.elementHidingRules[picked.domain];
+      if (Array.isArray(ulist) && ulist.length) {
+        var removed = ulist.pop();
+        if (!ulist.length) delete ustore.elementHidingRules[picked.domain];
+        writeStorage(ustore);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('element-hiding-updated', { domain: picked.domain, selector: removed, added: false });
+        }
+      }
+      return { success: true, undo: true };
+    }
+
+    if (picked.selector && picked.domain) {
+      // Hide immediately in the page…
+      try {
+        var hideCss = picked.selector + ' { display: none !important; }';
+        wc.executeJavaScript('(function(){try{var s=document.createElement("style");s.id="__spz_zap_hide";s.textContent=' + JSON.stringify(hideCss) + ';document.documentElement.appendChild(s);return 1}catch(e){return 0}})()', false).catch(function() {});
+      } catch (e3) {}
+      // …and persist so the renderer keeps applying it on future loads.
+      _saveElementHidingRule(picked.domain, picked.selector, wc);
+      return { success: true };
+    }
+    return { success: true, cancelled: true };
+  } catch(e) {
+    return { success: false };
+  }
+});
+
+var _MAIN_WORLD_PICKER_CODE = `
+(function(){
+  if (window.__spzMwPickerActive) return null;
+  try{Object.defineProperty(window,'__spzMwPickerActive',{value:true,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzMwPickerActive=true;}
+  return new Promise(function(resolve){
+    function done(v){ try{Object.defineProperty(window,'__spzMwPickerActive',{value:false,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzMwPickerActive=false;} window.__spzMwCancel = null; cleanup(); resolve(v); }
+    try{Object.defineProperty(window,'__spzMwCancel',{value:function(){ done(null); },enumerable:false,configurable:true,writable:true});}catch(e){window.__spzMwCancel=function(){ done(null); };}
+    var style = document.createElement('style');
+    style.id = '__spz_picker_style';
+    style.textContent =
+      '.__spz_hover{outline:2px solid #e74c3c!important;outline-offset:-2px!important;background:rgba(231,76,60,0.12)!important;cursor:crosshair!important;}' +
+      '.__spz_overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:2147483646;pointer-events:none;background:rgba(0,0,0,0.35);}' +
+      '.__spz_hint{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#222;color:#fff;font:13px/1.4 -apple-system,sans-serif;' +
+        'padding:10px 16px;border-radius:10px;z-index:2147483647;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:90%;text-align:center;pointer-events:none;}' +
+      '.__spz_hint b{color:#ff6b6b}.__spz_hint kbd{background:#444;border-radius:4px;padding:1px 6px;font-family:monospace;}';
+    document.documentElement.appendChild(style);
+    var overlay = document.createElement('div');
+    overlay.className = '__spz_overlay';
+    document.documentElement.appendChild(overlay);
+    var hint = document.createElement('div');
+    hint.className = '__spz_hint';
+    // Build via DOM API + textContent only: YouTube (and other Trusted-Types
+    // CSP sites) throws on innerHTML assignment, which used to kill the whole
+    // picker right after the overlay was inserted ("dark screen, dead click").
+    (function(){
+      function kbd(txt){ var k = document.createElement('kbd'); k.textContent = txt; return k; }
+      hint.appendChild(document.createTextNode('Click an element to '));
+      var b = document.createElement('b'); b.textContent = 'hide it forever'; hint.appendChild(b);
+      hint.appendChild(document.createTextNode('. ')); hint.appendChild(kbd('Esc'));
+      hint.appendChild(document.createTextNode(' — cancel, ')); hint.appendChild(kbd('U'));
+      hint.appendChild(document.createTextNode(' — undo last.'));
+    })();
+    document.documentElement.appendChild(hint);
+    var lastHover = null;
+    function esc(s){ return (window.CSS && CSS.escape) ? CSS.escape(s) : s; }
+    function buildSelector(el){
+      if (!el || el.nodeType !== 1) return '';
+      if (el.id) {
+        var id = el.id.trim();
+        if (/^[A-Za-z][\\w\\-.:]*$/.test(id)) return '#' + esc(id);
+      }
+      var parts = [];
+      var node = el;
+      while (node && node.nodeType === 1 && node !== document.documentElement) {
+        var part = node.nodeName.toLowerCase();
+        if (node.id && /^[A-Za-z][\\w\\-.:]*$/.test(node.id.trim())) {
+          parts.unshift('#' + esc(node.id.trim()));
+          break;
+        }
+        var parent = node.parentElement;
+        if (parent) {
+          var sibs = Array.prototype.filter.call(parent.children, function(c){ return c.nodeName === node.nodeName; });
+          if (sibs.length > 1) part += ':nth-of-type(' + (Array.prototype.indexOf.call(parent.children, node) + 1) + ')';
+        }
+        parts.unshift(part);
+        node = parent;
+      }
+      var sel = parts.join(' > ');
+      if (sel.length > 200 && el.className && typeof el.className === 'string') {
+        var cls = el.className.trim().split(/\\s+/).slice(0, 2).map(function(c){ return '.' + esc(c); }).join('');
+        if (cls) return el.nodeName.toLowerCase() + cls;
+      }
+      return sel;
+    }
+    function hov(e){
+      if (!e.isTrusted) return; // ignore synthetic events fired by the page
+      var t = e.target;
+      if (!t || t.nodeType !== 1 || t === overlay || t === hint || t === document.body || t === document.documentElement) return;
+      if (lastHover && lastHover !== t) { try { lastHover.classList.remove('__spz_hover'); } catch(err){} }
+      try { t.classList.add('__spz_hover'); } catch(err){}
+      lastHover = t;
+    }
+    function click(e){
+      if (!e.isTrusted) return; // only real user clicks pick elements
+      e.preventDefault(); e.stopPropagation();
+      var t = e.target;
+      if (!t || t === overlay || t === hint) return;
+      var sel = buildSelector(t);
+      if (sel) done({ domain: window.location.hostname, selector: sel });
+      else done(null);
+    }
+    function key(e){
+      if (!e.isTrusted) return;
+      if (e.key === 'Escape') { e.preventDefault(); done(null); }
+      else if (e.key && e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        done({ undo: true, domain: window.location.hostname });
+      }
+    }
+    // window capture: fires BEFORE any document-level handlers of the page
+    window.addEventListener('mouseover', hov, true);
+    window.addEventListener('click', click, true);
+    window.addEventListener('keydown', key, true);
+    function cleanup(){
+      window.removeEventListener('mouseover', hov, true);
+      window.removeEventListener('click', click, true);
+      window.removeEventListener('keydown', key, true);
+      if (lastHover) { try { lastHover.classList.remove('__spz_hover'); } catch(err){} }
+      if (style.parentNode) style.parentNode.removeChild(style);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (hint.parentNode) hint.parentNode.removeChild(hint);
+    }
+    // Safety: never keep the promise (and the overlay) alive forever.
+    setTimeout(function(){ if (window.__spzMwPickerActive) done(null); }, 120000);
+  });
+})()`;
+
+// Shared persistence for picked elements (used by the preload path via
+// 'element-picker-result' and by the main-world fallback above).
+function _saveElementHidingRule(domain, selector, sourceWc) {
+  if (!domain || !selector || selector === '__undo_last__') return;
+  var store = readStorage();
+  if (!store.elementHidingRules) store.elementHidingRules = {};
+  if (!Array.isArray(store.elementHidingRules[domain])) store.elementHidingRules[domain] = [];
+  if (store.elementHidingRules[domain].indexOf(selector) === -1) {
+    store.elementHidingRules[domain].push(selector);
+    writeStorage(store);
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('element-hiding-updated', { domain: domain, selector: selector, added: true });
+  }
+}
+
 // Element selected inside a webview (via preload-webview → main)
 ipcMain.on('element-picker-result', function(event, data) {
   if (!data || !data.selector) return;
@@ -7062,6 +9563,22 @@ ipcMain.on('element-picker-result', function(event, data) {
   if (!domain) return;
   var store = readStorage();
   if (!store.elementHidingRules) store.elementHidingRules = {};
+
+  // Undo mode: remove the most recent hiding rule for this domain instead of
+  // storing the sentinel selector as a (broken) CSS rule.
+  if (data.selector === '__undo_last__') {
+    var list = store.elementHidingRules[domain];
+    if (Array.isArray(list) && list.length) {
+      var removed = list.pop();
+      if (!list.length) delete store.elementHidingRules[domain];
+      writeStorage(store);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('element-hiding-updated', { domain: domain, selector: removed, added: false });
+      }
+    }
+    return;
+  }
+
   if (!Array.isArray(store.elementHidingRules[domain])) store.elementHidingRules[domain] = [];
   if (store.elementHidingRules[domain].indexOf(data.selector) === -1) {
     store.elementHidingRules[domain].push(data.selector);
@@ -7072,14 +9589,113 @@ ipcMain.on('element-picker-result', function(event, data) {
   }
 });
 
+// ============== UPDATE CHECK ==============
+// Checks the GitHub releases feed of the upstream repo. Goes through
+// net.fetch (respects Tor/proxy), throttled to once per 24h, never installs
+// anything silently — only opens the release page when the user agrees.
+const UPDATE_FEED_URL = 'https://api.github.com/repos/StartPOZI/StartPOZI-Desktop-Browser-beta-/releases/latest';
+const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
+
+function _cmpVersions(a, b) {
+  var pa = String(a || '').replace(/^v/i, '').split('.');
+  var pb = String(b || '').replace(/^v/i, '').split('.');
+  for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
+    var na = parseInt(pa[i], 10) || 0;
+    var nb = parseInt(pb[i], 10) || 0;
+    if (na !== nb) return na < nb ? -1 : 1;
+  }
+  return 0;
+}
+
+async function _fetchUpdateInfo() {
+  var cur = electronApp.getVersion();
+  var resp = await require('electron').net.fetch(UPDATE_FEED_URL, {
+    headers: { 'User-Agent': 'StartPOZI-Browser-Updater', 'Accept': 'application/vnd.github+json' },
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  var rel = await resp.json();
+  var latest = String(rel.tag_name || '').replace(/^v/i, '');
+  if (!latest) throw new Error('no tag in release');
+  return {
+    current: cur,
+    latest: latest,
+    updateAvailable: _cmpVersions(cur, latest) < 0,
+    releaseUrl: rel.html_url || 'https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-/releases',
+    releaseNotes: String(rel.body || '').slice(0, 1500)
+  };
+}
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    var info = await _fetchUpdateInfo();
+    try {
+      var store = readStorage();
+      store.lastUpdateCheck = Date.now();
+      writeStorage(store);
+    } catch(e0) {}
+    return { success: true, updateAvailable: info.updateAvailable, current: info.current, latest: info.latest, releaseUrl: info.releaseUrl, releaseNotes: info.releaseNotes };
+  } catch(e) {
+    return { success: false, message: 'Update check failed: ' + (e && e.message || e) };
+  }
+});
+
+ipcMain.handle('skip-update-version', (_, ver) => {
+  const store = readStorage();
+  store.skippedUpdateVersion = String(ver || '');
+  writeStorage(store);
+  return { success: true };
+});
+
+function _autoCheckForUpdates() {
+  (async function() {
+    try {
+      var store = readStorage();
+      var last = store.lastUpdateCheck || 0;
+      if (Date.now() - last < UPDATE_CHECK_INTERVAL) return;
+      var info = await _fetchUpdateInfo();
+      store = readStorage();
+      store.lastUpdateCheck = Date.now();
+      writeStorage(store);
+      if (!info.updateAvailable) return;
+      if (store.skippedUpdateVersion === info.latest) return;
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      var dlg = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: t('Update available'),
+        message: 'StartPOZI Browser ' + info.latest + ' is available',
+        detail: t('You are running') + ' ' + info.current + '.',
+        buttons: [t('Download'), t('Skip this version'), t('Later')],
+        defaultId: 0,
+        cancelId: 2
+      });
+      if (dlg.response === 0 && info.releaseUrl) shell.openExternal(info.releaseUrl);
+      else if (dlg.response === 1) {
+        var s2 = readStorage();
+        s2.skippedUpdateVersion = info.latest;
+        writeStorage(s2);
+      }
+    } catch(e) {}
+  })();
+}
+
 // ============== EXPORT / IMPORT ALL SETTINGS (JSON) ==============
 ipcMain.handle('settings-export-json', async function() {
   try {
     var store = readStorage();
+    // Plain-text export: strip credential material (plaintext passwords,
+    // vault, masterAuth verifier) — use the password-protected backup
+    // (.spzi) to carry passwords between machines.
+    store = JSON.parse(JSON.stringify(store));
+    delete store.passwords;
+    delete store.passwordsSealed;
+    delete store.passwordVault;
+    delete store.masterAuth;
     var payload = {
       _type: 'startpozi-settings-export',
       _version: 2,
       _exportedAt: new Date().toISOString(),
+      _secretsExcluded: true,
       store: store
     };
     var result = await dialog.showSaveDialog(mainWindow, {
@@ -7089,7 +9705,7 @@ ipcMain.handle('settings-export-json', async function() {
     });
     if (result.canceled || !result.filePath) return { success: false, canceled: true };
     fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2), 'utf-8');
-    return { success: true, path: result.filePath };
+    return { success: true, path: result.filePath, secretsExcluded: true };
   } catch(e) {
     return { success: false, error: e.message };
   }

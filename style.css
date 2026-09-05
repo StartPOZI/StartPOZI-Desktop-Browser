@@ -155,6 +155,53 @@ body.theme-light .window-blur-bg::before {
   border-radius: 10px 10px 0 0;
 }
 
+/* === Auto-hide top chrome ===
+   Enabled by body.chrome-autohide (set by the "Auto-hide top bar" toggle).
+   Revealed by body.chrome-revealed, which the MAIN process toggles after
+   polling the global cursor (a renderer-side mousemove can't see the cursor
+   over a <webview>'s guest content).
+
+   Why max-height and NOT transform? On a frameless transparent window
+   (transparent: true), translating the chrome off-screen leaves a see-through
+   hole (the desktop shows through), and the semi-transparent chrome background
+   ends up overlaid on the webview. Collapsing max-height to 0 removes the
+   chrome from flow, so .browser-content slides up to fill the gap with the
+   actual page — no hole, no transparency artefacts. */
+body.chrome-autohide .titlebar,
+body.chrome-autohide .navbar {
+  max-height: 120px;
+  overflow: hidden;
+  transition: max-height 0.18s ease, padding 0.18s ease, border-width 0.18s ease, opacity 0.14s ease;
+}
+body.chrome-autohide:not(.chrome-revealed) .titlebar,
+body.chrome-autohide:not(.chrome-revealed) .navbar {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom-width: 0;
+  opacity: 0;
+}
+
+/* Vertical-tabs specifics: the workspace-btn is position:absolute, so it
+   escapes the collapsed titlebar — hide it directly. The sidebar (.tabs-bar)
+   is pinned at top:var(--titlebar-height); once the titlebar is gone, shift it
+   up to the very top so there is no empty band above it. The sidebar itself
+   stays visible (it is navigation, not top chrome). */
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .workspace-btn { display: none; }
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .tabs-bar { top: 0; }
+
+/* The hotspot strip is shown ONLY while the chrome is collapsed, so it can
+   catch the cursor entering the top edge. The moment chrome-revealed is set,
+   we hide it (display:none) so it doesn't block clicks on the titlebar that
+   has just appeared underneath.
+
+   NOTE: visibility is controlled HERE, not via inline style — inline styles
+   would override these rules (no !important), making the strip permanently
+   hidden. The base state is display:none; the chrome-autohide + not-revealed
+   rule (higher specificity) flips it to block. */
+#autohideHotspot { display: none; }
+body.chrome-autohide:not(.chrome-revealed) #autohideHotspot { display: block; }
+
 .titlebar-controls {
   display: flex;
   gap: 8px;
@@ -697,6 +744,8 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 
 .dl-item-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 .dl-item-meta .dl-status-progress { color: var(--primary-color); }
+.dl-item-meta .dl-status-paused { color: #b8860b; }
+.dl-progress-paused .dl-item-progress-bar { opacity: 0.5; }
 .dl-item-meta .dl-status-done { color: #28ca42; }
 .dl-item-meta .dl-status-failed { color: #ff5f57; }
 .dl-item-meta .dl-status-missing { color: #e5a00d; font-size: 11px; }
@@ -1649,8 +1698,24 @@ body.translucent-mode .browser-content {
   transition: background 0.1s;
   white-space: nowrap;
 }
+/* Menu items are real <button>s: reset UA styles, keep the visual identity. */
+button.hm-item {
+  background: none;
+  border: none;
+  font: inherit;
+  width: 100%;
+  text-align: left;
+}
 .hm-item:hover { background: rgba(74, 144, 217, 0.12); }
 .hm-item:active { background: rgba(74, 144, 217, 0.2); }
+
+/* Accessibility: a visible focus ring for keyboard navigation across the
+   whole chrome UI (tabs, toolbar, omnibox, menus). */
+:focus-visible {
+  outline: 2px solid var(--accent-color, #4a90d9);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
 
 .hm-icon {
   width: 18px;
@@ -2208,13 +2273,14 @@ body.translucent-mode .browser-content {
 }
 
 /* Vertical Tabs */
+:root { --vertical-tabs-width: 180px; }
 body.vertical-tabs .tabs-bar {
   flex-direction: column;
   position: absolute;
   left: 0;
   top: var(--titlebar-height, 40px);
   bottom: 0;
-  width: 180px;
+  width: var(--vertical-tabs-width, 180px);
   background: var(--bg-color-alpha);
   border-right: 1px solid var(--border-color);
   z-index: 10;
@@ -2226,7 +2292,7 @@ body.vertical-tabs .workspace-btn {
   position: absolute;
   left: 0;
   top: 0;
-  width: 180px;
+  width: var(--vertical-tabs-width, 180px);
   height: var(--titlebar-height, 40px);
   border-right: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
@@ -2237,7 +2303,7 @@ body.vertical-tabs .workspace-btn {
 }
 body.vertical-tabs .workspace-panel {
   top: auto;
-  left: 180px;
+  left: var(--vertical-tabs-width, 180px);
 }
 
 body.vertical-tabs .tabs-bar::-webkit-scrollbar { height: auto; width: 3px; }
@@ -2260,11 +2326,11 @@ body.vertical-tabs .tab.active {
 
 body.vertical-tabs .tab .tab-title { max-width: 130px; }
 
-body.vertical-tabs .titlebar { padding-left: 180px; }
-body.vertical-tabs .navbar { margin-left: 180px; border-bottom: 1px solid var(--border-color); }
+body.vertical-tabs .titlebar { padding-left: var(--vertical-tabs-width, 180px); }
+body.vertical-tabs .navbar { margin-left: var(--vertical-tabs-width, 180px); border-bottom: 1px solid var(--border-color); }
 
-body.vertical-tabs .browser-content { margin-left: 180px; }
-body.vertical-tabs #findBar { left: 180px; }
+body.vertical-tabs .browser-content { margin-left: var(--vertical-tabs-width, 180px); }
+body.vertical-tabs #findBar { left: var(--vertical-tabs-width, 180px); }
 
 body.vertical-tabs .vtab-new-btn {
   display: flex;
@@ -2327,6 +2393,122 @@ body.vertical-tabs .vtab-new-btn {
   overflow: hidden;
   backdrop-filter: blur(20px);
 }
+
+/* ===== Read Aloud (TTS) panel ===== */
+.tts-panel {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  width: 380px;
+  max-width: calc(100vw - 36px);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  z-index: 10001;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+}
+
+.tts-panel.open {
+  display: flex;
+}
+
+.tts-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tts-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.tts-pos {
+  font-size: 11px;
+  color: var(--text-secondary, var(--secondary-text, #888));
+}
+
+.tts-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.tts-close:hover { color: #e74c3c; }
+
+.tts-current {
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-color);
+  max-height: 90px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tts-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px 6px;
+}
+
+.tts-btn {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tts-btn:hover { border-color: var(--primary-color, #1da1f2); color: var(--primary-color, #1da1f2); }
+
+.tts-btn-main {
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+  border-color: var(--primary-color, #1da1f2);
+  color: var(--primary-color, #1da1f2);
+}
+
+.tts-settings {
+  display: flex;
+  gap: 8px;
+  padding: 4px 14px 12px;
+}
+
+.tts-settings select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 11.5px;
+  outline: none;
+}
+
+
 
 .media-panel.open {
   display: flex;
@@ -2434,6 +2616,98 @@ body.vertical-tabs .vtab-new-btn {
 .site-info-panel.open {
   display: flex;
 }
+
+/* Page Note Panel — shares .site-info-panel positioning. */
+.pn-panel-body {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  gap: 8px;
+}
+#pnTextarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-color, #fff);
+  font: 13px/1.45 inherit;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  outline: none;
+}
+#pnTextarea:focus { border-color: var(--accent-color, #1da1f2); }
+.pn-char-count {
+  font-size: 11px;
+  color: var(--text-secondary, #888);
+  margin-left: 8px;
+}
+.pn-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.pn-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pn-btn-primary {
+  background: var(--accent-color, #1da1f2);
+  color: #fff;
+}
+.pn-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary, #aaa);
+  border: 1px solid var(--border-color);
+}
+.url-note-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  padding: 2px 3px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+}
+.url-note-btn:hover { color: var(--text-color, #fff); }
+.url-note-btn.has-note { color: var(--accent-color, #1da1f2); }
+
+/* OCR Tool */
+.ocr-overlay {
+  position: fixed; inset: 0; z-index: 2147483000;
+  background: transparent; cursor: crosshair;
+}
+.ocr-overlay canvas { position: absolute; inset: 0; }
+.ocr-hint {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  background: rgba(20,20,28,0.92); color: #e8e8ef; border: 1px solid rgba(255,255,255,0.12);
+  padding: 8px 16px; border-radius: 10px; font: 12px/1.4 -apple-system, sans-serif;
+  pointer-events: none;
+}
+.ocr-result {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 48px));
+  background: rgba(24,24,34,0.97); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.ocr-result-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px; font-weight: 600; color: #e8e8ef;
+}
+#ocrTextarea {
+  width: 100%; min-height: 180px; max-height: 40vh; resize: vertical;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px; color: #e8e8ef; font: 13px/1.5 inherit;
+  padding: 10px 12px; box-sizing: border-box; outline: none;
+}
+.ocr-result-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 .si-panel-header {
   padding: 12px 16px;
@@ -4024,4 +4298,77 @@ body.theme-light .af-panel {
 body.theme-light .find-bar,
 body.theme-light .qc-bar {
   background: var(--overlay-bg) !important;
+}
+
+/* ===== TAB TEAR-OFF (detach a tab by dragging it out of the tab strip) ===== */
+/* While a tab drag is active, webviews must not swallow dragover/drop —
+   the host document is the drop target for the detach gesture. */
+body.tear-dragging webview { pointer-events: none !important; }
+
+/* File drop indicator on the tab strip */
+#fileDropHint {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(20, 23, 30, 0.95);
+  color: #4a90d9;
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px dashed #4a90d9;
+  border-radius: 12px;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s ease, transform .2s ease;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+}
+#fileDropHint.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+#fileDropHint svg {
+  width: 18px;
+  height: 18px;
+}
+/* Highlight the tab strip itself while dragging a file over it */
+body.file-drop-hover .tabs-bar {
+  background: rgba(74, 144, 217, 0.08);
+  box-shadow: inset 0 -2px 0 #4a90d9;
+}
+
+#tearOutHint {
+  position: fixed;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%) translateY(8px);
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: var(--overlay-bg, rgba(24, 26, 32, 0.96));
+  color: var(--text-primary, #e8eaf0);
+  border: 1px dashed var(--accent, #667eea);
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 100002;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+#tearOutHint.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Cross-window tab move: a tab dragged from another shell window */
+body.foreign-tab-over webview { pointer-events: none !important; }
+body.foreign-tab-over .tabs-bar {
+  outline: 2px dashed var(--accent, #667eea);
+  outline-offset: -2px;
+  border-radius: 8px;
 }

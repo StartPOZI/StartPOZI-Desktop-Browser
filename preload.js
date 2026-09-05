@@ -106,6 +106,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setDownloadPath: () => ipcRenderer.invoke('set-download-path'),
   getCurrentDownloadPath: () => ipcRenderer.invoke('get-current-download-path'),
   openDownloadFile: (filePath) => ipcRenderer.invoke('open-download-file', filePath),
+  pauseDownload: (dlId) => ipcRenderer.invoke('download-pause', dlId),
+  resumeDownload: (dlId) => ipcRenderer.invoke('download-resume', dlId),
   openDownloadFolder: (filePath) => ipcRenderer.invoke('open-download-folder', filePath),
   checkFilesExist: (paths) => ipcRenderer.invoke('check-files-exist', paths),
   clearDownloads: () => ipcRenderer.invoke('clear-downloads'),
@@ -140,8 +142,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadBookmarks: () => ipcRenderer.invoke('load-bookmarks'),
   addBookmark: (bookmark) => ipcRenderer.invoke('add-bookmark', bookmark),
   removeBookmark: (id) => ipcRenderer.invoke('remove-bookmark', id),
-  addBookmarkFolder: () => ipcRenderer.invoke('add-bookmark-folder'),
   importBookmarks: () => ipcRenderer.invoke('import-bookmarks'),
+  // Import from an installed browser (Chrome/Edge/Brave/Vivaldi/Firefox)
+  importDetectBrowsers: () => ipcRenderer.invoke('import-detect-browsers'),
+  importFromBrowser: (opts) => ipcRenderer.invoke('import-from-browser', opts),
   exportBookmarks: () => ipcRenderer.invoke('export-bookmarks'),
 
   // Passwords
@@ -232,6 +236,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkAppLock: () => ipcRenderer.invoke('check-app-lock'),
   verifyAppLock: (pw) => ipcRenderer.invoke('verify-app-lock', pw),
   appBiometricAuth: () => ipcRenderer.invoke('app-biometric-auth'),
+  // Auto-lock on inactivity (idleLock) — main tells the renderer to show
+  // #appLockScreen, and the renderer tells main to re-arm once unlocked.
+  onIdleLockTriggered: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('idle-lock-triggered', listener);
+    return () => ipcRenderer.removeListener('idle-lock-triggered', listener);
+  },
+  rearmIdleLock: () => ipcRenderer.send('idle-lock-rearm'),
 
   // Window state (maximize/focus) — used by the macOS-style controls
   onWindowStateChanged: (cb) => {
@@ -331,6 +343,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   adblockerRemoveWhitelist: (domain) => ipcRenderer.invoke('adblocker-remove-whitelist', domain),
   adblockerIsWhitelisted: (domain) => ipcRenderer.invoke('adblocker-is-whitelisted', domain),
   adblockerGetCosmeticCSS: (url) => ipcRenderer.invoke('adblocker-get-cosmetic-css', url),
+  getBlockedLog: () => ipcRenderer.invoke('get-blocked-log'),
+  clearBlockedLog: () => ipcRenderer.invoke('clear-blocked-log'),
+  getBlockerLogPersistent: () => ipcRenderer.invoke('get-blocker-log-persistent'),
+  setBlockerLogPersistent: (val) => ipcRenderer.invoke('set-blocker-log-persistent', val),
+  checkForUpdate: () => ipcRenderer.invoke('check-for-updates'),
+  skipUpdateVersion: (ver) => ipcRenderer.invoke('skip-update-version', ver),
 
   // Profiles
   getProfiles: () => ipcRenderer.invoke('get-profiles'),
@@ -343,6 +361,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Incognito
   createIncognitoTab: (url) => ipcRenderer.invoke('create-incognito-tab', url),
   clearIncognitoPartition: (partition) => ipcRenderer.invoke('clear-incognito-partition', partition),
+  openIncognitoWindow: () => ipcRenderer.invoke('open-incognito-window'),
+  openNewWindow: () => ipcRenderer.invoke('open-new-window'),
+  openWindowWithTab: (url, meta) => ipcRenderer.invoke('open-window-with-tab', url, meta),
+  isCursorOutsideWindow: () => ipcRenderer.invoke('is-cursor-outside-window'),
+  tabDragStarted: (tabId) => ipcRenderer.send('tab-drag-start', tabId),
+  tabDragEnded: () => ipcRenderer.send('tab-drag-end'),
+  moveTabToWindow: (payload) => ipcRenderer.send('tab-move-to-window', payload),
+  onCloseForeignDroppedTab: (callback) => {
+    ipcRenderer.on('close-foreign-dropped-tab', (_, data) => callback(data));
+  },
+  onTearOutTab: (callback) => {
+    ipcRenderer.on('tear-out-tab', (_, data) => callback(data));
+  },
   onIncognitoTab: (callback) => {
     ipcRenderer.on('open-incognito-tab', (_, url) => callback(url));
   },
@@ -415,6 +446,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Security (batch)
   getAllSecuritySettings: () => ipcRenderer.invoke('get-all-security-settings'),
+  // Security (single key) — used by renderer-side injectors (e.g. cookie-banner blocker)
+  getSecuritySetting: (key) => ipcRenderer.invoke('get-security-setting', key),
+  // Cookie-banner blocker: inject the payload into every frame of the
+  // webview (cross-origin CMP iframes can't be reached from the top doc).
+  injectCookieBlockerFrames: (wcId) => ipcRenderer.invoke('inject-cookie-blocker-frames', wcId),
+  // Super Drag actions relayed from webviews (kind: text/link/image).
+  onSuperDragAction: (cb) => ipcRenderer.on('super-drag-action', (_, d) => cb(d)),
+  // Page notes (per-URL, stored in main): get / set / list-has.
+  pageNotesGet: (url) => ipcRenderer.invoke('page-notes-get', url),
+  pageNotesSet: (url, text) => ipcRenderer.invoke('page-notes-set', url, text),
+  // OCR: recognize text on a captured PNG area (offline tesseract).
+  ocrRecognize: (pngBase64) => ipcRenderer.invoke('ocr-recognize', pngBase64),
+  // Open the current site in a chromeless "app" window.
+  openSiteAsApp: (url) => ipcRenderer.invoke('open-site-as-app', url),
+
+  // Auto-hide top bar: main polls the cursor and tells the renderer when to
+  // reveal/hide the chrome. (A renderer-side mousemove can't see the cursor
+  // over <webview> guest content.)
+  onChromeReveal: (cb) => {
+    const listener = (_, s) => cb(s);
+    ipcRenderer.on('chrome-reveal', listener);
+    return () => ipcRenderer.removeListener('chrome-reveal', listener);
+  },
+  onChromeDebug: (cb) => {
+    const listener = (_, s) => cb(s);
+    ipcRenderer.on('chrome-debug', listener);
+    return () => ipcRenderer.removeListener('chrome-debug', listener);
+  },
 
   // Task Manager
   getTaskManagerData: () => ipcRenderer.invoke('get-task-manager-data'),
@@ -432,6 +491,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setKeybinding: (action, binding) => ipcRenderer.invoke('set-keybinding', action, binding),
   resetKeybindings: () => ipcRenderer.invoke('reset-keybindings'),
   setKeybindingRecording: (on) => ipcRenderer.send('keybinding-recording', on),
+  setHotkeysOverlay: (on) => ipcRenderer.invoke('set-hotkeys-overlay', on),
 
   // Session Guard — запрос на принудительную проверку дублей
   sessionGuardScanAll: () => ipcRenderer.invoke('session-guard-scan'),
@@ -441,6 +501,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Element Zapper
   getElementHidingRules: () => ipcRenderer.invoke('get-element-hiding-rules'),
+  startElementPicker: (webContentsId) => ipcRenderer.invoke('start-element-picker', webContentsId),
   addElementHidingRule: (domain, selector) => ipcRenderer.invoke('add-element-hiding-rule', domain, selector),
   removeElementHidingRule: (domain, selector) => ipcRenderer.invoke('remove-element-hiding-rule', domain, selector),
   clearElementHidingDomain: (domain) => ipcRenderer.invoke('clear-element-hiding-domain', domain),
@@ -495,4 +556,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===== URL cleaner =====
   cleanUrl: (url) => ipcRenderer.invoke('clean-url', url),
   onSecuritySettingsChanged: (cb) => ipcRenderer.on('security-settings-changed', cb),
+
+  // ===== Crash-safe session (restore prompt after abnormal exit) =====
+  getLastSessionCrashed: () => ipcRenderer.invoke('get-last-session-crashed'),
+
+  // ===== Container tabs (config for the tab strip / context menu) =====
+  getContainers: () => ipcRenderer.invoke('get-containers'),
+  setContainersEnabled: (val) => ipcRenderer.invoke('set-containers-enabled', val),
+  saveContainers: (list) => ipcRenderer.invoke('save-containers', list),
+
+  // ===== Read aloud: offline espeak-ng engine (returns base64 WAV) =====
+  ttsSynthesize: (text, lang, rate) => ipcRenderer.invoke('tts-synthesize', text, lang, rate),
+  ttsOfflineAvailable: () => ipcRenderer.invoke('tts-offline-available'),
 });

@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var pendingSettings = {
     theme: null,
     opacity: null,
-    accent: null, accentRgb: null, accentLight: null,
+    searchEngine: null,
     blockTrackers: null, blockSocialWidgets: null, blockAds: null,
     restoreTabs: null
   };
@@ -59,6 +59,9 @@ document.addEventListener('DOMContentLoaded', function(){
     document.body.classList.remove("theme-auto","theme-light","theme-dark");
     document.body.classList.add("theme-"+t);
     pendingSettings.theme = t;
+    // Apply to the browser chrome immediately (live preview).
+    var api0 = window.electronAPI;
+    if(api0 && api0.setTheme) { try { api0.setTheme(t); } catch(e) {} }
   }
   var themeCards = document.querySelectorAll(".theme-card");
   for(var ti=0;ti<themeCards.length;ti++){
@@ -71,36 +74,65 @@ document.addEventListener('DOMContentLoaded', function(){
     })(themeCards[ti]);
   }
 
-  /* ПРОЗРАЧНОСТЬ */
+  /* ПРОЗРАЧНОСТЬ — только нативная (окно), не CSS на UI страницы */
   var opSlider = document.getElementById("opacity-slider");
   var opVal = document.getElementById("opacity-val");
+  var opDebounce;
   if(opSlider) opSlider.addEventListener("input",function(){
     var v = opSlider.value;
-    document.documentElement.style.setProperty("--win-opacity", v/100);
     opVal.textContent = v+"%";
     pendingSettings.opacity = v/100;
+    // Live preview: set the native browser window opacity (NOT the CSS on
+    // this page — the setup UI stays fully readable while dragging).
+    clearTimeout(opDebounce);
+    opDebounce = setTimeout(function(){
+      var api0 = window.electronAPI;
+      if(api0 && api0.setWindowOpacity) {
+        api0.setWindowOpacity(v/100).catch(function(){});
+      }
+    }, 60);
   });
 
-  /* АКЦЕНТ */
-  var swatches = document.querySelectorAll(".swatch");
-  for(var si=0;si<swatches.length;si++){
-    (function(s){
-      s.addEventListener("click",function(){
-        for(var x=0;x<swatches.length;x++) swatches[x].classList.remove("sel");
-        s.classList.add("sel");
-        var c=s.getAttribute("data-color"), r=s.getAttribute("data-rgb"), l=s.getAttribute("data-light");
-        document.documentElement.style.setProperty("--accent",c);
-        document.documentElement.style.setProperty("--accent-rgb",r);
-        document.documentElement.style.setProperty("--accent-light",l);
-        pendingSettings.accent=c; pendingSettings.accentRgb=r; pendingSettings.accentLight=l;
+  /* ПОИСКОВИК */
+  var engineCards = document.querySelectorAll(".engine-card");
+  for(var ei=0;ei<engineCards.length;ei++){
+    (function(c){
+      c.addEventListener("click",function(){
+        for(var x=0;x<engineCards.length;x++) engineCards[x].classList.remove("sel");
+        c.classList.add("sel");
+        pendingSettings.searchEngine = c.getAttribute("data-engine");
+        // Live: set the browser's search engine right away.
+        var api0 = window.electronAPI;
+        if(api0 && api0.setSearchEngine) { try { api0.setSearchEngine(pendingSettings.searchEngine); } catch(e) {} }
       });
-    })(swatches[si]);
+    })(engineCards[ei]);
+  }
+
+  // Restore the saved search engine selection
+  var apiRestore = window.electronAPI;
+  if(apiRestore && apiRestore.getSearchEngine){
+    apiRestore.getSearchEngine().then(function(url){
+      if(!url) return;
+      for(var x=0;x<engineCards.length;x++){
+        if(engineCards[x].getAttribute("data-engine")===url){
+          for(var y=0;y<engineCards.length;y++) engineCards[y].classList.remove("sel");
+          engineCards[x].classList.add("sel");
+          pendingSettings.searchEngine = url;
+          break;
+        }
+      }
+    }).catch(function(){});
   }
 
   /* ЭКРАН ДЕЙСТВИЙ */
+  var wantImportAfter = false;
   var importBtn = document.getElementById("act-import");
   if(importBtn) importBtn.addEventListener("click",function(){
-    toast("Импорт закладок и паролей откроется после завершения настройки.");
+    wantImportAfter = !wantImportAfter;
+    importBtn.classList.toggle("queued", wantImportAfter);
+    toast(wantImportAfter
+      ? "Import will open right after setup."
+      : "Import cancelled.");
   });
 
   /* ЗАВЕРШЕНИЕ */
@@ -118,19 +150,40 @@ document.addEventListener('DOMContentLoaded', function(){
     var adsEl = document.getElementById("opt-ads");
     var restoreEl = document.getElementById("opt-restore");
 
-    pendingSettings.blockTrackers = trackersEl ? trackersEl.checked : true;
-    pendingSettings.blockSocialWidgets = widgetsEl ? widgetsEl.checked : true;
-    pendingSettings.blockAds = adsEl ? adsEl.checked : true;
+    var blockTrackers = trackersEl ? trackersEl.checked : true;
+    var blockWidgets = widgetsEl ? widgetsEl.checked : true;
+    var blockAds = adsEl ? adsEl.checked : true;
+    pendingSettings.blockTrackers = blockTrackers;
+    pendingSettings.blockSocialWidgets = blockWidgets;
+    pendingSettings.blockAds = blockAds;
     pendingSettings.restoreTabs = restoreEl ? restoreEl.checked : true;
 
     var api = window.electronAPI;
     if(api && api.completeSetup){
-      api.completeSetup(pendingSettings).then(function(){
-        toast("Настройка завершена!");
+      // Apply the FilterHub preset: any protection enabled → "medium" (the
+      // recommended level); all off → disable the adblocker entirely.
+      var anyProtection = blockTrackers || blockWidgets || blockAds;
+      var presetPromise;
+      if (api.setFilterhubPreset) {
+        presetPromise = api.setFilterhubPreset(anyProtection ? 'medium' : 'light');
+      } else {
+        presetPromise = Promise.resolve({ success: true });
+      }
+      if (api.adblockerToggle) {
+        api.adblockerToggle(anyProtection);
+      }
+
+      presetPromise.then(function(){
+        return api.completeSetup(pendingSettings);
+      }).then(function(){
+        toast("Setup complete!");
+        if (wantImportAfter && api.openUrlFromSettings) {
+          try { api.openUrlFromSettings('Library.html#bookmarks'); } catch(e) {}
+        }
         setTimeout(function(){
           window.location.href = '../MainPage/index.html';
         }, 800);
-      }).catch(function(){ toast("Ошибка сохранения"); });
+      }).catch(function(){ toast("Failed to save settings"); });
     } else {
       try{localStorage.setItem("sp-setup-done","1")}catch(e){}
       window.location.href = '../MainPage/index.html';
@@ -174,7 +227,6 @@ document.addEventListener('DOMContentLoaded', function(){
         if(op!==undefined && op!==null && op<1){
           if(opSlider) opSlider.value=Math.round(op*100);
           if(opVal) opVal.textContent=Math.round(op*100)+"%";
-          document.documentElement.style.setProperty("--win-opacity",op);
           pendingSettings.opacity = op;
         }
       }).catch(function(){});

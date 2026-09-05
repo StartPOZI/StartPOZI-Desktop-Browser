@@ -28,7 +28,7 @@
         <span class="ws-btn-name" id="wsBtnName"></span>
       </button>
     </div>
-    <div class="tabs-bar" id="tabsBar">
+    <div class="tabs-bar" id="tabsBar" role="tablist" aria-label="Tabs">
       <button class="nav-btn tab-new-btn" id="newTabBtn" title="New tab">+</button>
       <div class="tabs-bar-btns" id="tabsBarBtns"></div>
     </div>
@@ -73,7 +73,10 @@
         <button class="url-icon-btn" id="urlIconBtn" title="Site information">
           <i class="fas fa-lock url-icon"></i>
         </button>
-        <input type="text" id="urlInput" placeholder="Search or enter address" spellcheck="false" autocomplete="off">
+        <input type="text" id="urlInput" placeholder="Search or enter address" spellcheck="false" autocomplete="off" aria-label="Address and search bar">
+        <button class="url-note-btn" id="pageNoteBtn" title="Page note" style="display:none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </button>
         <button class="url-reveal-btn" id="urlRevealBtn" title="Show URL">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
@@ -148,7 +151,10 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       </button>
       <button class="nav-btn" id="readerBtn" title="Reader mode" style="display:none">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </button>
+      <button class="nav-btn" id="ttsBtn" title="Read aloud" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
       </button>
       <button class="nav-btn" id="screenshotBtn" title="Screenshot" style="display:none">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -175,29 +181,31 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <div class="hamburger-menu" id="hamburgerMenu">
-        <div class="hm-item" id="hmSettings"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Settings</div>
+        <button type="button" class="hm-item" id="hmSettings"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Settings</button>
         <div class="hm-divider"></div>
-        <div class="hm-item" id="hmLibrary"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Library</div>
-        <div class="hm-item" id="hmBookmarks"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>Bookmarks</div>
-        <div class="hm-item" id="hmHistory"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span>History</div>
-        <div class="hm-item" id="hmDownloads"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Downloads</div>
-        <div class="hm-item" id="hmAutofill"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Passwords</div>
-        <div class="hm-item" id="hmAdblock"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>Ad blocker</div>
-        <div class="hm-item" id="hmScripts"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>Scripts</div>
+        <button type="button" class="hm-item" id="hmLibrary"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Library</button>
+        <button type="button" class="hm-item" id="hmBookmarks"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>Bookmarks</button>
+        <button type="button" class="hm-item" id="hmHistory"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span>History</button>
+        <button type="button" class="hm-item" id="hmDownloads"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Downloads</button>
+        <button type="button" class="hm-item" id="hmAutofill"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Passwords</button>
+        <button type="button" class="hm-item" id="hmAdblock"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>Ad blocker</button>
+        <button type="button" class="hm-item" id="hmScripts"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>Scripts</button>
         <div class="hm-divider"></div>
-        <div class="hm-item" id="hmDark"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>Dark mode<span class="hm-check" id="hmDarkCheck"></span></div>
-        <div class="hm-item" id="hmReader"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Reader mode</div>
-        <div class="hm-item" id="hmMedia"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>Media controls</div>
-        <div class="hm-item" id="hmEq"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg></span>Equalizer</div>
-        <div class="hm-item" id="hmHoverTr"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg></span>Hover translate<span class="hm-check" id="hmHoverTrCheck"></span></div>
+        <button type="button" class="hm-item" id="hmDark"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>Dark mode<span class="hm-check" id="hmDarkCheck"></span></button>
+        <button type="button" class="hm-item" id="hmReader"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Reader mode</button>
+        <button type="button" class="hm-item" id="hmTts"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>Read aloud</button>
+        <button type="button" class="hm-item" id="hmMedia"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>Media controls</button>
+        <button type="button" class="hm-item" id="hmEq"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg></span>Equalizer</button>
+        <button type="button" class="hm-item" id="hmHoverTr"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg></span>Hover translate<span class="hm-check" id="hmHoverTrCheck"></span></button>
         <div class="hm-divider"></div>
-        <div class="hm-item" id="hmQr"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg></span>QR scanner<span class="hm-check" id="hmQrCheck"></span></div>
-        <div class="hm-item" id="hmSplit"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg></span>Split screen<span class="hm-check" id="hmSplitCheck"></span></div>
-        <div class="hm-item" id="hmScreenshot"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>Screenshot</div>
-        <div class="hm-item" id="hmFindAll"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Search tabs</div>
-        <div class="hm-item" id="hmAutoscroll"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>Autoscroll</div>
-        <div class="hm-item" id="hmIncognito"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg></span>Incognito tab</div>
-        <div class="hm-item" id="hmBreakLoupe"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="9" y1="9" x2="13" y2="13"/></svg></span>Break magnifier</div>
+        <button type="button" class="hm-item" id="hmQr"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg></span>QR scanner<span class="hm-check" id="hmQrCheck"></span></button>
+        <button type="button" class="hm-item" id="hmSplit"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg></span>Split screen<span class="hm-check" id="hmSplitCheck"></span></button>
+        <button type="button" class="hm-item" id="hmScreenshot"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>Screenshot</button>
+        <button type="button" class="hm-item" id="hmFindAll"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Search tabs</button>
+        <button type="button" class="hm-item" id="hmAutoscroll"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>Autoscroll</button>
+        <button type="button" class="hm-item" id="hmNewWindow"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/></svg></span>New window</button>
+        <button type="button" class="hm-item" id="hmIncognito"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg></span>Incognito tab</button>
+        <button type="button" class="hm-item" id="hmBreakLoupe"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="9" y1="9" x2="13" y2="13"/></svg></span>Break magnifier</button>
       </div>
     </div>
 
@@ -271,6 +279,37 @@
     <div class="mc-panel-empty" id="mcPanelEmpty">No active media</div>
   </div>
 
+  <!-- Read Aloud (TTS) Panel -->
+  <div class="tts-panel" id="ttsPanel">
+    <div class="tts-header">
+      <span class="tts-title">Read aloud</span>
+      <span class="tts-pos" id="ttsPos"></span>
+      <button class="tts-close" id="ttsCloseBtn" title="Stop and close">&times;</button>
+    </div>
+    <div class="tts-current" id="ttsCurrent"></div>
+    <div class="tts-controls">
+      <button class="tts-btn" id="ttsPrevBtn" title="Previous sentence">&#9194;</button>
+      <button class="tts-btn tts-btn-main" id="ttsPlayBtn" title="Play / pause">&#9654;</button>
+      <button class="tts-btn" id="ttsNextBtn" title="Next sentence">&#9193;</button>
+      <button class="tts-btn" id="ttsStopBtn" title="Stop">&#9632;</button>
+    </div>
+    <div class="tts-settings">
+      <select id="ttsRate" title="Speed">
+        <option value="0.75">0.75×</option>
+        <option value="1">1×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
+      </select>
+      <select id="ttsEngine" title="Speech engine">
+        <option value="auto">Auto</option>
+        <option value="system">System voices</option>
+        <option value="offline">Offline (built-in)</option>
+      </select>
+      <select id="ttsVoice" title="Voice"></select>
+    </div>
+  </div>
+
   <!-- Equalizer Panel -->
   <div class="eq-panel" id="eqPanel">
     <div class="eq-header">
@@ -342,6 +381,21 @@
       <span class="si-panel-title" id="siPanelDomain">—</span>
     </div>
     <div class="si-panel-body" id="siPanelBody"></div>
+  </div>
+
+  <!-- Page Note Panel (from note icon in the url bar) -->
+  <div class="site-info-panel" id="pageNotePanel">
+    <div class="si-panel-header">
+      <span class="si-panel-title" id="pnPanelDomain">—</span>
+      <span class="pn-char-count" id="pnCharCount"></span>
+    </div>
+    <div class="pn-panel-body">
+      <textarea id="pnTextarea" placeholder="Your note for this page..." spellcheck="false"></textarea>
+      <div class="pn-actions">
+        <button class="pn-btn pn-btn-ghost" id="pnDelete">Delete</button>
+        <button class="pn-btn pn-btn-primary" id="pnSave">Save</button>
+      </div>
+    </div>
   </div>
 
   <!-- Browser Content -->
@@ -439,8 +493,6 @@
     <div class="sidebar-empty" id="sidebarEmpty">No bookmarks</div>
   </div>
 
-  <!-- Split View -->
-
   <!-- Custom Dialog (for webview alert/confirm/prompt and internal use) -->
   <div class="dialog-overlay" id="dialogOverlay">
     <div class="dialog-box" id="dialogBox">
@@ -450,6 +502,19 @@
       <div class="dialog-buttons" id="dialogButtons">
         <button class="dialog-btn dialog-cancel" id="dialogCancel">Cancel</button>
         <button class="dialog-btn dialog-ok" id="dialogOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Incognito mode chooser: separate window vs replace current window -->
+  <div class="dialog-overlay" id="incognitoModeOverlay" style="display:none;">
+    <div class="dialog-box" id="incognitoModeBox">
+      <div class="dialog-icon" id="incognitoModeIcon">🕵</div>
+      <div class="dialog-message" id="incognitoModeMessage">How should Incognito open?</div>
+      <div class="dialog-buttons" id="incognitoModeButtons" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <button class="dialog-btn dialog-ok" id="incognitoNewWindow">Open in a new window</button>
+        <button class="dialog-btn dialog-ok" id="incognitoReplaceWindow">Replace the current window</button>
+        <button class="dialog-btn dialog-cancel" id="incognitoModeCancel">Cancel</button>
       </div>
     </div>
   </div>
@@ -523,6 +588,24 @@
     <div class="ss-hint" id="ssHint">Pick a tool and draw on the screenshot</div>
   </div>
 
+  <!-- OCR Tool Overlay: capture an area → recognized text -->
+  <div class="ocr-overlay" id="ocrOverlay" style="display:none">
+    <canvas id="ocrCanvas"></canvas>
+    <div class="ocr-hint" id="ocrHint">Select an area to recognize text · Esc to cancel</div>
+    <div class="ocr-result" id="ocrResult" style="display:none">
+      <div class="ocr-result-header">
+        <span>Recognized text</span>
+        <span id="ocrStatus" style="font-size:11px;color:var(--text-secondary,#9a9aa8);"></span>
+      </div>
+      <textarea id="ocrTextarea" spellcheck="false"></textarea>
+      <div class="ocr-result-actions">
+        <button class="pn-btn pn-btn-ghost" id="ocrClose">Close</button>
+        <button class="pn-btn pn-btn-ghost" id="ocrRetry">Reselect</button>
+        <button class="pn-btn pn-btn-primary" id="ocrCopy">Copy text</button>
+      </div>
+    </div>
+  </div>
+
   <div class="customize-overlay" id="customizeOverlay" style="display:none">
     <div class="customize-panel">
       <div class="customize-header">
@@ -544,6 +627,13 @@
     </div>
   </div>
 
+  <!-- Auto-hide hotspot: a thin invisible strip across the top of the window.
+       It sits ABOVE the <webview> (z-index 99), so the renderer can detect the
+       cursor entering the top edge even though pointer events over the webview
+       itself never reach the parent document. mouseenter on this strip reveals
+       the chrome. -->
+  <div id="autohideHotspot" style="position:fixed;top:0;left:0;right:0;height:8px;z-index:99;background:transparent;cursor:default;"></div>
+
   <!-- Browser startup lock (appLock). Covers everything, including webviews,
        until the master password / fingerprint is entered. -->
   <div id="appLockScreen" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d0d12;background-image:linear-gradient(135deg,rgba(29,161,242,0.15),rgba(118,75,162,0.15));display:none;align-items:center;justify-content:center;-webkit-app-region:no-drag;">
@@ -563,7 +653,21 @@
     </div>
   </div>
 
+  <!-- Hotkeys overlay: a translucent cheat-sheet toggled by holding a
+       modifier key or pressing '?'. Populated by renderer.js. -->
+  <div id="hotkeysOverlay" style="display:none;position:fixed;inset:0;z-index:2147483640;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);-webkit-app-region:no-drag;align-items:center;justify-content:center;">
+    <div style="max-width:680px;width:calc(100vw - 64px);max-height:80vh;overflow:auto;background:var(--card-bg,rgba(28,28,38,0.95));border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-size:18px;font-weight:700;color:var(--text-color,#fff);">Keyboard shortcuts</div>
+        <div style="font-size:11px;color:var(--secondary-text,#aaa);">Release the modifier or press Esc to close</div>
+      </div>
+      <div style="font-size:11px;color:var(--secondary-text,#aaa);margin-bottom:14px;padding:8px 10px;background:var(--input-bg,rgba(255,255,255,0.05));border:1px solid var(--border-color,rgba(255,255,255,0.1));border-radius:8px;line-height:1.5;">⚠ The overlay opens only when focus is on the browser frame (address bar / toolbar / a tab). It does not trigger while focus is inside a web page — click the frame first.</div>
+      <div id="hotkeysOverlayGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:13px;"></div>
+    </div>
+  </div>
+
   <script src="i18n.js"></script>
+  <script src="cookie-blocker-payload.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

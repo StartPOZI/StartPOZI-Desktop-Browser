@@ -7,6 +7,21 @@
      <meta name="author" content="StartPOZI">
     <link rel="icon" type="image/x-icon" href="assets/img/Library/Library.ico">
     <style>
+    /* Chrome UI: no text selection on panels, lists, buttons and menus. */
+    /* Inputs, textareas and selectable content remain selectable. */
+    body { user-select: none; -webkit-user-select: none; }
+    input, textarea, select, [contenteditable="true"], [contenteditable=""], .selectable,
+    .content {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    /* Interactive controls inside the content stay non-selectable. */
+    .content button, .content select, .content option, .content .btn,
+    .content input[type="checkbox"], .content input[type="radio"] {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; overflow: hidden; font-family: 'SF Pro Display', -apple-system, sans-serif; }
         :root { --base-font-size: 14px; --accent-color: #667eea; --accent-secondary: #764ba2; --accent-gradient: linear-gradient(135deg, #667eea, #764ba2); --card-opacity: 0.7; --overlay-opacity: 0.48; }
@@ -1329,6 +1344,7 @@
                             <select id="bmSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="alpha">Alphabetical</option></select>
                             <button id="bmAdd">+ Add</button>
                             <button id="bmImport">Import</button>
+                            <button id="bmImportBrowser">From browser</button>
                             <button id="bmExport">Export</button>
                             <button id="bmClear" class="btn-danger">Clear all</button>
                         </div>
@@ -2113,6 +2129,120 @@
         document.getElementById('bmImport').addEventListener('click', function() {
             if (api && api.importBookmarks) api.importBookmarks().then(function(r) { if (r && r.success) loadBookmarks(); });
         });
+        // ===== Import from an installed browser (Chrome/Edge/Brave/Vivaldi/Firefox) =====
+        document.getElementById('bmImportBrowser').addEventListener('click', function() {
+            if (!api || !api.importDetectBrowsers) return;
+            api.importDetectBrowsers().then(function(d) {
+                if (!d || !d.success) return;
+                if (!d.browsers || !d.browsers.length) {
+                    var no = document.createElement('div');
+                    no.className = 'overlay';
+                    no.innerHTML = '<div class="card" style="max-width:420px;margin:auto;padding:24px;text-align:center">' +
+                        '<h3 style="margin-top:0">No browsers found</h3>' +
+                        '<p style="color:var(--text-secondary,#999);font-size:13px">No supported browser profiles (Chrome, Edge, Brave, Vivaldi, Chromium, Opera, Firefox) were detected on this system.</p>' +
+                        '<button class="btn-primary" id="bmibNoOk" style="margin-top:12px">OK</button></div>';
+                    document.body.appendChild(no);
+                    no.querySelector('#bmibNoOk').addEventListener('click', function() { no.remove(); });
+                    no.addEventListener('click', function(e) { if (e.target === no) no.remove(); });
+                    return;
+                }
+                var overlay = document.createElement('div');
+                overlay.className = 'overlay';
+                var card = document.createElement('div');
+                card.className = 'card';
+                card.style.maxWidth = '560px';
+                card.style.margin = 'auto';
+                card.style.padding = '24px';
+                var html = '<h3 style="margin-top:0">Import from another browser</h3>';
+                if (!d.sqliteAvailable) {
+                    html += '<p style="color:#e67e22;font-size:12px;background:#fff3e0;padding:8px 10px;border-radius:6px;margin:0 0 12px">' +
+                        'History import needs the <code>sql.js</code> module — not installed. Bookmarks will still import. Run: <code>npm install sql.js</code></p>';
+                }
+                html += '<div id="bmibList" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto"></div>';
+                html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
+                    '<button id="bmibCancel">Cancel</button>' +
+                    '<button class="btn-primary" id="bmibGo">Import selected</button></div>';
+                card.innerHTML = html;
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+                var listEl = card.querySelector('#bmibList');
+                d.browsers.forEach(function(b, i) {
+                    var row = document.createElement('label');
+                    row.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--input-border,#333);border-radius:8px;cursor:pointer';
+                    var top = document.createElement('div');
+                    top.style.cssText = 'display:flex;align-items:center;gap:8px';
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox'; cb.checked = true; cb.dataset.idx = i;
+                    top.appendChild(cb);
+                    var name = document.createElement('strong');
+                    name.textContent = b.name + ' — ' + b.profileName;
+                    name.style.fontSize = '14px';
+                    top.appendChild(name);
+                    row.appendChild(top);
+                    var path = document.createElement('div');
+                    path.style.cssText = 'font-size:11px;color:var(--text-secondary,#999);word-break:break-all';
+                    path.textContent = b.profilePath;
+                    row.appendChild(path);
+                    var types = document.createElement('div');
+                    types.style.cssText = 'display:flex;gap:14px;font-size:12px;color:var(--text-secondary,#bbb)';
+                    function mk(type, label, available) {
+                        var w = document.createElement('label');
+                        w.style.cssText = 'display:flex;align-items:center;gap:4px;' + (available ? '' : 'opacity:.4');
+                        var c = document.createElement('input');
+                        c.type = 'checkbox'; c.checked = !!available;
+                        c.dataset.type = type; c.dataset.idx = i;
+                        if (!available) c.disabled = true;
+                        w.appendChild(c);
+                        var t = document.createElement('span');
+                        t.textContent = label;
+                        w.appendChild(t);
+                        return w;
+                    }
+                    types.appendChild(mk('bookmarks', 'Bookmarks', b.has.bookmarks));
+                    types.appendChild(mk('history', 'History', b.has.history && d.sqliteAvailable));
+                    row.appendChild(types);
+                    listEl.appendChild(row);
+                });
+                card.querySelector('#bmibCancel').addEventListener('click', function() { overlay.remove(); });
+                overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+                card.querySelector('#bmibGo').addEventListener('click', function() {
+                    var goBtn = card.querySelector('#bmibGo');
+                    goBtn.disabled = true; goBtn.textContent = 'Importing...';
+                    var byProfile = {};
+                    listEl.querySelectorAll('input[type=checkbox][data-type]').forEach(function(c) {
+                        if (!c.checked) return;
+                        var idx = c.dataset.idx;
+                        var b = d.browsers[idx];
+                        var key = b.profilePath;
+                        if (!byProfile[key]) byProfile[key] = { engine: b.engine, profilePath: b.profilePath, name: b.name, bookmarks: false, history: false };
+                        byProfile[key][c.dataset.type] = true;
+                    });
+                    var keys = Object.keys(byProfile);
+                    if (!keys.length) { overlay.remove(); return; }
+                    var totalBm = 0, totalHist = 0, warnings = [];
+                    var p = Promise.resolve();
+                    keys.forEach(function(key) {
+                        var opt = byProfile[key];
+                        p = p.then(function() { return api.importFromBrowser(opt); }).then(function(r) {
+                            if (!r) return;
+                            if (r.bookmarks) totalBm += r.bookmarks;
+                            if (r.history) totalHist += r.history;
+                            if (r.warnings && r.warnings.length) warnings = warnings.concat(r.warnings);
+                        }).catch(function(e) { warnings.push(e.message || String(e)); });
+                    });
+                    p.then(function() {
+                        loadBookmarks();
+                        if (typeof loadHistory === 'function') loadHistory();
+                        var msg = 'Imported ' + totalBm + ' bookmarks' + (totalHist ? (', ' + totalHist + ' history items') : '') + '.';
+                        if (warnings.length) msg += '\n\nNotes:\n• ' + warnings.join('\n• ');
+                        card.innerHTML = '<h3 style="margin-top:0">Import complete</h3>' +
+                            '<p style="font-size:14px;white-space:pre-line">' + msg.replace(/</g, '&lt;') + '</p>' +
+                            '<div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn-primary" id="bmibDone">Done</button></div>';
+                        card.querySelector('#bmibDone').addEventListener('click', function() { overlay.remove(); });
+                    });
+                });
+            });
+        });
         document.getElementById('bmExport').addEventListener('click', function() {
             if (api && api.exportBookmarks) api.exportBookmarks();
         });
@@ -2581,7 +2711,7 @@ async function loadPasswords(searchTerm = '') {
                     </div>
                 ` : ''}
                 ${password.totpSecret ? `
-                    <div class="totp-section" id="totp-section-${password.id}" data-secret="${password.totpSecret}" data-algorithm="${password.totpAlgorithm || 'sha1'}" data-digits="${password.totpDigits || 6}">
+                    <div class="totp-section" id="totp-section-${escapeHtml(String(password.id))}" data-secret="${escapeHtml(password.totpSecret)}" data-algorithm="${escapeHtml(password.totpAlgorithm || 'sha1')}" data-digits="${escapeHtml(String(password.totpDigits || 6))}">
                         <div class="totp-section-content">
                             <div class="totp-label">2FA code</div>
                             <div class="totp-code" id="totp-code-${password.id}">------</div>
@@ -3463,6 +3593,10 @@ async function checkAllPasswordsBreached() {
             const breached = result.breachedCount;
             const total = result.totalCount;
 
+            if (result.networkFailed) {
+                showToast('Could not reach the leak database (check your connection) — results may be incomplete', 'warning');
+            }
+
             if (breached > 0) {
                 showToast(`Found ${breached} passwords in leaks out of ${total}!`, 'error');
             } else {
@@ -3800,6 +3934,10 @@ async function checkSinglePasswordBreached(password) {
     try {
         const result = await window.electronAPI.checkPasswordBreached(password);
 
+        if (result && result.error === 'network') {
+            showToast('Could not reach the leak database (check your connection)', 'warning');
+            return { breached: false, count: 0, error: 'network' };
+        }
         if (result && result.breached) {
             showToast(`Password found in ${result.count} leaks!`, 'error');
             return { breached: true, count: result.count };

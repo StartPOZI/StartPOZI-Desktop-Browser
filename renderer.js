@@ -246,6 +246,7 @@ function _isInternalPageUrl(url) {
          url.indexOf('Library.html') > -1 ||
          url.indexOf('TaskManager.html') > -1 ||
          url.indexOf('CustomizeToolbar.html') > -1 ||
+         url.indexOf('Viewer.html') > -1 ||
          url.indexOf('MainPage/index.html') > -1 ||
          url.indexOf('ErrorPage/') > -1 ||
          url.indexOf('IncognitoPage.html') > -1 ||
@@ -255,6 +256,20 @@ function _isInternalPageUrl(url) {
 // Reverse map: file://.../Settings.html#history  →  "about:history"
 // Used when the user focuses the omnibox on an internal page so they can
 // still see *something* meaningful instead of an empty bar.
+// File viewers: map a local file extension to a viewer type, or null if the
+// browser should render it natively.
+function _viewerTypeForUrl(url) {
+  var m = url.toLowerCase().match(/\.([a-z0-9]+)(?:\?.*)?$/);
+  if (!m) return null;
+  var ext = m[1];
+  if (ext === 'json' || ext === 'geojson' || ext === 'har') return 'json';
+  if (ext === 'md' || ext === 'markdown' || ext === 'mdown') return 'md';
+  if (ext === 'ttf' || ext === 'otf' || ext === 'woff' || ext === 'woff2') return 'font';
+  if (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'gif' ||
+      ext === 'webp' || ext === 'bmp' || ext === 'avif' || ext === 'ico') return 'image';
+  return null;
+}
+
 function _internalUrlToAbout(url) {
   if (!url || url.indexOf('file://') !== 0) return '';
   var hash = '';
@@ -357,6 +372,16 @@ let webviewPreloadPath = '';
         case 'inspectElement': wv.inspectElement(action.x, action.y); break;
         case 'toggleDevTools': wv.toggleDevTools(); break;
         case 'screenshotTool': openScreenshotTool(); break;
+        case 'ocrTool': openOcrTool(); break;
+        case 'openAsApp': {
+          var tab2 = tabs.find(function(t) { return t.id === activeTabId; });
+          var curUrl = '';
+          if (tab2) { try { curUrl = tab2.webview.getURL ? tab2.webview.getURL() : (tab2.webview.src || ''); } catch(e2) {} }
+          if (curUrl && /^https?:\/\//i.test(curUrl) && window.electronAPI && window.electronAPI.openSiteAsApp) {
+            window.electronAPI.openSiteAsApp(curUrl);
+          }
+           break;
+         }
         case 'zoomIn':
           var zI = (_tabZoom[action.tabId] || 1) + 0.25;
           if (zI > 3) zI = 3;
@@ -458,12 +483,19 @@ let webviewPreloadPath = '';
         case 'closeAfter':
           if (action.tabId && action.minutes) setTabCloseAfter(action.tabId, action.minutes);
           break;
+        case 'moveToNewWindow':
+          if (action.tabId && typeof _tearOutTab === 'function') _tearOutTab(action.tabId);
+          break;
         case 'closeAfterCancel':
           if (action.tabId) cancelTabCloseAfter(action.tabId);
           break;
         case 'elementZapper':
           if (canExecInWebview(wv)) {
-            wv.executeJavaScript('if(window.electronAPI&&window.electronAPI.startElementPicker){window.electronAPI.startElementPicker();return 1}return 0').catch(function() {});
+            try {
+              if (window.electronAPI && window.electronAPI.startElementPicker && wv.getWebContentsId) {
+                window.electronAPI.startElementPicker(wv.getWebContentsId());
+              }
+            } catch(e) {}
           }
           break;
         case 'pasteAndGo':
@@ -475,6 +507,11 @@ let webviewPreloadPath = '';
           break;
         case 'openIncognito':
           if (action.url && window.createIncognitoTab) window.createIncognitoTab(action.url);
+          break;
+        case 'openContainerTab':
+          if (action.containerId && window.createContainerTab) {
+            window.createContainerTab(action.containerId, action.url || '');
+          }
           break;
         case 'openIncognitoPage':
           if (canExecInWebview(wv)) {
@@ -1348,6 +1385,16 @@ urlInput.addEventListener('focus', function() {
     window.electronAPI.onThemeUpdated(function(theme) {
       currentTheme = theme;
       applyThemeToMainWindow(theme);
+      // Also refresh the accent color from settings (the setup wizard stores
+      // it alongside the theme).
+      if (window.electronAPI && window.electronAPI.getCustomizationSettings) {
+        window.electronAPI.getCustomizationSettings().then(function(c) {
+          if (c && c.accentColor) {
+            document.documentElement.style.setProperty('--accent-color', c.accentColor);
+            document.documentElement.style.setProperty('--accent', c.accentColor);
+          }
+        }).catch(function() {});
+      }
     });
   }
 })();
@@ -1516,6 +1563,20 @@ function applyTabLayout(layout) {
   }
 }
 
+function applyVerticalTabWidth(px) {
+  var n = parseInt(px, 10);
+  if (isNaN(n) || n < 100) n = 180;
+  if (n > 400) n = 400;
+  document.documentElement.style.setProperty('--vertical-tabs-width', n + 'px');
+}
+
+function applyAutohideTopbar(on) {
+  document.body.classList.toggle('chrome-autohide', !!on);
+  // When autohide is turned off, also drop the reveal flag so the chrome is
+  // unquestionably in its normal (always-shown) state.
+  if (!on) document.body.classList.remove('chrome-revealed');
+}
+
 // ===== UI FONTS =====
 var _fontFamilyMap = {
   'system': "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
@@ -1556,6 +1617,8 @@ function applyFontRendering(mode) {
         if (r.settings.tabHeight) applyTabHeight(r.settings.tabHeight);
         if (r.settings.windowControls) applyWindowControls(r.settings.windowControls);
         if (r.settings.tabLayout) applyTabLayout(r.settings.tabLayout);
+        applyVerticalTabWidth(r.settings.verticalTabWidth || 180);
+        applyAutohideTopbar(r.settings.autohideTopbar);
         if (r.settings.fontFamily) applyFontFamily(r.settings.fontFamily);
         if (r.settings.fontRendering) applyFontRendering(r.settings.fontRendering);
       }
@@ -1566,6 +1629,8 @@ function applyFontRendering(mode) {
       if (settings.tabHeight) applyTabHeight(settings.tabHeight);
       if (settings.windowControls) applyWindowControls(settings.windowControls);
       if (settings.tabLayout) applyTabLayout(settings.tabLayout);
+      if (settings.verticalTabWidth) applyVerticalTabWidth(settings.verticalTabWidth);
+      if ('autohideTopbar' in settings) applyAutohideTopbar(settings.autohideTopbar);
       if (settings.fontFamily) applyFontFamily(settings.fontFamily);
       if (settings.fontRendering) applyFontRendering(settings.fontRendering);
     });
@@ -1669,9 +1734,9 @@ function resolveLocalUrl(inputUrl) {
       'about:library':        'Library.html',
       'about:newtab':         'MainPage/index.html',
       'about:home':           'MainPage/index.html',
-      'about:history':        'Settings.html#history',
-      'about:bookmarks':      'Settings.html#bookmarks',
-      'about:downloads':      'Settings.html#downloads',
+      'about:history':        'Library.html#history',
+      'about:bookmarks':      'Library.html#bookmarks',
+      'about:downloads':      'Library.html#downloads',
       'about:passwords':      'Library.html#passwords',
       'about:cookies':        'Library.html#cookies',
       'about:proxy':          'Settings.html#proxy',
@@ -1685,7 +1750,8 @@ function resolveLocalUrl(inputUrl) {
       'about:profiles':       'Settings.html#profiles',
       'about:backup':         'Settings.html#backup',
       'about:taskmanager':    'TaskManager.html',
-      'about:tasks':          'TaskManager.html'
+      'about:tasks':          'TaskManager.html',
+      'about:viewer':         'Viewer.html'
     };
     var lower = inputUrl.toLowerCase();
     if (aboutMap[lower]) {
@@ -1720,7 +1786,12 @@ function resolveLocalUrl(inputUrl) {
 let _lastNewTabUrl = null;
 let _lastNewTabTime = 0;
 
-function createNewTab(url, lazy) {
+function createNewTab(url, lazy, opts) {
+  opts = opts || {};
+  // Container tab: run in an isolated persistent partition (cookie/storage
+  // separated from the default session and other containers).
+  var containerId = opts.containerId || null;
+
   // If no URL is specified — open the configured home page
   // (built-in MainPage, custom URL or local file).
   if (!url) {
@@ -1806,6 +1877,8 @@ function createNewTab(url, lazy) {
   const tabElement = document.createElement('div');
   tabElement.className = 'tab';
   tabElement.dataset.tabId = tabId;
+  tabElement.setAttribute('role', 'tab');
+  tabElement.setAttribute('aria-label', 'New tab');
   tabElement.innerHTML = '<div class="tab-favicon-placeholder"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><span class="tab-title">New tab</span><button class="tab-audio" title="Sound" style="display:none"></button><button class="tab-close" title="Close tab">×</button>';
 
   tabsBar.insertBefore(tabElement, document.getElementById('newTabBtn'));
@@ -1817,6 +1890,9 @@ function createNewTab(url, lazy) {
   webview.setAttribute('autosize', 'on');
   webview.setAttribute('allowpopups', '');
   webview.setAttribute('webpreferences', 'backgroundThrottling=false');
+  if (containerId) {
+    webview.setAttribute('partition', 'persist:container-' + containerId);
+  }
   webview.style.position = 'absolute';
   webview.style.top = '0';
   webview.style.left = '0';
@@ -1838,12 +1914,17 @@ function createNewTab(url, lazy) {
     title: isLazy ? (url.replace(/^https?:\/\//, '').replace(/\/$/, '').substring(0, 40) || 'New tab') : 'New tab',
     isReady: false,
     pendingUrl: isLazy ? url : null,
-    lastUrl: url && url !== 'about:blank' ? url : null
+    lastUrl: url && url !== 'about:blank' ? url : null,
+    containerId: containerId
   };
   tabs.push(tabData);
+  if (containerId) {
+    tabElement.classList.add('container-tab');
+    _applyContainerBadge(tabData);
+  }
 
   if (isLazy) {
-    tabElement.querySelector('.tab-title').textContent = tabData.title;
+    tabElement.querySelector('.tab-title').textContent = tabData.title; try { tabElement.setAttribute('aria-label', tabData.title || 'New tab'); } catch(e) {}
     webview.src = 'about:blank';
   } else {
     webview.src = url;
@@ -1854,9 +1935,16 @@ function createNewTab(url, lazy) {
   // event emitted before this method can be called" errors
   webview.addEventListener('dom-ready', function() {
     tabData.isReady = true;
-    // Set user agent once the webview is ready (was formerly in will-attach-webview/did-start-navigation)
+    // Set user agent once the webview is ready — but NOT on login pages:
+    // there the main process applies the Firefox profile via CDP, and this
+    // call would reset it back to Chrome after the override.
     try {
-      if (webview.setUserAgent) {
+      var domUrl = '';
+      try { domUrl = webview.getURL ? webview.getURL() : (webview.src || ''); } catch (e0) {}
+      var domHost = '';
+      try { domHost = new URL(domUrl).hostname; } catch (e1) {}
+      var isAuthHost = /(^|\.)accounts\.google\.com$|(^|\.)myaccount\.google\.com$|(^|\.)passwords\.google\.com$|(^|\.)signin\.google\.com$|(^|\.)pay\.google\.com$|(^|\.)wallet\.google\.com$|(^|\.)accounts\.youtube\.com$|(^|\.)appleid\.apple\.com$|(^|\.)login\.live\.com$|(^|\.)login\.microsoftonline\.com$/.test(domHost);
+      if (webview.setUserAgent && !isAuthHost) {
         webview.setUserAgent(userAgent);
       }
     } catch(e) {
@@ -1877,15 +1965,15 @@ function createNewTab(url, lazy) {
     if (!pageUrl || pageUrl.indexOf('file://') === 0) return;
     if (!window.electronAPI || !window.electronAPI.adblockerGetCosmeticCSS) return;
     try { if (wv.isDestroyed && wv.isDestroyed()) return; } catch(e) { return; }
+    // CSS-only fallback. Scriptlets (##+js(...)) and extended selectors are
+    // handled by the adblocker session preload at document-start; re-running
+    // them here (after CMP scripts initialized) was useless and could
+    // double-apply scriptlet side-effects.
     window.electronAPI.adblockerGetCosmeticCSS(pageUrl).then(function(res) {
       if (!res) return;
       try { if (wv.isDestroyed && wv.isDestroyed()) return; } catch(e) { return; }
       if (res.css && res.css.length > 0) {
         try { wv.insertCSS(res.css, { cssOrigin: 'user' }); } catch(e) {}
-      }
-      if (res.scripts && res.scripts.length > 0) {
-        var wrapped = '(function(){try{' + res.scripts.join('\n') + '}catch(e){}})()';
-        try { wv.executeJavaScript(wrapped).catch(function() {}); } catch(e) {}
       }
     }).catch(function() {});
     if (window.electronAPI && window.electronAPI.getCustomHideStyles) {
@@ -2185,6 +2273,21 @@ function createNewTab(url, lazy) {
 
   webview.addEventListener('did-navigate', function(e) {
     if (e.url && e.url !== 'about:blank' && e.url.indexOf('file://') !== 0) tabData.lastUrl = e.url;
+    // ===== File viewers =====
+    // Navigating to a local .json/.md/.ttf/... file redirects to the built-in
+    // Viewer.html instead of the raw download / broken render.
+    if (e.url && e.url.indexOf('file://') === 0 && e.url.indexOf('Viewer.html') === -1) {
+      var vType = _viewerTypeForUrl(e.url);
+      if (vType) {
+        var vPath = e.url;
+        try { vPath = decodeURIComponent(new URL(e.url).pathname); } catch(_) {}
+        // resolveLocalUrl may already append '?v=…' — detect the right separator.
+        var vBase = resolveLocalUrl('Viewer.html');
+        var vSep = vBase.indexOf('?') === -1 ? '?' : '&';
+        webview.src = vBase + vSep + 'type=' + vType + '&src=' + encodeURIComponent(vPath);
+        return;
+      }
+    }
     // Session Guard: check duplicates when following links/redirects
     if (e.url && e.url.indexOf('http') === 0) {
       try { _sessionGuardOnNavigate(e.url, tabId, tabData); } catch(_) {}
@@ -2207,7 +2310,8 @@ function createNewTab(url, lazy) {
     }
     updateNavButtons();
     if (e.url && e.url.indexOf('file://') !== 0) {
-      if (window.electronAPI && window.electronAPI.addHistory) {
+      // Privacy: incognito tabs never write to the shared on-disk history.
+      if (!tabData.isIncognito && window.electronAPI && window.electronAPI.addHistory) {
         window.electronAPI.addHistory({ url: e.url, title: tabData.title });
       }
       injectCosmetics(webview, e.url);
@@ -2215,6 +2319,7 @@ function createNewTab(url, lazy) {
       if (_eqState.enabled) eqInject(tabData);
       _sbLastVid[tabData.id] = null;
       injectSponsorBlock(tabData);
+      injectCookieBannerBlocker(tabData);
       autoSaveTabs();
     }
   });
@@ -2236,11 +2341,13 @@ function createNewTab(url, lazy) {
     }
     updateNavButtons();
     if (e.url && e.url.indexOf('file://') !== 0 && e.isMainFrame) {
-      if (window.electronAPI && window.electronAPI.addHistory) {
+      // Privacy: incognito tabs never write to the shared on-disk history.
+      if (!tabData.isIncognito && window.electronAPI && window.electronAPI.addHistory) {
         window.electronAPI.addHistory({ url: e.url, title: tabData.title });
       }
       injectCosmetics(webview, e.url);
       injectSponsorBlock(tabData);
+      injectCookieBannerBlocker(tabData);
     }
   });
 
@@ -2259,7 +2366,7 @@ function createNewTab(url, lazy) {
       var u = '';
       try { u = webview.getURL ? webview.getURL() : (webview.src || ''); } catch(e2) { u = webview.src || ''; }
       if (u && u !== 'about:blank' && u.indexOf('file://') !== 0) tabData.lastUrl = u;
-      tabElement.querySelector('.tab-title').textContent = e.title;
+      tabElement.querySelector('.tab-title').textContent = e.title; try { tabElement.setAttribute('aria-label', e.title || 'New tab'); } catch(e2) {}
     }
   });
 
@@ -2322,14 +2429,18 @@ function createNewTab(url, lazy) {
     e.dataTransfer.setData('text/plain', tabId);
     tabElement.classList.add('dragging');
     setTimeout(function() { tabElement.classList.add('dragging'); }, 0);
+    var mUrl = getTabUrlForSave(tabData);
+    if ((!mUrl || mUrl === 'about:blank') && tabData._sleepUrl) mUrl = tabData._sleepUrl;
+    _tearBeginDrag(tabId, e, { url: mUrl, title: tabData.title || '', incognito: false });
   });
 
-  tabElement.addEventListener('dragend', function() {
+  tabElement.addEventListener('dragend', function(e) {
     tabElement.classList.remove('dragging');
     document.querySelectorAll('.tab').forEach(function(t) {
       t.classList.remove('drag-over-left', 'drag-over-right');
     });
     _renderTabGroupHeaders();
+    _tearEndDrag(e, tabId);
   });
 
   tabElement.addEventListener('dragover', function(e) {
@@ -2637,6 +2748,7 @@ function updateNavButtons() {
 function updateUrlIcon(url) {
   var icon = document.querySelector('.url-icon');
   if (!icon) return;
+  updatePageNoteButton(url);
   // Strip every fa-* glyph plus the secure/insecure modifiers so we start
   // from a clean slate on each navigation.
   var toRemove = [];
@@ -2684,6 +2796,115 @@ function updateUrlIcon(url) {
     icon.classList.add('fa-lock');
   }
 }
+
+// ====== Per-page notes ======
+// Enabled by the security.pageNotes setting. The note button appears in the
+// url bar on http(s) pages; a blue tint means the current page has a note.
+// Notes are keyed by normalized URL (see _pageNoteKey in main.js) and
+// survive restarts.
+var _pageNotesEnabled = false;
+var _pnCurrentUrl = '';
+var _pnLastReqUrl = '';
+
+function updatePageNoteButton(url) {
+  var btn = document.getElementById('pageNoteBtn');
+  if (!btn) return;
+  var show = _pageNotesEnabled && url && url.indexOf('http') === 0;
+  btn.style.display = show ? 'flex' : 'none';
+  btn.classList.remove('has-note');
+  if (show && window.electronAPI && window.electronAPI.pageNotesGet) {
+    var reqUrl = url;
+    _pnLastReqUrl = reqUrl;
+    window.electronAPI.pageNotesGet(reqUrl).then(function(text) {
+      // Only apply if the user hasn't navigated away meanwhile.
+      if (reqUrl !== _pnLastReqUrl) return;
+      if (text) btn.classList.add('has-note');
+    }).catch(function() {});
+  }
+}
+
+(function setupPageNotes() {
+  var btn = document.getElementById('pageNoteBtn');
+  var panel = document.getElementById('pageNotePanel');
+  if (!btn || !panel) return;
+
+  function closePnPanel() { panel.classList.remove('open'); }
+
+  function loadSetting() {
+    if (window.electronAPI && window.electronAPI.getAllSecuritySettings) {
+      window.electronAPI.getAllSecuritySettings().then(function(sec) {
+        _pageNotesEnabled = !!(sec && sec.pageNotes);
+        // Refresh current visibility state immediately.
+        var tab = tabs.find(function(t) { return t.id === activeTabId; });
+        var url = '';
+        if (tab) { try { url = tab.webview.getURL ? tab.webview.getURL() : (tab.webview.src || ''); } catch(e) {} }
+        updatePageNoteButton(url);
+        if (!_pageNotesEnabled) closePnPanel();
+      }).catch(function() {});
+    }
+  }
+  loadSetting();
+  // Live toggle: when security settings change (Settings.html in another
+  // tab), re-read the flag. The same event is used elsewhere for this.
+  if (window.electronAPI && window.electronAPI.onSecuritySettingsChanged) {
+    window.electronAPI.onSecuritySettingsChanged(function() { loadSetting(); });
+  }
+
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var tab = tabs.find(function(t) { return t.id === activeTabId; });
+    var url = '';
+    if (tab) { try { url = tab.webview.getURL ? tab.webview.getURL() : (tab.webview.src || ''); } catch(e2) {} }
+    if (!url || url.indexOf('http') !== 0) return;
+    if (panel.classList.contains('open')) { closePnPanel(); return; }
+    var siPanel = document.getElementById('siteInfoPanel');
+    if (siPanel) siPanel.classList.remove('open');
+    _pnCurrentUrl = url;
+    try { document.getElementById('pnPanelDomain').textContent = new URL(url).hostname; } catch(e3) {}
+    var ta = document.getElementById('pnTextarea');
+    ta.value = '';
+    document.getElementById('pnCharCount').textContent = '';
+    if (window.electronAPI && window.electronAPI.pageNotesGet) {
+      window.electronAPI.pageNotesGet(url).then(function(text) {
+        if (_pnCurrentUrl === url) { ta.value = text || ''; _pnUpdateCount(); }
+      }).catch(function() {});
+    }
+    panel.classList.add('open');
+    setTimeout(function() { ta.focus(); }, 50);
+  });
+
+  function _pnUpdateCount() {
+    var ta = document.getElementById('pnTextarea');
+    document.getElementById('pnCharCount').textContent = (ta.value.length ? ta.value.length + ' / 20000' : '');
+  }
+  document.getElementById('pnTextarea').addEventListener('input', _pnUpdateCount);
+
+  document.getElementById('pnSave').addEventListener('click', function() {
+    if (!_pnCurrentUrl) return;
+    var val = document.getElementById('pnTextarea').value;
+    if (window.electronAPI && window.electronAPI.pageNotesSet) {
+      window.electronAPI.pageNotesSet(_pnCurrentUrl, val).then(function() {
+        updatePageNoteButton(_pnCurrentUrl);
+        closePnPanel();
+      }).catch(function() {});
+    }
+  });
+  document.getElementById('pnDelete').addEventListener('click', function() {
+    if (!_pnCurrentUrl) return;
+    document.getElementById('pnTextarea').value = '';
+    if (window.electronAPI && window.electronAPI.pageNotesSet) {
+      window.electronAPI.pageNotesSet(_pnCurrentUrl, '').then(function() {
+        updatePageNoteButton(_pnCurrentUrl);
+        closePnPanel();
+      }).catch(function() {});
+    }
+  });
+  // Esc closes; textarea stops propagation so typing is not stolen.
+  panel.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePnPanel(); });
+  document.addEventListener('click', function(e) {
+    if (panel.classList.contains('open') && !panel.contains(e.target) && e.target !== btn) closePnPanel();
+  });
+})();
 
 function updateTabAudioIcon(tabId) {
   var tab = tabs.find(function(t) { return t.id === tabId; });
@@ -2770,8 +2991,20 @@ startTabPreviewCapture();
 // Navigation functions
 function navigateTo(url, tabId) {
   if (typeof tabId === 'undefined') tabId = activeTabId;
-  const tab = tabs.find(function(t) { return t.id === tabId; });
-  if (!tab) return;
+  var tab = tabs.find(function(t) { return t.id === tabId; });
+  if (!tab) {
+    // No regular tab matches — an incognito tab is on screen (a dedicated
+    // incognito window, or an incognito tab inside the main window).
+    // Navigate it through a lightweight shim instead of silently no-op'ing
+    // (URL-bar Enter used to do nothing in exactly these cases).
+    if (typeof _incognitoTabs !== 'undefined' && _activeIncognitoId) {
+      var inc = _incognitoTabs.find(function(t) { return t.id === _activeIncognitoId; });
+      if (inc && inc.webview) {
+        tab = { webview: inc.webview, isReady: false };
+      }
+    }
+    if (!tab) return;
+  }
 
   let finalUrl = url;
   var rawTrim = (url || '').trim();
@@ -2984,6 +3217,57 @@ settingsBtn.addEventListener('click', function() {
       try { _syncEcoAll(); } catch(e) {}
     });
   }
+
+  // === Auto-hide top chrome ===
+  // Entirely renderer-side (no global cursor query — that fails on Wayland).
+  // Two mechanisms:
+  //   1. #autohideHotspot — a thin transparent strip across the top of the
+  //      window, painted ABOVE the <webview> (z-index 99). When the chrome is
+  //      hidden this is the only thing at the top edge, so the renderer DOES
+  //      see the cursor entering it. mouseenter → reveal.
+  //   2. mouseenter/mouseleave on the chrome itself (titlebar/navbar) — once
+  //      revealed, the chrome stays open while the cursor is on it; when the
+  //      cursor leaves toward the page (the webview), a short timer hides it.
+  var _ahHotspot = document.getElementById('autohideHotspot');
+  var _ahTitlebar = document.querySelector('.titlebar');
+  var _ahNavbar = document.querySelector('.navbar');
+  var _ahHideTimer = null;
+  var _ahHoverDepth = 0; // how many chrome elements the cursor is currently on
+  function _ahReveal() {
+    if (_ahHideTimer) { clearTimeout(_ahHideTimer); _ahHideTimer = null; }
+    document.body.classList.add('chrome-revealed');
+  }
+  function _ahScheduleHide() {
+    if (_ahHideTimer) clearTimeout(_ahHideTimer);
+    _ahHideTimer = setTimeout(function() {
+      _ahHideTimer = null;
+      document.body.classList.remove('chrome-revealed');
+    }, 350);
+  }
+  function _ahBindHover(el) {
+    if (!el) return;
+    el.addEventListener('mouseenter', function() { _ahHoverDepth++; _ahReveal(); });
+    el.addEventListener('mouseleave', function() { _ahHoverDepth = Math.max(0, _ahHoverDepth - 1); if (_ahHoverDepth === 0) _ahScheduleHide(); });
+  }
+  if (_ahHotspot) {
+    // The hotspot is only display:block while chrome is hidden (CSS), so
+    // mouseenter on it == "cursor reached the top edge while hidden" → reveal.
+    _ahHotspot.addEventListener('mouseenter', _ahReveal);
+    _ahHotspot.addEventListener('mousemove', _ahReveal); // safety net
+  }
+  _ahBindHover(_ahTitlebar);
+  _ahBindHover(_ahNavbar);
+  // Window blur / minimize → hide immediately (so the chrome doesn't stay
+  // floating over a backgrounded window).
+  if (api.onWindowFocusChanged) {
+    api.onWindowFocusChanged(function(state) {
+      if (state && !state.focused) {
+        _ahHoverDepth = 0;
+        if (_ahHideTimer) { clearTimeout(_ahHideTimer); _ahHideTimer = null; }
+        document.body.classList.remove('chrome-revealed');
+      }
+    });
+  }
 })();
 
 // Hamburger menu — opens/closes on click, closes on outside click.
@@ -3021,6 +3305,7 @@ settingsBtn.addEventListener('click', function() {
         hmScripts:    'scripts',
         hmDark:       'darkMode',
         hmReader:     'reader',
+        hmTts:        'tts',
         hmMedia:      'media',
         hmEq:         'equalizer',
         hmHoverTr:    'translate',
@@ -3088,6 +3373,7 @@ settingsBtn.addEventListener('click', function() {
   bind('hmAdblock', function() { _openPanelUnderHamburger('adblockPanel', null); });
   bind('hmDark', function() { toggleForceDark(); });
   bind('hmReader', function() { if (window._toggleReader) window._toggleReader(); });
+  bind('hmTts', function() { if (window._ttsToggle) window._ttsToggle(); });
   bind('hmMedia', function() { _openPanelUnderHamburger('mediaPanel', (typeof toggleMediaPanel === 'function') ? toggleMediaPanel : null); });
   bind('hmEq', function() { _openPanelUnderHamburger('eqPanel', (typeof toggleEqPanel === 'function') ? toggleEqPanel : null); });
   bind('hmHoverTr', function() { _openPanelUnderHamburger('htPanel', (typeof toggleHtPanel === 'function') ? toggleHtPanel : null); });
@@ -3096,7 +3382,10 @@ settingsBtn.addEventListener('click', function() {
   bind('hmScreenshot', function() { clickBtn('screenshotBtn'); });
   bind('hmFindAll', function() { if (typeof toggleFindAll === 'function') toggleFindAll(); });
   bind('hmAutoscroll', function() { clickBtn('autoscrollBtn'); });
-  bind('hmIncognito', function() { if (typeof window.createIncognitoTab === 'function') window.createIncognitoTab(); });
+  bind('hmNewWindow', function() {
+    if (window.electronAPI && window.electronAPI.openNewWindow) window.electronAPI.openNewWindow();
+  });
+  bind('hmIncognito', function() { if (typeof window.startIncognitoMode === 'function') window.startIncognitoMode(); });
   bind('hmBreakLoupe', function() { clickBtn('breakLoupeBtn'); });
 
   try { updateHmVisibility(); } catch(e) {}
@@ -3150,6 +3439,21 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
       { key: 'persistentStorage', label: 'Persistent storage' }
     ];
     var html = '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Site permissions. Changes apply on next request or reload.</div>';
+    // Hard toggles: JavaScript and cookies (enforced in the main process;
+    // changing JavaScript requires a reload to take effect).
+    var jsSel = sitePerms.javascript === undefined ? 'default' : (sitePerms.javascript ? 'allow' : 'block');
+    var ckSel = sitePerms.cookies === undefined ? 'default' : (sitePerms.cookies ? 'allow' : 'block');
+    html += '<div class="si-perm-row"><span class="si-perm-label">JavaScript</span>';
+    html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="javascript" onchange="window._changeSitePerm(this)">';
+    html += '<option value="default"' + (jsSel === 'default' ? ' selected' : '') + '>Enabled (default)</option>';
+    html += '<option value="block"' + (jsSel === 'block' ? ' selected' : '') + '>Blocked</option>';
+    html += '</select></div>';
+    html += '<div class="si-perm-row"><span class="si-perm-label">Cookies</span>';
+    html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="cookies" onchange="window._changeSitePerm(this)">';
+    html += '<option value="default"' + (ckSel === 'default' ? ' selected' : '') + '>Allowed (default)</option>';
+    html += '<option value="allow"' + (ckSel === 'allow' ? ' selected' : '') + '>Allowed always</option>';
+    html += '<option value="block"' + (ckSel === 'block' ? ' selected' : '') + '>Blocked</option>';
+    html += '</select></div>';
     permTypes.forEach(function(pt) {
       var val = sitePerms[pt.key];
       var selVal = val === undefined ? 'default' : (val ? 'allow' : 'block');
@@ -3485,11 +3789,62 @@ newTabBtn.addEventListener('click', function() {
   _openHomePage();
 });
 
+// ====== Wheel on the tab strip ======
+// Scrolling over the tab bar switches tabs (down/right = next, up/left =
+// previous, with wrap-around). Ctrl+wheel is left alone (page zoom gesture).
+(function setupTabStripWheel() {
+  var bar = document.getElementById('tabsBar');
+  if (!bar) return;
+  var _lastTabWheel = 0;
+  bar.addEventListener('wheel', function(e) {
+    if (e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    var now = Date.now();
+    if (now - _lastTabWheel < 90) return; // debounce fast trackpads
+    _lastTabWheel = now;
+    var delta = e.deltaY || e.deltaX;
+    if (!delta) return;
+    var idx = tabs.findIndex(function(t) { return t.id === activeTabId; });
+    if (idx < 0 || tabs.length < 2) return;
+    var next = idx + (delta > 0 ? 1 : -1);
+    if (next >= tabs.length) next = 0;
+    if (next < 0) next = tabs.length - 1;
+    setActiveTab(tabs[next].id);
+   }, { passive: false });
+})();
+
+// ====== Super Drag actions (relayed from webviews via main) ======
+// text → search in background tab, link → open in background tab,
+// image → reverse image search (Google Lens).
+(function setupSuperDragHandler() {
+  if (!window.electronAPI || !window.electronAPI.onSuperDragAction) return;
+  window.electronAPI.onSuperDragAction(function(d) {
+    if (!d || !d.payload) return;
+    if (d.kind === 'text') {
+      createNewTab(searchEngineUrl + encodeURIComponent(d.payload), true);
+    } else if (d.kind === 'link') {
+      try { var u = new URL(d.payload); if (u.protocol === 'http:' || u.protocol === 'https:') createNewTab(u.href, true); } catch(e) {}
+    } else if (d.kind === 'image') {
+      if (/^https?:\/\//i.test(d.payload)) {
+        createNewTab('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(d.payload), true);
+      } else if (d.payload) {
+        createNewTab(d.payload, true);
+      }
+    }
+  });
+})();
+
 // ====== Home page (custom) ======
 // By default opens the built-in MainPage/index.html, but if in settings
 // a URL or local file is set — opens it.
 var _homepageCache = { type: 'default', value: '' };
 function _openHomePage() {
+  // In a dedicated incognito window the "new tab" button opens the incognito
+  // landing page — never the regular start page with the user's shortcuts.
+  if (window._incognitoWindowMode) {
+    if (window.createIncognitoTab) window.createIncognitoTab();
+    return;
+  }
   if (_homepageCache && _homepageCache.type !== 'default' && _homepageCache.value) {
     createNewTab(_homepageCache.value);
   } else {
@@ -3532,7 +3887,13 @@ function _restoreTabs(savedTabs) {
         // The first restored tab is always the active one (lazy=false).
         // Others: load eagerly by default, lazy only if the user opted in.
         var lazy = (idx === 0) ? false : lazyStartup;
-        createNewTab(tabInfo.url, lazy);
+        // Container tabs reopen in their own partition. If the container was
+        // deleted while away, fall back to a regular tab.
+        var cOpts = {};
+        if (tabInfo.containerId && _findContainer(tabInfo.containerId)) {
+          cOpts.containerId = tabInfo.containerId;
+        }
+        createNewTab(tabInfo.url, lazy, cOpts);
         var lastTab = tabs[tabs.length - 1];
         if (lastTab) {
           if (tabInfo.title) {
@@ -3559,8 +3920,57 @@ function _restoreTabs(savedTabs) {
   }
 }
 
+// True when this shell runs as a dedicated Incognito window
+// (index.html?incognito=1) or after the user replaced the current window
+// with Incognito. In this mode every new tab is an incognito tab and the
+// regular session is never overwritten with the incognito window's state.
+var INCOGNITO_WINDOW_MODE = /[?&]incognito=1/.test(window.location.search);
+window._incognitoWindowMode = INCOGNITO_WINDOW_MODE;
+// True for additional regular windows (Ctrl+N / tear-out): they start fresh
+// and must never save/restore the primary session.
+var FRESH_SHELL_MODE = /[?&]fresh=1/.test(window.location.search);
+// A torn-out regular tab arrives as ?tab=<url>&title=… — the window opens
+// that single tab and also never touches the primary session.
+var _initQuery = new URLSearchParams(window.location.search);
+var TORN_TAB_MODE = !!_initQuery.get('tab');
+// Only the primary window persists the session.
+window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TAB_MODE;
+
 // Create first tab — restore saved tabs if available
 (function initTabs() {
+  if (INCOGNITO_WINDOW_MODE) {
+    // A dedicated incognito window starts with one incognito tab. A torn-out
+    // incognito tab arrives with its url+partition so its cookies survive.
+    setTimeout(function() {
+      var q = new URLSearchParams(window.location.search);
+      var tabUrl = q.get('tab') || '';
+      var partition = q.get('partition') || '';
+      if (window.createIncognitoTab) {
+        window.createIncognitoTab(tabUrl, partition ? { partition: partition } : undefined);
+      }
+    }, 0);
+    return;
+  }
+  if (TORN_TAB_MODE || FRESH_SHELL_MODE) {
+    // Deferred like the incognito branch: createNewTab must not run during
+    // initial script evaluation — an exception there would kill every
+    // binding that is registered later in this file (dead toolbar).
+    setTimeout(function() {
+      var u = _initQuery.get('tab');
+      var ti = _initQuery.get('title');
+      if (u) {
+        createNewTab(u);
+        var nt = tabs[tabs.length - 1];
+        if (nt && ti) {
+          nt.title = ti;
+          try { nt.element.querySelector('.tab-title').textContent = ti; } catch(e) {}
+        }
+      } else {
+        createNewTab('MainPage/index.html');
+      }
+    }, 0);
+    return;
+  }
   if (!window.electronAPI || !window.electronAPI.getWorkspaces) {
     createNewTab('MainPage/index.html');
     return;
@@ -3585,16 +3995,30 @@ function _restoreTabs(savedTabs) {
         _activeWorkspaceId = activeId;
         updateWorkspaceButton();
         window.electronAPI.getSaveTabs().then(function(shouldRestore) {
-          if (!shouldRestore) { createNewTab('MainPage/index.html'); return; }
-          window.electronAPI.getWorkspaceTabs(_activeWorkspaceId).then(function(wsTabs) {
-            if (wsTabs && wsTabs.length > 0) {
-              _restoreTabs(wsTabs);
-            } else {
-              window.electronAPI.getSavedTabs().then(function(globalTabs) {
-                _restoreTabs(globalTabs && globalTabs.length > 0 && _activeWorkspaceId === 'ws-default' ? globalTabs : []);
-              }).catch(function() { createNewTab('MainPage/index.html'); });
-            }
-          }).catch(function() { createNewTab('MainPage/index.html'); });
+          // Crash-safe session: if the previous session ended abnormally
+          // (the marker file in userData is still present — see main.js),
+          // show a toast on restore. The user's explicit "restore tabs"
+          // preference still wins over the crash flag; the debounced
+          // auto-save (2 s + 30 s heartbeat) keeps the saved state fresh
+          // enough to recover from.
+          var crashPromise = (window.electronAPI.getLastSessionCrashed)
+            ? window.electronAPI.getLastSessionCrashed().catch(function() { return false; })
+            : Promise.resolve(false);
+          crashPromise.then(function(crashed) {
+            if (!shouldRestore) { createNewTab('MainPage/index.html'); return; }
+            window.electronAPI.getWorkspaceTabs(_activeWorkspaceId).then(function(wsTabs) {
+              if (wsTabs && wsTabs.length > 0) {
+                _restoreTabs(wsTabs);
+                if (crashed && typeof _showToast === 'function') _showToast('Previous session closed unexpectedly — tabs restored');
+              } else {
+                window.electronAPI.getSavedTabs().then(function(globalTabs) {
+                  var use = globalTabs && globalTabs.length > 0 && _activeWorkspaceId === 'ws-default';
+                  _restoreTabs(use ? globalTabs : []);
+                  if (crashed && use && typeof _showToast === 'function') _showToast('Previous session closed unexpectedly — tabs restored');
+                }).catch(function() { createNewTab('MainPage/index.html'); });
+              }
+            }).catch(function() { createNewTab('MainPage/index.html'); });
+          });
         }).catch(function() { createNewTab('MainPage/index.html'); });
       }).catch(function() { createNewTab('MainPage/index.html'); });
     }).catch(function() { createNewTab('MainPage/index.html'); });
@@ -3623,10 +4047,14 @@ function getTabUrlForSave(tab) {
 
 function autoSaveTabs() {
   if (!window.electronAPI) return;
+  // Only the primary window persists the session — a dedicated incognito
+  // window or an additional window must never wipe what the primary saved.
+  if (window._canSaveSession === false) return;
   var tabsData = tabs.map(function(tab) {
     var d = { url: getTabUrlForSave(tab), title: tab.title };
     if (tab.pinned) d.pinned = true;
     if (tab.groupId) d.groupId = tab.groupId;
+    if (tab.containerId) d.containerId = tab.containerId;
     return d;
   }).filter(function(t) { return t.url; });
   if (window.electronAPI.setWorkspaceTabs) {
@@ -3636,6 +4064,27 @@ function autoSaveTabs() {
     window.electronAPI.saveCurrentTabs(tabsData);
   }
 }
+
+// Debounced crash-safe save: tab open/close/switch/navigate trigger a save
+// after 2 s of quiet, plus the 30 s interval below keeps a hard heartbeat.
+// This bounds session loss after a crash to a couple of seconds instead of
+// up to 30 s.
+var _tabSaveTimer = null;
+function _scheduleTabSave() {
+  if (_tabSaveTimer) return;
+  _tabSaveTimer = setTimeout(function() {
+    _tabSaveTimer = null;
+    autoSaveTabs();
+  }, 2000);
+}
+(function hookCrashSafeSaves() {
+  var _origCreate = createNewTab;
+  createNewTab = function(u, l, o) { var r = _origCreate(u, l, o); _scheduleTabSave(); return r; };
+  var _origClose = closeTab;
+  closeTab = function(id) { var r = _origClose(id); _scheduleTabSave(); return r; };
+  var _origSetActive = setActiveTab;
+  setActiveTab = function(id) { var r = _origSetActive(id); _scheduleTabSave(); return r; };
+})();
 
 setInterval(autoSaveTabs, 30000);
 
@@ -3686,7 +4135,7 @@ if (window.electronAPI && window.electronAPI.onNavigateCurrentTab) {
         ? _incognitoTabs.find(function(t) { return t.id === _activeIncognitoId; })
         : null;
       if (incTab && incTab.webview) {
-        incTab.webview.src = url;
+        incTab.webview.src = resolveLocalUrl(url);
         return;
       }
     }
@@ -3930,6 +4379,40 @@ function getYouTubeVideoId(url) {
     if (u.pathname.indexOf('/shorts/') === 0) return u.pathname.slice(8);
     return null;
   } catch(e) { return null; }
+}
+
+// === Auto-decline cookie banners ===
+// Mirrors injectSponsorBlock(): gated by a per-page setting, then injects a
+// MutationObserver into the webview that scans for cookie-consent dialogs and
+// clicks a "Reject/Decline" button. Strategy (most reliable first):
+//   1. Provider-specific reject selectors (OneTrust, Cookiebot, Didomi, …)
+//   2. "Open preferences" → then reject inside the revealed panel
+//   3. Text heuristic on all clickable elements (incl. aria-label/title)
+//   4. Hide known banner containers as a last resort + unlock page scroll
+// Scans the main document, same-origin iframes AND shadow roots (Usercentrics
+// v3, CookieFirst and others render the dialog inside a shadow root).
+function injectCookieBannerBlocker(tabData) {
+  if (!tabData || !tabData.webview || !tabData.isReady) return;
+  if (!window.electronAPI || !window.electronAPI.getSecuritySetting) return;
+  var url = tabData.lastUrl || '';
+  if (!url || url.indexOf('http') !== 0) return;
+  window.electronAPI.getSecuritySetting('autoRejectCookies').then(function(enabled) {
+    if (!enabled) return;
+    try {
+      var payloadFn = window.spzCookieBlockerPayload;
+      if (typeof payloadFn !== 'function') return;
+      tabData.webview.executeJavaScript("(" + payloadFn.toString() + ")()").catch(function() {});
+      // Cross-origin CMP iframes (e.g. spiegel.de's Sourcepoint served from
+      // sourcepoint.spiegel.de) are unreachable from the top document — ask
+      // the main process to inject the same payload into every frame.
+      try {
+        var wcId = tabData.webview.getWebContentsId();
+        if (wcId && window.electronAPI.injectCookieBlockerFrames) {
+          window.electronAPI.injectCookieBlockerFrames(wcId);
+        }
+      } catch (e) {}
+    } catch(e) {}
+  }).catch(function() {});
 }
 
 function injectSponsorBlock(tabData) {
@@ -4323,7 +4806,7 @@ var _qcEmojiData = [
   {e:'🎁',n:['gift','gift','present','surprise']},{e:'🏅',n:['medal','medal','sport','sport']},
   {e:'🔖',n:['bookmark','bookmark','save','save']},{e:'📈',n:['chart','chart','grow','growth']},
   {e:'🔊',n:['volume','volume','speaker','sound']},{e:'🔇',n:['mute','muted','silent','quiet']},
-  {e:'🗂️',n:['folder','folder','file','file']},{e:'🐶',n:['dog','dog','puppy','puppy','woof']},
+  {e:'🗂️',n:['folder','folder','file','file']},
 ];
 
 var _qcWidgetVisible = false;
@@ -4479,7 +4962,8 @@ var _qcCommands = [
   { name: 'undo', desc: 'Reopen last closed tab', cat: 'tab', args: '', fn: function() { if(closedTabsHistory.length>0){var c=closedTabsHistory.shift();createNewTab(c.url);} }},
   { name: 'help', desc: 'List of all commands (help 2 — page 2)', cat: 'misc', args: '', keepOpen: true, fn: function(a, qcInput) { qcInput.value=':'; var p=parseInt(a); _qcHelpPage=(!isNaN(p)&&p>=1)?p-1:0; renderQcList(':'); }},
   { name: 'reader', desc: 'Reader mode', cat: 'misc', args: '', fn: function() { if (window._toggleReader) window._toggleReader(); }},
-  { name: 'sidebar', desc: 'Bookmarks bar', cat: 'misc', args: '', fn: function() { var sb=document.getElementById('bookmarksSidebar'); if(sb){sb.classList.add('open');document.getElementById('sidebarOverlay').classList.add('active');} }},
+  { name: 'readaloud', desc: 'Read page aloud (TTS)', cat: 'misc', args: '', fn: function() { if (window._ttsToggle) window._ttsToggle(); }},
+  { name: 'sidebar', desc: 'Bookmarks bar', cat: 'misc', args: '', fn: function() { if (window._toggleBookmarksSidebar) window._toggleBookmarksSidebar(); }},
   { name: 'split', desc: 'Split screen', cat: 'misc', args: '', fn: function() { document.getElementById('splitBtn').click(); }},
   { name: 'incognito', desc: 'Open incognito tab', cat: 'misc', args: '', fn: function() { if(typeof promptIncognitoUrl==='function')promptIncognitoUrl(); }},
   { name: 'clear-data', desc: 'Clear all data (cache, cookies, SW) — full reset', cat: 'misc', args: '', fn: function() {
@@ -4528,6 +5012,42 @@ var _qcCommands = [
       if (idx >= 0) { _qcCustomCommands.splice(idx, 1); _qcSaveCustom(); customAlert('Command :' + rname + ' removed'); }
       else { customAlert('Command :' + rname + ' not found'); }
     }
+  }},
+  { name: 'bang', desc: 'Add a site bang: :bang <name> <url с %s>', cat: 'cfg', args: '<name> <url>', fn: function(a, qcInput) {
+    if (!a) { qcInput.value = ':bang '; renderQcList(':bang '); qcInput.focus(); return; }
+    var parts = a.trim().split(/\s+/);
+    var sub = (parts[0] || '').toLowerCase();
+    if (sub === 'remove') {
+      var rname = (parts[1] || '').toLowerCase();
+      if (!rname) { customAlert('Format: :bang remove <name>'); return; }
+      var ridx = _qcCustomCommands.findIndex(function(c) { return c.name === rname; });
+      if (ridx >= 0) { _qcCustomCommands.splice(ridx, 1); _qcSaveCustom(); customAlert('Bang :' + rname + ' removed'); }
+      else { customAlert('Bang :' + rname + ' not found'); }
+      return;
+    }
+    if (sub === 'list') {
+      var bangs = _qcCustomCommands.filter(function(c) { return c.type === 'url'; });
+      if (!bangs.length) { customAlert('No bangs yet. Try: :bang yt https://www.youtube.com/results?q=%s'); return; }
+      customAlert(bangs.map(function(c) { return ':' + c.name + ' — ' + c.value; }).join('\n'));
+      return;
+    }
+    var name = (parts[0] || '').toLowerCase();
+    var url = parts.slice(1).join(' ');
+    if (!name || !url) { customAlert('Format: :bang <name> <url>. Use %s where the query goes: :bang yt https://www.youtube.com/results?q=%s'); return; }
+    if (!/^[a-z0-9-]{1,20}$/.test(name)) { customAlert('Name: 1-20 chars, a-z 0-9 -'); return; }
+    var clashes = _qcCommands.some(function(c) { return c.name === name; });
+    if (clashes) { customAlert(':' + name + ' is a built-in command — pick another name'); return; }
+    if (!/^https?:\/\//i.test(url)) { url = 'https://' + url; }
+    var bangObj = {
+      name: name,
+      desc: 'Bang: ' + (url.indexOf('%s') !== -1 ? url.replace('%s', '…') : url.slice(0, 60)),
+      type: 'url',
+      value: url
+    };
+    var existing = _qcCustomCommands.findIndex(function(c) { return c.name === name; });
+    if (existing >= 0) _qcCustomCommands[existing] = bangObj; else _qcCustomCommands.push(bangObj);
+    _qcSaveCustom();
+    customAlert('Bang :' + name + ' ' + (existing >= 0 ? 'updated' : 'added') + (url.indexOf('%s') !== -1 ? ' — try :name query' : ''));
   }},
   { name: 'alias', desc: 'Manage command aliases', cat: 'cfg', args: 'add/remove/list', fn: function(a, qcInput) {
     if (!a) { qcInput.value = ':alias '; renderQcList(':alias '); qcInput.focus(); return; }
@@ -4579,7 +5099,14 @@ var _qcCommands = [
     createNewTab('Settings.html' + (target ? '#' + target : ''));
   }},
   { name: 'zapper', desc: 'Hide element on page (Element Zapper)', cat: 'misc', args: '', fn: function() {
-    var t = getActiveTab(); if (t && canExecInWebview(t.webview)) t.webview.executeJavaScript('if(window.electronAPI&&window.electronAPI.startElementPicker){window.electronAPI.startElementPicker();return 1}return 0').catch(function() {});
+    var t = getActiveTab();
+    if (t && canExecInWebview(t.webview)) {
+      try {
+        if (window.electronAPI && window.electronAPI.startElementPicker && t.webview.getWebContentsId) {
+          window.electronAPI.startElementPicker(t.webview.getWebContentsId());
+        }
+      } catch(e) {}
+    }
   }},
   { name: 'sleep', desc: 'Put active tab to sleep (except last)', cat: 'tab', args: '', fn: function() {
     var t = getActiveTab();
@@ -4940,7 +5467,15 @@ function renderQcList(query) {
       var allCmds = _qcCommands.concat(_qcCustomCommands.map(function(c) {
         return { name: c.name, desc: c.desc, cat: 'custom', args: c.type === 'js' ? 'js' : 'URL', fn: function(a) {
           if (c.type === 'js') { var t = getActiveTab(); if (t && canExecInWebview(t.webview)) t.webview.executeJavaScript(c.value).catch(function() {}); }
-          else { navigateTo(c.value); }
+          else {
+            // %s substitution (bang-style): ":yt cats" on a URL containing
+            // %s opens it with the encoded query in place of %s.
+            var url = c.value;
+            if (a && url.indexOf('%s') !== -1) {
+              url = url.split('%s').join(encodeURIComponent(a.trim()));
+            }
+            navigateTo(url);
+          }
         }};
       }));
 
@@ -5077,18 +5612,22 @@ function renderQcList(query) {
     }
 
     addSearch('\uD83C\uDF10', 'New tab', 'Open blank tab', function() { createNewTab(); }, 'Ctrl+T');
+    addSearch('\uD83E\uDE9F', 'New window', 'Open a new browser window', function() {
+      if (window.electronAPI && window.electronAPI.openNewWindow) window.electronAPI.openNewWindow();
+    }, 'Ctrl+N');
     addSearch('\u2699\uFE0F', 'Settings', 'Open browser settings', function() { createNewTab('Settings.html'); });
     addSearch('\uD83D\uDD0D', 'Find on page', 'Search current page', function() { toggleFindBar(); }, 'Ctrl+F');
     addSearch('\uD83D\uDD0D\uFE0F', 'Search all tabs', 'Find text in all open tabs', function() { toggleFindAll(); }, 'Ctrl+Shift+F');
     addSearch('\uD83D\uDFE3', 'Autoscroll', 'Smooth scroll with speed control', function() { if (_autoscrollActive) stopAutoscroll(); else startAutoscroll(); });
     addSearch('\uD83D\uDCF7', 'Page screenshot', 'Save screenshot of visible area', function() { takeScreenshot(); });
+    addSearch('\uD83D\uDCD8', 'OCR: grab text', 'Select an area and copy recognized text', function() { openOcrTool(); });
     addSearch('\uD83D\uDD12', 'Adblock: on/off', 'Toggle ad blocker', function() {
       if (window.electronAPI && window.electronAPI.adblockerToggle) window.electronAPI.adblockerToggle();
     });
-    addSearch('\uD83D\uDCDD', 'Bookmarks', 'Open bookmark manager', function() { createNewTab('Settings.html#bookmarks'); });
-    addSearch('\uD83D\uDCDC', 'Downloads', 'Open downloads', function() { createNewTab('Settings.html#downloads'); });
+    addSearch('\uD83D\uDCDD', 'Bookmarks', 'Open bookmark manager', function() { createNewTab('Library.html#bookmarks'); });
+    addSearch('\uD83D\uDCDC', 'Downloads', 'Open downloads', function() { createNewTab('Library.html#downloads'); });
     addSearch('\uD83D\uDD11', 'Passwords', 'Open password manager', function() { createNewTab('Library.html#passwords'); });
-    addSearch('\uD83C\uDF10', 'History', 'Open history', function() { createNewTab('Settings.html#history'); });
+    addSearch('\uD83C\uDF10', 'History', 'Open history', function() { createNewTab('Library.html#history'); });
     addSearch('\uD83D\uDFE2', 'PiP (Picture in Picture)', 'Toggle PiP for video', function() {
       var tab = tabs.find(function(t) { return t.id === activeTabId; });
       if (tab && canExecInWebview(tab.webview)) {
@@ -5216,10 +5755,6 @@ function takeScreenshot() {
 
 // ============== KEYBOARD SHORTCUTS ==============
 (function() {
-  function getActiveTab() {
-    return tabs.find(function(t) { return t.id === activeTabId; });
-  }
-
   document.addEventListener('keydown', function(e) {
     if (e.key === 'F11') {
       e.preventDefault();
@@ -5983,6 +6518,7 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
       var isComplete = dl.state === 'completed';
       var isFailed = dl.state === 'failed' || dl.state === 'interrupted';
       var isProgressing = dl.state === 'progressing';
+      var isPaused = dl.state === 'paused';
       var pct = (dl.totalBytes > 0) ? Math.round((dl.receivedBytes / dl.totalBytes) * 100) : 0;
 
       html += '<div class="dl-item" data-id="' + dl.id + '">';
@@ -5990,11 +6526,11 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
       html += '<div class="dl-item-info">';
       html += '<div class="dl-item-name" title="' + escapeHtmlSimple(dl.filename) + '">' + escapeHtmlSimple(dl.filename) + '</div>';
 
-      if (isProgressing) {
-        html += '<div class="dl-item-meta"><span class="dl-status-progress">' + pct + '% — ' + formatBytes(dl.receivedBytes);
+      if (isProgressing || isPaused) {
+        html += '<div class="dl-item-meta"><span class="' + (isPaused ? 'dl-status-paused' : 'dl-status-progress') + '">' + (isPaused ? 'Paused — ' + pct + '% — ' : pct + '% — ') + formatBytes(dl.receivedBytes);
         if (dl.totalBytes > 0) html += ' / ' + formatBytes(dl.totalBytes);
         html += '</span></div>';
-        html += '<div class="dl-item-progress"><div class="dl-item-progress-bar" style="width:' + pct + '%"></div></div>';
+        html += '<div class="dl-item-progress' + (isPaused ? ' dl-progress-paused' : '') + '"><div class="dl-item-progress-bar" style="width:' + pct + '%"></div></div>';
       } else if (isComplete) {
         var fileMissing = dl.path && fileExistsCache[dl.path] === false;
         if (fileMissing) {
@@ -6009,6 +6545,15 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
 
       html += '</div>';
       html += '<div class="dl-item-actions">';
+      if (isProgressing || isPaused) {
+        html += '<button class="dl-pause-resume" data-id="' + dl.id + '" data-action="' + (isPaused ? 'resume' : 'pause') + '" title="' + (isPaused ? 'Resume' : 'Pause') + '">';
+        if (isPaused) {
+          html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><polygon points="6 3 20 12 6 21 6 3"/></svg>';
+        } else {
+          html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+        }
+        html += '</button>';
+      }
       if (isComplete) {
         html += '<button class="dl-open-file" data-path="' + (dl.path || '').replace(/"/g, '&quot;') + '" title="Open file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>';
         html += '<button class="dl-open-folder" data-path="' + (dl.path || '').replace(/"/g, '&quot;') + '" title="Show in folder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>';
@@ -6018,6 +6563,27 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     });
     dlPanelList.innerHTML = html;
 
+    dlPanelList.querySelectorAll('.dl-pause-resume').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-id');
+        var action = btn.getAttribute('data-action');
+        if (action === 'resume') {
+          if (window.electronAPI && window.electronAPI.resumeDownload) {
+            window.electronAPI.resumeDownload(id).then(function(r) {
+              if (!r || !r.success) {
+                var idx = downloadsCache.findIndex(function(d) { return d.id === id; });
+                if (idx >= 0) { downloadsCache[idx].state = 'failed'; renderDownloadsList(); }
+              }
+            }).catch(function() {});
+          }
+        } else {
+          if (window.electronAPI && window.electronAPI.pauseDownload) {
+            window.electronAPI.pauseDownload(id).catch(function() {});
+          }
+        }
+      });
+    });
     dlPanelList.querySelectorAll('.dl-open-file').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -6109,6 +6675,17 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
               downloadsCache[idx].receivedBytes = info.receivedBytes;
               downloadsCache[idx].totalBytes = info.totalBytes;
               downloadsCache[idx].state = 'progressing';
+            }
+            renderDownloadsList();
+          }
+        } else if (info.state === 'paused') {
+          activeDownloads[info.id] = 'paused';
+          if (panelOpen) {
+            var pidx = downloadsCache.findIndex(function(d) { return d.id === info.id; });
+            if (pidx >= 0) {
+              downloadsCache[pidx].receivedBytes = info.receivedBytes || downloadsCache[pidx].receivedBytes;
+              downloadsCache[pidx].totalBytes = info.totalBytes || downloadsCache[pidx].totalBytes;
+              downloadsCache[pidx].state = 'paused';
             }
             renderDownloadsList();
           }
@@ -6340,6 +6917,25 @@ function escapeHtmlSimple(str) {
   var d = document.createElement('div');
   d.textContent = str;
   return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Minimal HTML sanitizer for reader-mode article content. The extracted HTML
+// comes from the visited page and is injected into the privileged browser-chrome
+// renderer (which has access to electronAPI), so unsanitised <script>/on*=
+// handlers would be a page→chrome privilege escalation. This strips the common
+// script vectors; it is not a full sanitizer but blocks the realistic attacks.
+function sanitizeInlineHtml(html) {
+  if (!html || typeof html !== 'string') return '';
+  var s = html;
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, '');
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, '');
+  s = s.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
+  s = s.replace(/<(object|embed|link|meta|base|form|input|button|textarea|svg)[\s\S]*?<\/\1>/gi, '');
+  s = s.replace(/<(object|embed|link|meta|base|form|input|button|textarea|svg|iframe)\b[^>]*>/gi, '');
+  // Strip event-handler attributes (onclick=, onerror=, ...) and javascript: URIs.
+  s = s.replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  s = s.replace(/(href|src|xlink:href)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, '$1="#"');
+  return s;
 }
 
 // ============== SECURITY FEATURES ==============
@@ -6787,7 +7383,7 @@ function _renderTabGroupHeaders() {
     header.className = 'tab-group-header';
     header.dataset.groupId = group.id;
     header.innerHTML = '<span class="tab-group-dot" style="background:' + (group.color || '#4a90d9') + '"></span>' +
-      '<span class="tab-group-name">' + (group.name || 'Group') + '</span>' +
+      '<span class="tab-group-name">' + escapeHtmlSimple(group.name || 'Group') + '</span>' +
       '<span class="tab-group-count">' + groupTabIds.length + '</span>' +
       (group.collapsed ? '<svg class="tab-group-expand" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>' : '');
     header.style.borderLeftColor = group.color || '#4a90d9';
@@ -7243,6 +7839,11 @@ function sessionGuardScanAll() {
 // Check on tab creation
 var _origCreateNewTab = createNewTab;
 createNewTab = function(url, lazy) {
+  // In a dedicated incognito window every "new tab" is an incognito tab.
+  if (window._incognitoWindowMode && window.createIncognitoTab) {
+    window.createIncognitoTab(url || '');
+    return;
+  }
   if (url && _sessionGuardCfg.enabled && !lazy) {
     var dup = _sessionGuardCheck(url, { skipActive: true });
     if (dup) {
@@ -7297,8 +7898,18 @@ function injectElementHidingRules(wv, pageUrl) {
       if (!selectors || !selectors.length) return;
       css += selectors.join(', ') + ' { display: none !important; }\n';
     });
+    // Remove the previously injected stylesheet (if any) so that undo /
+    // rule deletion actually unhides elements instead of stacking styles.
+    var prevKey = wv.__elementHidingCssKey;
+    if (prevKey !== undefined) {
+      try { wv.removeInsertedCSS(prevKey); } catch(e) {}
+      wv.__elementHidingCssKey = undefined;
+    }
     if (css) {
-      try { wv.insertCSS(css, { cssOrigin: 'user' }); } catch(e) {}
+      try {
+        var p = wv.insertCSS(css, { cssOrigin: 'user' });
+        if (p && p.then) p.then(function(key) { wv.__elementHidingCssKey = key; }).catch(function() {});
+      } catch(e) {}
     }
   }).catch(function() {});
 }
@@ -7510,6 +8121,28 @@ function loadJsQRSource() {
   });
 })();
 
+// Accessibility: mirror title → aria-label for every element that has only a
+// tooltip (icon buttons, tabs, menu entries). Screen readers announce
+// aria-label but ignore title in most navigation modes.
+(function setupAriaMirror() {
+  function mirror(root) {
+    try {
+      (root || document).querySelectorAll('[title]:not([aria-label])').forEach(function(el) {
+        var t = el.getAttribute('title');
+        if (t) el.setAttribute('aria-label', t);
+      });
+    } catch (e) {}
+  }
+  mirror(document);
+  var timer = null;
+  try {
+    new MutationObserver(function() {
+      if (timer) return;
+      timer = setTimeout(function() { timer = null; mirror(document); }, 500);
+    }).observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
+})();
+
 (function setupNavbarContextMenu() {
   document.querySelector('.navbar').addEventListener('contextmenu', function(e) {
     e.preventDefault();
@@ -7643,7 +8276,7 @@ function loadJsQRSource() {
       readerContent.innerHTML = '<div class="reader-article">' +
         '<h1>' + escapeHtmlSimple(data.title || '') + '</h1>' +
         '<div class="reader-meta">' + escapeHtmlSimple([data.author, data.date].filter(Boolean).join(' · ')) + '</div>' +
-        data.html +
+        sanitizeInlineHtml(data.html) +
         '</div>';
       readerContent.style.fontFamily = readerFontSelect.value;
       readerContent.style.fontSize = readerFontSize + 'px';
@@ -7907,6 +8540,13 @@ function finishCP() {
     sidebar.classList.remove('open');
     sidebarOverlay.classList.remove('active');
   }
+  function toggleSidebar() {
+    if (sidebar.classList.contains('open')) closeSidebar();
+    else openSidebar();
+  }
+  // Shared toggle used by the customizable toolbar Bookmarks button and the
+  // Quick Commands `:sidebar` command.
+  window._toggleBookmarksSidebar = toggleSidebar;
 
   if (sidebarBtn) sidebarBtn.addEventListener('click', openSidebar);
   if (sidebarClose) sidebarClose.addEventListener('click', closeSidebar);
@@ -7970,7 +8610,7 @@ function finishCP() {
       var header = document.createElement('div');
       header.className = 'sidebar-folder-header';
       header.innerHTML = '<span class="sidebar-folder-arrow' + (isOpen ? ' open' : '') + '">▶</span>' +
-        '<span>' + _icon('📁') + ' ' + (f.folder.title || 'Folder') + '</span>';
+        '<span>' + _icon('📁') + ' ' + escapeHtmlSimple(f.folder.title || 'Folder') + '</span>';
       header.addEventListener('click', function() {
         _openFolders[f.folder.id] = !_openFolders[f.folder.id];
         renderBookmarks(filter);
@@ -8002,8 +8642,8 @@ function finishCP() {
     div.innerHTML =
       '<span class="sidebar-item-icon">' + (favicon ? '<img src="' + favicon + '" onerror="this.outerHTML=\'' + _icon('🔗').replace(/'/g, "\\'") + '\'">' : _icon('🔗')) + '</span>' +
       '<div class="sidebar-item-text">' +
-        '<div class="sidebar-item-name">' + (bm.title || bm.url || 'Untitled') + '</div>' +
-        '<div class="sidebar-item-url">' + (domain || bm.url || '') + '</div>' +
+        '<div class="sidebar-item-name">' + escapeHtmlSimple(bm.title || bm.url || 'Untitled') + '</div>' +
+        '<div class="sidebar-item-url">' + escapeHtmlSimple(domain || bm.url || '') + '</div>' +
       '</div>' +
       '<button class="sidebar-item-del" title="Delete">' + _icon('✕') + '</button>';
     div.addEventListener('click', function(e) {
@@ -8040,10 +8680,12 @@ var _splitPct = 50;
 
   document.getElementById('newTabBarBtn').addEventListener('click', function() { createNewTab(); });
   document.getElementById('bookmarksBtn').addEventListener('click', function() { if (window._toggleBookmarksSidebar) window._toggleBookmarksSidebar(); });
-  document.getElementById('historyBtn').addEventListener('click', function() { createNewTab('Settings.html#history'); });
+  document.getElementById('historyBtn').addEventListener('click', function() { createNewTab('Library.html#history'); });
   document.getElementById('readerBtn').addEventListener('click', function() { if (window._toggleReader) window._toggleReader(); });
+  var _ttsBtnEl = document.getElementById('ttsBtn');
+  if (_ttsBtnEl) _ttsBtnEl.addEventListener('click', function() { if (window._ttsToggle) window._ttsToggle(); });
   document.getElementById('screenshotBtn').addEventListener('click', function() { openScreenshotTool(); });
-  document.getElementById('incognitoBtn').addEventListener('click', function() { if (window.createIncognitoTab) window.createIncognitoTab(); });
+  document.getElementById('incognitoBtn').addEventListener('click', function() { if (window.startIncognitoMode) window.startIncognitoMode(); });
   document.getElementById('translateBtn').addEventListener('click', function() {
     var t = tabs.find(function(tt) { return tt.id === activeTabId; });
     if (t && t.webview && t.isReady && canExecInWebview(t.webview)) {
@@ -8256,6 +8898,429 @@ var _splitPct = 50;
   }
 })();
 
+// ============== TAB TEAR-OUT (drag a tab out of the window) ==============
+// Three independent paths, because no single one works everywhere:
+//   A (primary, all platforms): releasing the drag anywhere OUTSIDE the tab
+//     strip (page content, navbar, bottom of the window) detaches the tab —
+//     Chrome-style. All events carry reliable in-window coordinates. While a
+//     tab drag is active, webviews get pointer-events:none so the host (not
+//     the guest page) receives the dragover/drop.
+//   B: the main-process cursor poller (works on X11; on Wayland cursor
+//     queries are frozen, so it stays silent there).
+//   C: dragend + outside-cursor check (platforms where dragend fires for
+//     outside releases).
+var _tearDragActive = null;
+var _tearDropHandled = false;
+var _tearHintEl = null;
+
+function _tearShowHint() {
+  if (!_tearHintEl) {
+    _tearHintEl = document.createElement('div');
+    _tearHintEl.id = 'tearOutHint';
+    _tearHintEl.textContent = 'Release to open tab in a new window';
+    document.body.appendChild(_tearHintEl);
+  }
+  _tearHintEl.classList.add('visible');
+}
+function _tearHideHint() {
+  if (_tearHintEl) _tearHintEl.classList.remove('visible');
+}
+
+function _tearBeginDrag(tabId, e, meta) {
+  _tearDragActive = tabId;
+  _tearDropHandled = false;
+  // Webviews must not swallow the drop — the host document handles it.
+  document.body.classList.add('tear-dragging');
+  // Cross-window move: the payload lets ANOTHER shell window accept this
+  // drag (custom MIME types survive the native drag loop between windows).
+  if (e && e.dataTransfer && meta) {
+    try {
+      e.dataTransfer.setData('application/x-startpozi-tab', JSON.stringify({
+        v: 1,
+        tabId: tabId,
+        url: meta.url || '',
+        title: meta.title || '',
+        incognito: !!meta.incognito,
+        partition: meta.partition || ''
+      }));
+    } catch(err) {}
+  }
+  // Path B: main process starts watching the cursor.
+  if (window.electronAPI && window.electronAPI.tabDragStarted) {
+    try { window.electronAPI.tabDragStarted(tabId); } catch(err) {}
+  }
+}
+
+function _tearEndDrag(e, tabId) {
+  var wasActive = _tearDragActive;
+  _tearDragActive = null;
+  _tearHideHint();
+  document.body.classList.remove('tear-dragging');
+  if (window.electronAPI && window.electronAPI.tabDragEnded) {
+    try { window.electronAPI.tabDragEnded(); } catch(err) {}
+  }
+  // Path C fallback: drag ended with no drop anywhere (released outside on
+  // platforms where dragend fires there, or a cancelled drag).
+  if (wasActive && !_tearDropHandled) _maybeTearOutAfterDrag(e, tabId);
+}
+
+function _tearInStrip(target) {
+  return !!(target && target.closest && target.closest('.tabs-bar'));
+}
+
+// Path A: the whole window except the tab strip is a detach drop-zone.
+document.addEventListener('dragover', function(e) {
+  if (!_tearDragActive) return;
+  if (!_tearInStrip(e.target)) {
+    // Cancel dragover so a drop is allowed here; signal the intent.
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    _tearShowHint();
+  } else {
+    _tearHideHint();
+  }
+}, true);
+
+// ============== FILE DROP ON TAB STRIP ==============
+// Drag an HTML (or any viewable) file onto the tab bar to open it in a new
+// tab. Uses screen coordinates to detect the tab-bar zone (the actual event
+// target can be a webview which swallows drags). Webviews get
+// pointer-events:none during the drag — same approach as tear-out.
+var _fileDropIndicator = null;
+var _fileDropActive = false;
+
+function _fileDropHasFiles(e) {
+  try {
+    return !!(e.dataTransfer && e.dataTransfer.types &&
+      Array.from(e.dataTransfer.types).indexOf('Files') !== -1);
+  } catch (err) { return false; }
+}
+
+function _inTabStripZone(e) {
+  try {
+    var bar = document.querySelector('.tabs-bar');
+    if (!bar) return false;
+    var rect = bar.getBoundingClientRect();
+    return e.clientY >= rect.top - 8 && e.clientY <= rect.bottom + 8 &&
+           e.clientX >= rect.left && e.clientX <= rect.right;
+  } catch (err) { return false; }
+}
+
+function _fileDropShow() {
+  if (!_fileDropIndicator) {
+    _fileDropIndicator = document.createElement('div');
+    _fileDropIndicator.id = 'fileDropHint';
+    _fileDropIndicator.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Drop to open</span>';
+    document.body.appendChild(_fileDropIndicator);
+  }
+  _fileDropIndicator.classList.add('visible');
+  _fileDropActive = true;
+  document.body.classList.add('file-drop-hover');
+  if (!_tearDragActive) document.body.classList.add('tear-dragging');
+}
+
+function _fileDropHide() {
+  if (_fileDropIndicator) _fileDropIndicator.classList.remove('visible');
+  _fileDropActive = false;
+  document.body.classList.remove('file-drop-hover');
+  if (!_tearDragActive) document.body.classList.remove('tear-dragging');
+}
+
+document.addEventListener('dragenter', function(e) {
+  if (_tearDragActive) return;
+  if (!_fileDropHasFiles(e)) return;
+  e.preventDefault();
+}, true);
+
+document.addEventListener('dragover', function(e) {
+  if (_tearDragActive) return;
+  if (!_fileDropHasFiles(e)) return;
+  e.preventDefault();
+  if (_inTabStripZone(e)) {
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    _fileDropShow();
+  } else {
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+    _fileDropHide();
+  }
+}, true);
+
+document.addEventListener('dragleave', function(e) {
+  if (!_fileDropActive) return;
+  if (e.relatedTarget === null || !document.contains(e.relatedTarget)) {
+    _fileDropHide();
+  }
+}, true);
+
+document.addEventListener('drop', function(e) {
+  if (!_fileDropActive || _tearDragActive) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _fileDropHide();
+  var files = e.dataTransfer ? e.dataTransfer.files : null;
+  if (!files || !files.length) return;
+  for (var fi = 0; fi < files.length; fi++) {
+    var f = files[fi];
+    if (!f || !f.path) continue;
+    var ext = (f.name || '').split('.').pop().toLowerCase();
+    var openable = ['html', 'htm', 'xhtml', 'svg', 'md', 'markdown', 'txt',
+                    'json', 'geojson', 'har', 'xml', 'css', 'js', 'pdf',
+                    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'ico',
+                    'ttf', 'otf', 'woff', 'woff2'].indexOf(ext) !== -1;
+    if (openable) {
+      createNewTab('file://' + f.path.replace(/\\/g, '/'));
+    }
+  }
+}, true);
+
+document.addEventListener('drop', function(e) {
+  if (!_tearDragActive) return;
+  if (_tearInStrip(e.target)) {
+    _tearDropHandled = true; // reorder drop — let the tab's own handler run
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  _tearDropHandled = true;
+  var id = _tearDragActive;
+  _tearDragActive = null;
+  _tearHideHint();
+  document.body.classList.remove('tear-dragging');
+  if (window.electronAPI && window.electronAPI.tabDragEnded) {
+    try { window.electronAPI.tabDragEnded(); } catch(err) {}
+  }
+  _tearOutTab(id, { x: e.screenX, y: e.screenY });
+}, true);
+
+function _maybeTearOutAfterDrag(e, tabId) {
+  try {
+    if (!window.electronAPI || !window.electronAPI.isCursorOutsideWindow) return;
+    window.electronAPI.isCursorOutsideWindow().then(function(outside) {
+      if (!outside) return;
+      // Delayed: when the tab was dropped INTO another shell window, the
+      // cross-window move notice arrives within milliseconds — creating a
+      // duplicate new window then would be wrong. If the tab is already
+      // gone from this window, the move won the race.
+      setTimeout(function() {
+        var stillHere = tabs.some(function(t) { return t.id === tabId; }) ||
+          (typeof _incognitoTabs !== 'undefined' && _incognitoTabs.some(function(t) { return t.id === tabId; }));
+        if (stillHere && typeof _tearOutTab === 'function') _tearOutTab(tabId);
+      }, 250);
+    }).catch(function() {});
+  } catch(err) {}
+}
+
+// ===== CROSS-WINDOW TAB MOVE (drop a tab onto another shell window) =====
+var _foreignTabOver = false;
+function _isForeignTabDrag(e) {
+  if (_tearDragActive) return false; // our own drag — not a foreign one
+  try {
+    var t = e.dataTransfer && e.dataTransfer.types;
+    if (!t || !t.length) return false;
+    for (var i = 0; i < t.length; i++) {
+      if (t[i] === 'application/x-startpozi-tab') return true;
+    }
+  } catch(err) {}
+  return false;
+}
+
+// Accept a tab dragged from another window. Highlight the tab strip and let
+// webviews become transparent to the drag so the drop lands on the host.
+document.addEventListener('dragover', function(e) {
+  if (!_isForeignTabDrag(e)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  if (!_foreignTabOver) {
+    _foreignTabOver = true;
+    document.body.classList.add('foreign-tab-over');
+  }
+}, true);
+
+document.addEventListener('dragleave', function(e) {
+  if (_foreignTabOver && !e.relatedTarget) {
+    _foreignTabOver = false;
+    document.body.classList.remove('foreign-tab-over');
+  }
+}, true);
+
+document.addEventListener('drop', function(e) {
+  if (!_foreignTabOver) return;
+  var raw = '';
+  try { raw = e.dataTransfer.getData('application/x-startpozi-tab'); } catch(err) {}
+  _foreignTabOver = false;
+  document.body.classList.remove('foreign-tab-over');
+  if (!raw) return;
+  var d = null;
+  try { d = JSON.parse(raw); } catch(err) {}
+  if (!d || d.v !== 1 || !d.tabId || !d.url) return;
+  e.preventDefault();
+  e.stopPropagation();
+  // Create the tab here, then ask the main process to tell the source
+  // window to drop it (no new window, no incognito partition wipe — the
+  // session simply moves here).
+  if (d.incognito) {
+    if (window.createIncognitoTab) {
+      window.createIncognitoTab(d.url, d.partition ? { partition: d.partition } : undefined);
+    }
+  } else {
+    createNewTab(d.url);
+  }
+  if (window.electronAPI && window.electronAPI.moveTabToWindow) {
+    try { window.electronAPI.moveTabToWindow({ tabId: d.tabId }); } catch(err) {}
+  }
+}, true);
+
+// The drag ended somewhere without a dragend (dropped into another window,
+// Wayland quirk) — any later click restores normal state.
+document.addEventListener('mousedown', function() {
+  if (_tearDragActive) {
+    _tearDragActive = null;
+    _tearDropHandled = true;
+    _tearHideHint();
+    document.body.classList.remove('tear-dragging', 'foreign-tab-over');
+    if (window.electronAPI && window.electronAPI.tabDragEnded) {
+      try { window.electronAPI.tabDragEnded(); } catch(err) {}
+    }
+  }
+  if (_foreignTabOver) {
+    _foreignTabOver = false;
+    document.body.classList.remove('foreign-tab-over');
+  }
+}, true);
+
+function _tearOutTab(tabId, cursorPos) {
+  cursorPos = cursorPos || {};
+  // Regular tabs
+  var idx = tabs.findIndex(function(t) { return t.id === tabId; });
+  if (idx !== -1) {
+    var tab = tabs[idx];
+    var url = getTabUrlForSave(tab);
+    if ((!url || url === 'about:blank') && tab._sleepUrl) url = tab._sleepUrl;
+    if (!url || url === 'about:blank') return;
+    var title = tab.title || '';
+    var wasActive = (tabId === activeTabId);
+    // Manual removal — closeTab() refuses to close the last tab, but tearing
+    // out the last tab is legal (the window gets a fresh start page).
+    try { tab.element.remove(); } catch(e) {}
+    try { tab.webview.remove(); } catch(e) {}
+    delete _tabPreviewCache[tabId];
+    delete _tabAudioPlaying[tabId];
+    delete _tabMuted[tabId];
+    delete _tabZoom[tabId];
+    if (_tabSleepTimers[tabId]) { clearTimeout(_tabSleepTimers[tabId]); delete _tabSleepTimers[tabId]; }
+    try { stopLoadingBar(tabId); } catch(e) {}
+    tabs.splice(idx, 1);
+    if (wasActive) {
+      if (tabs.length) setActiveTab(tabs[Math.min(idx, tabs.length - 1)].id);
+      else createNewTab('MainPage/index.html');
+    }
+    // Persist immediately (not debounced) so the primary session never
+    // resurrects the moved tab.
+    try { autoSaveTabs(); } catch(e) {}
+    if (window.electronAPI && window.electronAPI.openWindowWithTab) {
+      window.electronAPI.openWindowWithTab(url, { title: title, x: cursorPos.x, y: cursorPos.y });
+    }
+    return;
+  }
+  // Incognito tabs: remove WITHOUT wiping the partition — the session moves
+  // to the new incognito window.
+  if (typeof _incognitoTabs !== 'undefined') {
+    var iIdx = _incognitoTabs.findIndex(function(t) { return t.id === tabId; });
+    if (iIdx !== -1) {
+      var itab = _incognitoTabs[iIdx];
+      var iurl = '';
+      try { iurl = itab.webview.getURL ? itab.webview.getURL() : (itab.webview.src || ''); } catch(e) {}
+      if ((!iurl || iurl === 'about:blank') && itab._sleepUrl) iurl = itab._sleepUrl;
+      if (!iurl || iurl === 'about:blank') return;
+      var partition = itab.partition;
+      var iTitle = '';
+      try {
+        var tEl = itab.element.querySelector('.tab-title');
+        if (tEl) iTitle = (tEl.textContent || '').trim();
+      } catch(e) {}
+      try { itab.element.remove(); } catch(e) {}
+      try { itab.webview.remove(); } catch(e) {}
+      _incognitoTabs.splice(iIdx, 1);
+      if (_activeIncognitoId === tabId) {
+        _activeIncognitoId = null;
+        if (_incognitoTabs.length) switchToIncognitoTab(_incognitoTabs[_incognitoTabs.length - 1].id);
+        else if (tabs.length) setActiveTab(tabs[tabs.length - 1].id);
+        else createNewTab('MainPage/index.html');
+      }
+      if (window.electronAPI && window.electronAPI.openWindowWithTab) {
+        window.electronAPI.openWindowWithTab(iurl, { title: iTitle, incognito: true, partition: partition, x: cursorPos.x, y: cursorPos.y });
+      }
+    }
+  }
+}
+
+// Primary tear-off path: the main-process cursor poller detected the dragged
+// tab leaving the window (fires on every platform, including Linux where
+// dragend never fires for outside releases). The tab may already be gone if
+// the secondary dragend path won the race — _tearOutTab no-ops then.
+if (window.electronAPI && window.electronAPI.onTearOutTab) {
+  window.electronAPI.onTearOutTab(function(d) {
+    if (d && d.tabId && typeof _tearOutTab === 'function') {
+      _tearOutTab(d.tabId, { x: d.x, y: d.y });
+    }
+  });
+}
+
+// This window's tab was dropped INTO another shell window: remove it here
+// silently — no new window, and for incognito tabs NO partition wipe, the
+// session now lives in the window that accepted the drop.
+if (window.electronAPI && window.electronAPI.onCloseForeignDroppedTab) {
+  window.electronAPI.onCloseForeignDroppedTab(function(d) {
+    var tabId = d && d.tabId;
+    if (!tabId) return;
+    // Restore chrome state if this window still thinks the drag is running.
+    if (_tearDragActive === tabId) {
+      _tearDragActive = null;
+      _tearDropHandled = true;
+      _tearHideHint();
+      document.body.classList.remove('tear-dragging');
+      if (window.electronAPI && window.electronAPI.tabDragEnded) {
+        try { window.electronAPI.tabDragEnded(); } catch(err) {}
+      }
+    }
+    var idx = tabs.findIndex(function(t) { return t.id === tabId; });
+    if (idx !== -1) {
+      var tab = tabs[idx];
+      var wasActive = (tabId === activeTabId);
+      try { tab.element.remove(); } catch(e) {}
+      try { tab.webview.remove(); } catch(e) {}
+      delete _tabPreviewCache[tabId];
+      delete _tabAudioPlaying[tabId];
+      delete _tabMuted[tabId];
+      delete _tabZoom[tabId];
+      if (_tabSleepTimers[tabId]) { clearTimeout(_tabSleepTimers[tabId]); delete _tabSleepTimers[tabId]; }
+      try { stopLoadingBar(tabId); } catch(e) {}
+      tabs.splice(idx, 1);
+      if (wasActive) {
+        if (tabs.length) setActiveTab(tabs[Math.min(idx, tabs.length - 1)].id);
+        else createNewTab('MainPage/index.html');
+      }
+      try { autoSaveTabs(); } catch(e) {}
+      return;
+    }
+    if (typeof _incognitoTabs !== 'undefined') {
+      var iIdx = _incognitoTabs.findIndex(function(t) { return t.id === tabId; });
+      if (iIdx !== -1) {
+        var itab = _incognitoTabs[iIdx];
+        try { itab.element.remove(); } catch(e) {}
+        try { itab.webview.remove(); } catch(e) {}
+        _incognitoTabs.splice(iIdx, 1);
+        if (_activeIncognitoId === tabId) {
+          _activeIncognitoId = null;
+          if (_incognitoTabs.length) switchToIncognitoTab(_incognitoTabs[_incognitoTabs.length - 1].id);
+          else if (tabs.length) setActiveTab(tabs[tabs.length - 1].id);
+          else createNewTab('MainPage/index.html');
+        }
+      }
+    }
+  });
+}
+
 // ============== INCOGNITO ==============
 var _incognitoTabs = [];
 var _activeIncognitoId = null;
@@ -8320,11 +9385,82 @@ function closeIncognitoTab(tabId) {
   }
 }
 
-window.createIncognitoTab = function(url) {
+// ============== INCOGNITO LAUNCH MODES ==============
+// "Incognito" without a URL asks how to open it: a separate always-incognito
+// window, or by replacing the regular tabs of the current window. Opening a
+// specific link in incognito (context menu / QC) keeps the old behavior —
+// an incognito tab inside the current window.
+function _closeAllRegularTabsForce() {
+  tabs.slice().forEach(function(t) {
+    try { t.element.remove(); } catch(e) {}
+    try { t.webview.remove(); } catch(e) {}
+    delete _tabPreviewCache[t.id];
+    delete _tabAudioPlaying[t.id];
+    delete _tabMuted[t.id];
+    delete _tabZoom[t.id];
+    if (_tabSleepTimers[t.id]) { clearTimeout(_tabSleepTimers[t.id]); delete _tabSleepTimers[t.id]; }
+    try { stopLoadingBar(t.id); } catch(e) {}
+    var i = tabs.indexOf(t);
+    if (i > -1) tabs.splice(i, 1);
+  });
+  activeTabId = null;
+}
+
+function _replaceWindowWithIncognito() {
+  // Persist the regular session BEFORE the tabs disappear — autoSaveTabs is
+  // disabled afterwards (window becomes incognito-only).
+  try { autoSaveTabs(); } catch(e) {}
+  window.createIncognitoTab();
+  _closeAllRegularTabsForce();
+  window._incognitoWindowMode = true;
+  window._canSaveSession = false;
+  try { _showToast('This window is now incognito — close it to get your tabs back', 'incognito-mode'); } catch(e) {}
+}
+
+function _showIncognitoModeDialog() {
+  var overlay = document.getElementById('incognitoModeOverlay');
+  if (!overlay) {
+    // Fallback for unexpected markup problems — plain confirm flow.
+    _replaceWindowWithIncognito();
+    return;
+  }
+  overlay.style.display = '';
+  overlay.classList.add('active');
+  var btnNew = document.getElementById('incognitoNewWindow');
+  var btnReplace = document.getElementById('incognitoReplaceWindow');
+  var btnCancel = document.getElementById('incognitoModeCancel');
+  function done(action) {
+    overlay.classList.remove('active');
+    overlay.style.display = 'none';
+    btnNew.onclick = btnReplace.onclick = btnCancel.onclick = null;
+    if (action === 'new-window' && window.electronAPI && window.electronAPI.openIncognitoWindow) {
+      window.electronAPI.openIncognitoWindow();
+    } else if (action === 'replace') {
+      _replaceWindowWithIncognito();
+    }
+  }
+  btnNew.onclick = function() { done('new-window'); };
+  btnReplace.onclick = function() { done('replace'); };
+  btnCancel.onclick = function() { done('cancel'); };
+  overlay.onclick = function(e) { if (e.target === overlay) done('cancel'); };
+  setTimeout(function() { try { btnNew.focus(); } catch(e) {} }, 30);
+}
+
+window.startIncognitoMode = function(url) {
+  // A concrete link always opens as an incognito tab in this window.
+  if (url && url !== '') { window.createIncognitoTab(url); return; }
+  // Already a dedicated incognito window → just add another incognito tab.
+  if (window._incognitoWindowMode) { window.createIncognitoTab(); return; }
+  _showIncognitoModeDialog();
+};
+
+window.createIncognitoTab = function(url, opts) {
   var tabId = 'incognito-' + Date.now();
   // Each incognito tab gets its OWN partition — completely isolated from
-  // the main browser session AND from other incognito tabs.
-  var partition = 'incognito-' + Date.now();
+  // the main browser session AND from other incognito tabs. Exception: a
+  // torn-out tab reuses its original partition so its cookies survive the
+  // move to the new window.
+  var partition = (opts && opts.partition) || ('incognito-' + Date.now());
   var browserContent = document.querySelector('.browser-content');
 
   var wv = document.createElement('webview');
@@ -8351,6 +9487,30 @@ window.createIncognitoTab = function(url) {
     } else {
       switchToIncognitoTab(tabId);
     }
+  });
+
+  // Drag & drop tear-out: releasing the tab outside the tab strip moves it
+  // to a new incognito window (partition travels along → cookies are kept).
+  tabEl.draggable = true;
+  tabEl.addEventListener('dragstart', function(e) {
+    var mUrl = '';
+    try { mUrl = wv.getURL ? wv.getURL() : (wv.src || ''); } catch(err) {}
+    if ((!mUrl || mUrl === 'about:blank') && tabData._sleepUrl) mUrl = tabData._sleepUrl;
+    var mTitle = '';
+    try {
+      var tl = tabEl.querySelector('.tab-title');
+      if (tl) mTitle = (tl.textContent || '').trim();
+    } catch(err) {}
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', tabId);
+    } catch(err) {}
+    tabEl.classList.add('dragging');
+    _tearBeginDrag(tabId, e, { url: mUrl, title: mTitle, incognito: true, partition: partition });
+  });
+  tabEl.addEventListener('dragend', function(e) {
+    tabEl.classList.remove('dragging');
+    _tearEndDrag(e, tabId);
   });
 
   document.querySelector('.tabs-bar').insertBefore(tabEl, document.getElementById('newTabBtn'));
@@ -8431,9 +9591,617 @@ function promptIncognitoUrl() {
   if (window.electronAPI && window.electronAPI.onIncognitoTab) {
     window.electronAPI.onIncognitoTab(function(url) {
       if (url) window.createIncognitoTab(url);
+      else if (window.startIncognitoMode) window.startIncognitoMode();
       else promptIncognitoUrl();
     });
   }
+})();
+
+// ============== CONTAINER TABS ==============
+// Firefox-style cookie-isolated containers. Each container tab runs in a
+// persistent partition "persist:container-<id>" — cookies, localStorage and
+// cache never mix with the default session or other containers. The feature
+// is enabled and the container list is managed in Settings → Containers.
+var _containersCfg = { enabled: false, containers: [] };
+(function loadContainersCfg() {
+  if (window.electronAPI && window.electronAPI.getContainers) {
+    window.electronAPI.getContainers().then(function(c) {
+      if (c) _containersCfg = c;
+    }).catch(function() {});
+  }
+})();
+
+window.refreshContainersCfg = function(cb) {
+  if (!window.electronAPI || !window.electronAPI.getContainers) { if (cb) cb(); return Promise.resolve(); }
+  return window.electronAPI.getContainers().then(function(c) {
+    if (c) _containersCfg = c;
+    if (cb) cb();
+  }).catch(function() { if (cb) cb(); });
+};
+
+function _findContainer(id) {
+  if (!id) return null;
+  for (var i = 0; i < _containersCfg.containers.length; i++) {
+    if (_containersCfg.containers[i].id === id) return _containersCfg.containers[i];
+  }
+  return null;
+}
+
+// Colored underline + icon on the tab strip so the user can tell container
+// tabs apart at a glance (like Firefox's container underline).
+function _applyContainerBadge(tabData) {
+  var c = tabData.containerId ? _findContainer(tabData.containerId) : null;
+  if (!c || !tabData.element) return;
+  try {
+    tabData.element.style.borderBottom = '2px solid ' + c.color;
+    var fav = tabData.element.querySelector('.tab-favicon-placeholder') ||
+              tabData.element.querySelector('.tab-favicon');
+    if (fav) {
+      fav.innerHTML = _icon(c.icon || '🗂', 10, 10);
+      fav.style.color = c.color;
+      fav.title = c.name || c.id;
+    }
+  } catch(e) {}
+}
+
+// Open a new tab inside a container. Regular tab in every other way: lives
+// in tabs[], participates in workspaces/groups/sleep — only the session is
+// partitioned.
+window.createContainerTab = function(containerId, url) {
+  if (!_findContainer(containerId)) {
+    // Config may be stale (container just added in Settings) — refresh once.
+    window.refreshContainersCfg(function() {
+      if (_findContainer(containerId)) window.createContainerTab(containerId, url);
+      else createNewTab(url || '');
+    });
+    return;
+  }
+  createNewTab(url || '', false, { containerId: containerId });
+};
+
+// ============== READ ALOUD (TTS) ==============
+// Speaks the active page (or the current selection, when it is long enough)
+// with the Chromium speech engine. Text is extracted in the webview, split
+// into sentence chunks (long single utterances are cut off by Chromium) and
+// spoken from THIS renderer — the main window always has speechSynthesis
+// available, webviews may not.
+var _ttsState = {
+  chunks: [], idx: 0,
+  speaking: false, paused: false,
+  voices: [], voiceURI: '',
+  lang: '', tabId: null,
+  rate: 1,
+  engineMode: 'system'  // resolved: 'system' | 'offline'
+};
+try { _ttsState.rate = parseFloat(localStorage.getItem('spz-tts-rate')) || 1; } catch(e) {}
+try { _ttsState.voiceURI = localStorage.getItem('spz-tts-voice') || ''; } catch(e) {}
+var _ttsEnginePref = 'auto'; // user preference: auto | system | offline
+try { _ttsEnginePref = localStorage.getItem('spz-tts-engine') || 'auto'; } catch(e) {}
+var _ttsOfflineAvailable = null; // null = unknown, true/false after probe
+if (window.electronAPI && window.electronAPI.ttsOfflineAvailable) {
+  window.electronAPI.ttsOfflineAvailable().then(function (r) {
+    _ttsOfflineAvailable = !!(r && r.available);
+  }).catch(function() { _ttsOfflineAvailable = false; });
+}
+
+// Offline engine (espeak-ng WASM in the main process): synthesized WAVs are
+// cached per chunk index; the next chunk is prefetched while the current
+// one plays, hiding the ~300 ms synthesis latency after the first chunk.
+var _ttsOffline = { cache: {}, pending: {}, audio: null };
+
+function _ttsOfflineFetch(idx) {
+  var st = _ttsState;
+  // NOTE: always return a Promise — callers chain .then(); a raw string on
+  // the cache-hit path used to crash with ".then is not a function".
+  if (_ttsOffline.cache[idx]) return Promise.resolve(_ttsOffline.cache[idx]);
+  if (_ttsOffline.pending[idx]) return _ttsOffline.pending[idx];
+  if (!window.electronAPI || !window.electronAPI.ttsSynthesize) {
+    return Promise.reject(new Error('offline engine unavailable'));
+  }
+  _ttsOffline.pending[idx] = window.electronAPI.ttsSynthesize(st.chunks[idx], st.lang, st.rate).then(function (r) {
+    delete _ttsOffline.pending[idx];
+    if (!r || !r.ok || !r.wav) throw new Error((r && r.error) || 'synthesis failed');
+    _ttsOffline.cache[idx] = r.wav;
+    return r.wav;
+  }).catch(function (e) {
+    delete _ttsOffline.pending[idx];
+    throw e;
+  });
+  return _ttsOffline.pending[idx];
+}
+
+function _ttsOfflineStopAudio() {
+  if (_ttsOffline.audio) {
+    try { _ttsOffline.audio.onended = null; _ttsOffline.audio.onerror = null; } catch(e) {}
+    try { _ttsOffline.audio.pause(); } catch(e) {}
+    _ttsOffline.audio = null;
+  }
+}
+
+(function initTtsVoices() {
+  if (!('speechSynthesis' in window)) return;
+  function load() { try { _ttsState.voices = speechSynthesis.getVoices() || []; } catch(e) {} }
+  load();
+  try { speechSynthesis.addEventListener('voiceschanged', load); } catch(e) {}
+})();
+
+// Extract readable text: current selection when substantial, otherwise the
+// article body. Walks VISIBLE text nodes (TreeWalker), skipping
+// nav/header/footer/aside menus, code blocks and hidden elements, then
+// filters out lines that look like CSS/JS source — pages rendering code
+// samples must not be "read" as class names.
+var _TTS_EXTRACT_SCRIPT =
+  '(function(){' +
+  'try{var sel=window.getSelection?String(window.getSelection()):"";' +
+  'if(sel&&sel.trim().length>80)return JSON.stringify({lang:document.documentElement.lang||"",text:sel.trim().slice(0,40000)});}catch(e){}' +
+  'function score(el){if(!el||!el.tagName)return 0;var t=(el.innerText||"").trim();' +
+  'if(t.length<50)return 0;var tag=el.tagName.toLowerCase();' +
+  'var b=0;if(tag==="article")b=200;if(tag==="main")b=150;' +
+  'if(el.id&&/content|article|post|entry/i.test(el.id))b+=100;' +
+  'if(el.className&&typeof el.className==="string"&&/content|article|post|entry/i.test(el.className))b+=80;' +
+  'var p=0;if(/nav|header|footer|aside|form|sidebar|comment|social|share|related/i.test(tag+" "+(el.id||"")+" "+(el.className||"")))p=500;' +
+  'return t.length+t.split(/[.!?]/).length*20+b-p;}' +
+  'var cand=document.querySelectorAll("article,main,section,div");var best=null,bs=-1;' +
+  'for(var i=0;i<cand.length;i++){var s=score(cand[i]);if(s>bs){bs=s;best=cand[i];}}' +
+  'if(!best||bs<50)best=document.body;' +
+  'if(!best)return JSON.stringify({lang:"",text:""});' +
+  'var SKIP=/^(script|style|noscript|svg|canvas|template|iframe|object|embed|nav|header|footer|aside|form|select|textarea|button|input|code|pre|kbd|samp)$/i;' +
+  'var BLOCK=/^(p|h1|h2|h3|h4|h5|h6|li|blockquote|figcaption|dd|dt|tr)$/i;' +
+  'function inSkipped(el){var cur=el,g=0;' +
+  'while(cur&&cur!==best&&g<40){if(SKIP.test(cur.tagName))return true;cur=cur.parentElement;g++;}' +
+  'return SKIP.test(best.tagName);}' +
+  'function visible(el){try{var cs=getComputedStyle(el);if(cs.visibility==="hidden"||cs.display==="none")return false;' +
+  'var r=el.getBoundingClientRect();return r.width>0&&r.height>0;}catch(e){return false;}}' +
+  'var visCache=[],visOk=[];' +
+  'function visibleCached(el){var i=visCache.indexOf(el);if(i!==-1)return visOk[i];' +
+  'visCache.push(el);var ok=visible(el);visOk.push(ok);return ok;}' +
+  'var parts=[],chars=0;' +
+  'var tw=document.createTreeWalker(best,NodeFilter.SHOW_TEXT,{acceptNode:function(node){' +
+  'var p=node.parentElement;if(!p)return NodeFilter.FILTER_REJECT;' +
+  'if(SKIP.test(p.tagName)||inSkipped(p))return NodeFilter.FILTER_REJECT;' +
+  'if(!visibleCached(p))return NodeFilter.FILTER_REJECT;' +
+  'var v=node.nodeValue;if(!v||!v.trim())return NodeFilter.FILTER_SKIP;' +
+  'return NodeFilter.FILTER_ACCEPT;}});' +
+  'while(tw.nextNode()&&chars<40000){var t=tw.currentNode.nodeValue.replace(/\\s+/g," ").trim();' +
+  'if(!t)continue;chars+=t.length;' +
+  'var pe=tw.currentNode.parentElement;' +
+  'if(BLOCK.test(pe?pe.tagName:"")||parts.length===0)parts.push(t);' +
+  'else{var prev=parts[parts.length-1];' +
+  'if(prev.length+t.length<400)parts[parts.length-1]=prev+" "+t;else parts.push(t);}}' +
+  // Drop repeated boilerplate lines and code/CSS-looking lines.
+  'var seen={},lines=[];' +
+  'for(var k=0;k<parts.length;k++){var l=parts[k];' +
+  'if(seen[l])continue;seen[l]=1;lines.push(l);}' +
+  'var text=lines.filter(function(l){' +
+  'if(!l)return false;' +
+  'if(/!important/.test(l))return false;' +
+  'if(/[{}]/.test(l))return false;' +
+  'if(/^\\s*[.#@:][\\w-]+/.test(l)&&/[:;{]/.test(l))return false;' +
+  'if(/^(function|var|let|const|import|export|return)\\s/.test(l))return false;' +
+  'if(/^\\s*[\\w-]+\\s*:\\s*[^.;{}]{0,60};?\\s*$/.test(l)&&/[a-z]-[a-z]/i.test(l))return false;' +
+  'var words=l.split(/\\s+/);var odd=0;' +
+  'for(var w=0;w<words.length;w++){var wd=words[w];' +
+  'if(/^[.#][\w-]+$/.test(wd)||/^[a-z]+[A-Z]/.test(wd))odd++;}' +
+  'if(words.length>3&&odd/words.length>0.5)return false;' +
+  'return true;}).join("\\n").slice(0,40000);' +
+  'return JSON.stringify({lang:document.documentElement.lang||"",text:text});})()';
+
+function _ttsSplitChunks(text) {
+  var out = [];
+  var re = /[^.!?…\n]+[.!?…]*\n*/g, m;
+  var buf = '';
+  function flush() { if (buf.trim()) out.push(buf.trim()); buf = ''; }
+  function hardSplit(s) {
+    var words = s.split(' ');
+    var line = '';
+    for (var i = 0; i < words.length; i++) {
+      if ((line + ' ' + words[i]).length > 380) { out.push(line.trim()); line = words[i]; }
+      else line = line ? line + ' ' + words[i] : words[i];
+    }
+    if (line.trim()) out.push(line.trim());
+  }
+  while ((m = re.exec(text)) !== null) {
+    var s = m[0].trim();
+    if (!s) continue;
+    if (s.length > 400) { flush(); hardSplit(s); continue; }
+    if (buf.length + s.length + 1 <= 220) buf = buf ? buf + ' ' + s : s;
+    else { flush(); buf = s; }
+  }
+  flush();
+  return out;
+}
+
+function _ttsPickVoice() {
+  var st = _ttsState;
+  if (!st.voices.length) return null;
+  // Explicit user choice first.
+  if (st.voiceURI) {
+    for (var i = 0; i < st.voices.length; i++) {
+      if (st.voices[i].voiceURI === st.voiceURI) return st.voices[i];
+    }
+  }
+  // Otherwise: match the page language prefix (ru → ru-RU), prefer local.
+  var lang = (st.lang || '').toLowerCase().split('-')[0];
+  var best = null, bestScore = -1;
+  for (var j = 0; j < st.voices.length; j++) {
+    var v = st.voices[j];
+    var vl = String(v.lang || '').toLowerCase();
+    var score = 0;
+    if (lang && vl.indexOf(lang) === 0) score += 10;
+    if (v.localService) score += 2;
+    if (v.default) score += 1;
+    if (score > bestScore) { bestScore = score; best = v; }
+  }
+  return best;
+}
+
+function _ttsUpdatePanel() {
+  var panel = document.getElementById('ttsPanel');
+  var textEl = document.getElementById('ttsCurrent');
+  var posEl = document.getElementById('ttsPos');
+  var playBtn = document.getElementById('ttsPlayBtn');
+  if (!panel) return;
+  var st = _ttsState;
+  if (playBtn) playBtn.textContent = st.paused ? '▶' : (st.speaking ? '⏸' : '▶');
+  // Clamp the displayed position — idx must never render beyond the end
+  // (rapid onend/onerror double-fire used to show "25/24").
+  var shown = Math.min(Math.max(st.idx, 0), Math.max(st.chunks.length - 1, 0));
+  if (textEl) textEl.textContent = st.chunks[shown] || (st.chunks.length ? '…' : '');
+  if (posEl) posEl.textContent = st.chunks.length ? (shown + 1) + ' / ' + st.chunks.length : '';
+}
+
+// Called ONCE per finished utterance (see the done-flag in _ttsSpeakCurrent).
+function _ttsChunkDone() {
+  var st = _ttsState;
+  if (!st.speaking || st.paused) return;
+  // Rapid-failure guard: a chunk that "ended" almost instantly means the
+  // engine produced no audio (e.g. Linux without speech-dispatcher voices).
+  // After 3 such failures stop instead of silently racing through the text.
+  var dt = Date.now() - (st._speakStart || 0);
+  if (dt < 250) {
+    st._failCount = (st._failCount || 0) + 1;
+    if (st._failCount >= 3) {
+      _ttsStop();
+      var msg = 'The speech engine produced no audio. No usable system voices were found.\n\n' +
+        'Linux: install the speech stack and restart the browser:\n' +
+        '  sudo apt install speech-dispatcher espeak-ng\n' +
+        'Windows/macOS: check the system text-to-speech settings.';
+      if (typeof customAlert === 'function') customAlert(msg);
+      else if (typeof _showToast === 'function') _showToast('Speech engine produced no audio — install system voices');
+      return;
+    }
+  } else {
+    st._failCount = 0;
+  }
+  st.idx++;
+  _ttsUpdatePanel();
+  _ttsSpeakCurrent();
+}
+
+function _ttsSpeakCurrent() {
+  var st = _ttsState;
+  if (!st.speaking || st.paused) return;
+  if (st.idx >= st.chunks.length || st.idx < 0) { _ttsFinish(); return; }
+  if (st.engineMode === 'offline') { _ttsSpeakCurrentOffline(); return; }
+  try {
+    var u = new SpeechSynthesisUtterance(st.chunks[st.idx]);
+    var v = _ttsPickVoice();
+    if (v) { u.voice = v; u.lang = v.lang; }
+    else if (st.lang) u.lang = st.lang;
+    u.rate = st.rate;
+    // Single-shot completion: without the done flag Chromium fires BOTH
+    // onend and onerror for a failed utterance → idx advanced twice.
+    var done = false;
+    u.onend = function() { if (done) return; done = true; _ttsChunkDone(); };
+    u.onerror = function(ev) {
+      if (done) return;
+      var err = ev && ev.error;
+      // 'interrupted'/'canceled' = OUR cancel() from skip/rate change —
+      // must NOT advance the position.
+      if (err === 'interrupted' || err === 'canceled') { done = true; return; }
+      done = true;
+      _ttsChunkDone();
+    };
+    st._speakStart = Date.now();
+    speechSynthesis.speak(u);
+    _ttsUpdatePanel();
+  } catch(e) { _ttsFinish(); }
+}
+
+function _ttsSpeakCurrentOffline() {
+  var st = _ttsState;
+  _ttsOfflineStopAudio();
+  _ttsOfflineFetch(st.idx).then(function (b64) {
+    if (!st.speaking || st.paused || st.engineMode !== 'offline') return;
+    var audio = new Audio('data:audio/wav;base64,' + b64);
+    _ttsOffline.audio = audio;
+    var done = false;
+    audio.onended = function () { if (done) return; done = true; if (st._ttsOfflineAudio === audio) st._ttsOfflineAudio = null; _ttsChunkDone(); };
+    audio.onerror = function () {
+      if (done) return; done = true;
+      if (st._ttsOfflineAudio === audio) st._ttsOfflineAudio = null;
+      _ttsChunkDone(); // counts toward the rapid-fail guard (instant end)
+    };
+    st._speakStart = Date.now();
+    st._ttsOfflineAudio = audio;
+    audio.play().catch(function () { if (!done) { done = true; _ttsChunkDone(); } });
+    _ttsUpdatePanel();
+    // Prefetch the next chunk while this one plays.
+    if (st.idx + 1 < st.chunks.length) {
+      _ttsOfflineFetch(st.idx + 1).catch(function () {});
+    }
+  }).catch(function (e) {
+    if (!st.speaking) return;
+    if (typeof _showToast === 'function') _showToast('Offline speech engine failed: ' + (e && e.message || e));
+    _ttsStop();
+  });
+}
+
+// cancel() + immediate speak() stalls on Chromium — speak the next chunk
+// after a small delay instead.
+function _ttsRestartCurrent() {
+  var st = _ttsState;
+  try { speechSynthesis.cancel(); } catch(e) {}
+  st._restartTimer = setTimeout(function() { _ttsSpeakCurrent(); }, 80);
+}
+
+function _ttsFinish() {
+  var st = _ttsState;
+  st.speaking = false;
+  st.paused = false;
+  st._failCount = 0;
+  st._ttsOfflineAudio = null;
+  if (st._restartTimer) { clearTimeout(st._restartTimer); st._restartTimer = null; }
+  _ttsOfflineStopAudio();
+  _ttsOffline.cache = {};
+  _ttsOffline.pending = {};
+  try { if (st._navWv && st._navFn) st._navWv.removeEventListener('did-navigate', st._navFn); } catch(e) {}
+  st._navWv = null; st._navFn = null;
+  try { speechSynthesis.cancel(); } catch(e) {}
+  _ttsUpdatePanel();
+}
+
+function _ttsStart() {
+  var tab = tabs.find(function(t) { return t.id === activeTabId; });
+  if (!tab || !tab.webview || !canExecInWebview(tab.webview)) {
+    if (typeof customAlert === 'function') customAlert('Read aloud is unavailable for this page');
+    return;
+  }
+  // Resolve the engine BEFORE extraction so failures surface immediately.
+  //   auto   → system voices when present, else the offline espeak engine
+  //   system → speechSynthesis only (needs installed system voices)
+  //   offline→ espeak-ng WASM package (always available, robotic quality)
+  var useOffline;
+  if (_ttsEnginePref === 'offline') useOffline = true;
+  else if (_ttsEnginePref === 'system') useOffline = false;
+  else useOffline = !_ttsState.voices.length;
+  if (!useOffline && !('speechSynthesis' in window)) {
+    if (_ttsOfflineAvailable) useOffline = true;
+    else {
+      if (typeof customAlert === 'function') customAlert('Speech synthesis is not available in this build');
+      return;
+    }
+  }
+  if (useOffline) {
+    if (_ttsOfflineAvailable === false) {
+      if (typeof customAlert === 'function') customAlert('The offline speech engine is not installed in this build.');
+      return;
+    }
+    _ttsState.engineMode = 'offline';
+  } else {
+    _ttsState.engineMode = 'system';
+  }
+  _ttsUpdateEngineUi();
+  _ttsFinish();
+  tab.webview.executeJavaScript(_TTS_EXTRACT_SCRIPT).then(function(result) {
+    var data = null;
+    try { data = JSON.parse(result); } catch(e) {}
+    if (!data || !data.text || data.text.trim().length < 40) {
+      if (typeof customAlert === 'function') customAlert('No readable text found on this page');
+      return;
+    }
+    var st = _ttsState;
+    st.chunks = _ttsSplitChunks(data.text);
+    if (!st.chunks.length) {
+      if (typeof customAlert === 'function') customAlert('No readable text found on this page');
+      return;
+    }
+    st.idx = 0;
+    st.lang = data.lang || '';
+    st.tabId = activeTabId;
+    st.speaking = true;
+    st.paused = false;
+    st._failCount = 0;
+    var panel = document.getElementById('ttsPanel');
+    if (panel) panel.classList.add('open');
+    _ttsPopulateVoices();
+    if (st.engineMode === 'offline' && _ttsEnginePref === 'auto' && !_ttsState.voices.length) {
+      if (typeof _showToast === 'function') _showToast('No system voices found — using the built-in offline engine');
+    }
+    // Stop reading automatically when the page navigates away — the text
+    // no longer matches what is on screen.
+    try {
+      st._navWv = tab.webview;
+      st._navFn = function() { _ttsStop(); };
+      tab.webview.addEventListener('did-navigate', st._navFn);
+    } catch(e) {}
+    _ttsSpeakCurrent();
+  }).catch(function() {
+    if (typeof customAlert === 'function') customAlert('Failed to extract page text');
+  });
+}
+
+function _ttsTogglePause() {
+  var st = _ttsState;
+  if (!st.speaking) { _ttsStart(); return; }
+  try {
+    if (st.engineMode === 'offline') {
+      var a = st._ttsOfflineAudio;
+      if (st.paused) { st.paused = false; if (a) a.play().catch(function() {}); }
+      else { st.paused = true; if (a) a.pause(); }
+    } else {
+      if (st.paused) { speechSynthesis.resume(); st.paused = false; }
+      else { speechSynthesis.pause(); st.paused = true; }
+    }
+  } catch(e) {}
+  _ttsUpdatePanel();
+}
+
+function _ttsSkip(delta) {
+  var st = _ttsState;
+  if (!st.chunks.length) return;
+  st.idx = Math.max(0, Math.min(st.chunks.length - 1, st.idx + delta));
+  if (st._restartTimer) { clearTimeout(st._restartTimer); st._restartTimer = null; }
+  if (st.engineMode === 'offline') {
+    _ttsOfflineStopAudio();
+    st._ttsOfflineAudio = null;
+    if (st.speaking && !st.paused) _ttsSpeakCurrentOffline();
+    else _ttsUpdatePanel();
+    return;
+  }
+  // cancel() now fires onerror('interrupted') which is ignored by the
+  // utterance guard — safe to restart the new chunk directly.
+  if (st.speaking && !st.paused) _ttsRestartCurrent();
+  else {
+    try { speechSynthesis.cancel(); } catch(e) {}
+    _ttsUpdatePanel();
+  }
+}
+
+function _ttsStop() {
+  _ttsFinish();
+  var panel = document.getElementById('ttsPanel');
+  if (panel) panel.classList.remove('open');
+}
+
+function _ttsPopulateVoices() {
+  var sel = document.getElementById('ttsVoice');
+  if (!sel) return;
+  var st = _ttsState;
+  sel.innerHTML = '';
+  var auto = document.createElement('option');
+  auto.value = '';
+  auto.textContent = 'Auto (page language)';
+  sel.appendChild(auto);
+  st.voices.forEach(function(v) {
+    var o = document.createElement('option');
+    o.value = v.voiceURI;
+    o.textContent = (v.name || 'Voice') + ' (' + (v.lang || '') + ')';
+    if (v.voiceURI === st.voiceURI) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+window._ttsToggle = function() {
+  var panel = document.getElementById('ttsPanel');
+  if (panel && panel.classList.contains('open') && _ttsState.speaking) { _ttsStop(); return; }
+  _ttsStart();
+};
+
+(function setupTtsPanel() {
+  var panel = document.getElementById('ttsPanel');
+  if (!panel) return;
+  var playBtn = document.getElementById('ttsPlayBtn');
+  var stopBtn = document.getElementById('ttsStopBtn');
+  var prevBtn = document.getElementById('ttsPrevBtn');
+  var nextBtn = document.getElementById('ttsNextBtn');
+  var closeBtn = document.getElementById('ttsCloseBtn');
+  var rateSel = document.getElementById('ttsRate');
+  var voiceSel = document.getElementById('ttsVoice');
+  var engineSel = document.getElementById('ttsEngine');
+  if (playBtn) playBtn.addEventListener('click', _ttsTogglePause);
+  if (stopBtn) stopBtn.addEventListener('click', _ttsStop);
+  if (closeBtn) closeBtn.addEventListener('click', _ttsStop);
+  if (prevBtn) prevBtn.addEventListener('click', function() { _ttsSkip(-1); });
+  if (nextBtn) nextBtn.addEventListener('click', function() { _ttsSkip(1); });
+  if (engineSel) {
+    engineSel.value = _ttsEnginePref;
+    engineSel.addEventListener('change', function() {
+      _ttsEnginePref = engineSel.value === 'system' ? 'system' : (engineSel.value === 'offline' ? 'offline' : 'auto');
+      try { localStorage.setItem('spz-tts-engine', _ttsEnginePref); } catch(e) {}
+      // Restart the current reading with the new engine (if any).
+      if (_ttsState.speaking) {
+        var resumeIdx = _ttsState.idx;
+        var resumeLang = _ttsState.lang;
+        var resumeChunks = _ttsState.chunks.slice();
+        var resumeTab = _ttsState.tabId;
+        _ttsStop();
+        _ttsState.chunks = resumeChunks;
+        _ttsState.idx = Math.min(resumeIdx, Math.max(resumeChunks.length - 1, 0));
+        _ttsState.lang = resumeLang;
+        _ttsState.tabId = resumeTab;
+        _ttsState.speaking = true;
+        _ttsState.paused = false;
+        // engine resolution copied from _ttsStart
+        var useOffline = _ttsEnginePref === 'offline' ? true :
+          (_ttsEnginePref === 'system' ? false : !_ttsState.voices.length);
+        _ttsState.engineMode = useOffline ? 'offline' : 'system';
+        _ttsUpdateEngineUi();
+        var p = document.getElementById('ttsPanel');
+        if (p) p.classList.add('open');
+        _ttsSpeakCurrent();
+      } else {
+        _ttsUpdateEngineUi();
+      }
+    });
+  }
+  if (rateSel) {
+    rateSel.value = String(_ttsState.rate);
+    rateSel.addEventListener('change', function() {
+      _ttsState.rate = parseFloat(rateSel.value) || 1;
+      try { localStorage.setItem('spz-tts-rate', String(_ttsState.rate)); } catch(e) {}
+      // Re-speak the current chunk at the new rate. The offline engine bakes
+      // the rate into the WAV — drop the cache so chunks re-synthesize.
+      if (_ttsState.speaking && !_ttsState.paused) {
+        if (_ttsState.engineMode === 'offline') {
+          _ttsOffline.cache = {};
+          _ttsOfflineStopAudio();
+          _ttsSpeakCurrentOffline();
+        } else {
+          _ttsRestartCurrent();
+        }
+      } else if (_ttsState.engineMode === 'offline') {
+        _ttsOffline.cache = {};
+      }
+    });
+  }
+  if (voiceSel) {
+    voiceSel.addEventListener('change', function() {
+      _ttsState.voiceURI = voiceSel.value;
+      try { localStorage.setItem('spz-tts-voice', _ttsState.voiceURI); } catch(e) {}
+      if (_ttsState.speaking && !_ttsState.paused && _ttsState.engineMode === 'system') {
+        _ttsRestartCurrent();
+      }
+    });
+  }
+  _ttsUpdateEngineUi();
+})();
+
+// Reflect the active engine in the panel: the voice picker applies to the
+// system engine only; show which engine is actually speaking.
+function _ttsUpdateEngineUi() {
+  var voiceSel = document.getElementById('ttsVoice');
+  var engineSel = document.getElementById('ttsEngine');
+  var title = document.getElementById('ttsVoice') || null;
+  if (voiceSel) voiceSel.style.display = (_ttsState.engineMode === 'offline') ? 'none' : '';
+  if (engineSel) {
+    // Gray out the system option when no system voices exist.
+    var sysOpt = engineSel.querySelector('option[value="system"]');
+    if (sysOpt) sysOpt.disabled = !_ttsState.voices.length;
+  }
+  if (title && _ttsState.engineMode === 'offline') {
+    title.dataset.sysTitle = title.title || '';
+  }
+}
+
+// Stop reading when the user switches to another tab (the text belongs to
+// the page it was extracted from).
+(function hookTtsTabSwitch() {
+  var _origSetActive2 = setActiveTab;
+  setActiveTab = function(id) {
+    if (_ttsState.speaking && _ttsState.tabId && _ttsState.tabId !== id) _ttsStop();
+    return _origSetActive2(id);
+  };
 })();
 
 // ============== FIND IN ALL TABS ==============
@@ -8950,10 +10718,10 @@ function injectHoverTranslate(tabData) {
   var cfg = htConfigString();
   tabData.webview.executeJavaScript(
     '(function(){' +
-    'window.__htCFG=' + cfg + ';' +
-    'if(window.__htActive)return "active";window.__htActive=true;' +
+    'try{Object.defineProperty(window,"__htCFG",{value:' + cfg + ',enumerable:false,configurable:true,writable:true});}catch(e){window.__htCFG=' + cfg + ';}' +
+    'if(window.__htActive)return "active";try{Object.defineProperty(window,"__htActive",{value:true,enumerable:false,configurable:true});}catch(e){window.__htActive=true;}' +
     'if(!document.getElementById("__ht_style")){var st=document.createElement("style");st.id="__ht_style";st.textContent=".__ht-popup{position:fixed;z-index:2147483647;max-width:320px;min-width:110px;background:rgba(30,30,46,0.96);color:#e6e6e6;border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px 13px;font-size:13px;font-family:system-ui,-apple-system,sans-serif;line-height:1.5;box-shadow:0 8px 28px rgba(0,0,0,0.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:none;opacity:0;transition:opacity 0.15s ease}.__ht-popup.__ht-show{opacity:1}.__ht-w{font-weight:600;color:#7aa2f7;display:block;margin-bottom:2px}.__ht-t{color:#e6e6e6}.__ht-l{font-size:10px;color:#7a8290;margin-top:5px;display:block}.__ht-lo{color:#888}";document.documentElement.appendChild(st);}' +
-    'window.__htCache={};' +
+    'try{Object.defineProperty(window,"__htCache",{value:{},enumerable:false,configurable:true,writable:true});}catch(e){window.__htCache={};}' +
     'var _popup=null,_curWord="",_pending=false,_timer=null;' +
     'function isWordChar(c){return !!c && /[\\w\\u00C0-\\u00FF\\u0400-\\u04FF]/.test(c);}' +
     'function getWordAt(x,y){' +
@@ -8980,10 +10748,10 @@ function injectHoverTranslate(tabData) {
     'function doTranslate(word,x,y){' +
     '  if(window.__htCache[word]){showPopup(window.__htCache[word],x,y);return;}' +
     '  if(_pending)return;' +
+    '  if(!window.__spzSend){return;}' +
     '  _pending=true;' +
     '  showPopup("<span class=\\"__ht-lo\\">Translating…</span>",x,y);' +
-    '  if(!(window.electronAPI&&window.electronAPI.translateText)){_pending=false;return;}' +
-    '  window.electronAPI.translateText(word,"auto",window.__htCFG.targetLang).then(function(r){' +
+    '  window.__spzSend("translate",{text:word,from:"auto",to:window.__htCFG.targetLang},function(r){' +
     '    _pending=false;' +
     '    if(r&&r.success&&r.translated&&r.translated!==word){' +
     '      var lang=r.from&&r.to?"<span class=\\"__ht-l\\">"+escHtml(r.from)+" \\u2192 "+escHtml(r.to)+"</span>":"";' +
@@ -8991,9 +10759,9 @@ function injectHoverTranslate(tabData) {
     '      window.__htCache[word]=html;' +
     '      showPopup(html,x,y);' +
     '    }else{hidePopup();}' +
-    '  }).catch(function(){_pending=false;hidePopup();});' +
+    '  });' +
     '}' +
-    'window.__htMove=function(e){' +
+    'var _htMove=function(e){' +
     '  var C=window.__htCFG;' +
     '  if(C.trigger!=="hover"){var held=C.trigger==="ctrl"?e.ctrlKey:(C.trigger==="alt"?e.altKey:false);if(!held){if(_timer){clearTimeout(_timer);_timer=null;}hidePopup();_curWord="";return;}}' +
     '  var word=getWordAt(e.clientX,e.clientY);' +
@@ -9004,7 +10772,9 @@ function injectHoverTranslate(tabData) {
     '  var px=e.clientX,py=e.clientY;' +
     '  _timer=setTimeout(function(){doTranslate(word,px,py);},C.delay);' +
     '};' +
-    'window.__htDismiss=function(){if(_timer){clearTimeout(_timer);_timer=null;}hidePopup();_curWord="";};' +
+    'var _htDismiss=function(){if(_timer){clearTimeout(_timer);_timer=null;}hidePopup();_curWord="";};' +
+    'try{Object.defineProperty(window,"__htMove",{value:_htMove,enumerable:false,configurable:true,writable:true});}catch(e){window.__htMove=_htMove;}' +
+    'try{Object.defineProperty(window,"__htDismiss",{value:_htDismiss,enumerable:false,configurable:true,writable:true});}catch(e){window.__htDismiss=_htDismiss;}' +
     'document.addEventListener("mousemove",window.__htMove,true);' +
     'document.addEventListener("mousedown",window.__htDismiss,true);' +
     'document.addEventListener("keydown",function(ev){if(ev.key==="Escape"){window.__htDismiss();}},true);' +
@@ -9992,6 +11762,181 @@ function _ssExportCanvas(applyAnnotations) {
   });
 })();
 
+// ============== OCR TOOL ==============
+// Works like the screenshot tool, but instead of an image returns text:
+// capture the page → select an area → tesseract (offline after first run)
+// → editable result with Copy. rus+eng when the UI is Russian, else eng.
+var _ocrActive = false;
+var _ocrImage = null;     // HTMLImageElement of the captured page
+var _ocrDrag = null;      // {x1,y1,x2,y2} in VIEW coords
+function openOcrTool() {
+  var tab = tabs.find(function(t) { return t.id === activeTabId; });
+  if (!tab || !tab.webview) return;
+  try { if (tab.webview.isDestroyed && tab.webview.isDestroyed()) return; } catch(e) { return; }
+  tab.webview.capturePage().then(function(img) {
+    if (!img || img.isEmpty()) return;
+    _ocrImage = new Image();
+    _ocrImage.onload = function() {
+      _ocrActive = true;
+      var overlay = document.getElementById('ocrOverlay');
+      overlay.style.display = 'block';
+      document.getElementById('ocrResult').style.display = 'none';
+      document.getElementById('ocrHint').style.display = '';
+      var dpr = window.devicePixelRatio || 1;
+      var w = window.innerWidth, h = window.innerHeight;
+      var canvas = document.getElementById('ocrCanvas');
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+      var ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Dim the page: user selects a bright hole in the dark layer.
+      ctx.fillStyle = 'rgba(8,8,12,0.55)';
+      ctx.fillRect(0, 0, w, h);
+      _ocrRedrawSelection(ctx, w, h);
+    };
+    _ocrImage.src = img.toDataURL();
+  }).catch(function() {});
+}
+function _ocrFit() {
+  // Image fitted into the window (same as screenshot tool) → {dx,dy,scale}.
+  var w = window.innerWidth, h = window.innerHeight;
+  var iw = _ocrImage.naturalWidth || _ocrImage.width;
+  var ih = _ocrImage.naturalHeight || _ocrImage.height;
+  var scale = Math.min(w / iw, h / ih);
+  return { dx: (w - iw * scale) / 2, dy: (h - ih * scale) / 2, scale: scale, iw: iw, ih: ih };
+}
+function _ocrRedrawSelection(ctx, w, h) {
+  if (!_ocrImage) return;
+  var f = _ocrFit();
+  // Repaint the whole overlay each move — cheap enough for one drag.
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(8,8,12,0.55)';
+  ctx.fillRect(0, 0, w, h);
+  if (_ocrDrag) {
+    var x = Math.min(_ocrDrag.x1, _ocrDrag.x2);
+    var y = Math.min(_ocrDrag.y1, _ocrDrag.y2);
+    var rw = Math.abs(_ocrDrag.x2 - _ocrDrag.x1);
+    var rh = Math.abs(_ocrDrag.y2 - _ocrDrag.y1);
+    // "Hole" — draw the corresponding part of the captured image.
+    var sx = (x - f.dx) / f.scale, sy = (y - f.dy) / f.scale;
+    var sw = rw / f.scale, sh = rh / f.scale;
+    try { ctx.drawImage(_ocrImage, sx, sy, sw, sh, x, y, rw, rh); } catch(e) {}
+    ctx.strokeStyle = '#1da1f2';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(x + 0.5, y + 0.5, rw, rh);
+    ctx.setLineDash([]);
+  } else {
+    // Draw the fitted image beneath the dim (keeps context readable).
+    try { ctx.drawImage(_ocrImage, f.dx, f.dy, f.iw * f.scale, f.ih * f.scale); } catch(e) {}
+    ctx.fillStyle = 'rgba(8,8,12,0.55)';
+    ctx.fillRect(0, 0, w, h);
+  }
+}
+function _ocrClose() {
+  _ocrActive = false;
+  _ocrDrag = null;
+  var overlay = document.getElementById('ocrOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+(function setupOcrTool() {
+  var overlay = document.getElementById('ocrOverlay');
+  if (!overlay) return;
+  var canvas = document.getElementById('ocrCanvas');
+  var dpr = window.devicePixelRatio || 1;
+
+  function evPos(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  canvas.addEventListener('mousedown', function(e) {
+    if (!_ocrActive || _ocrImage == null) return;
+    var p = evPos(e);
+    _ocrDrag = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+  });
+  canvas.addEventListener('mousemove', function(e) {
+    if (!_ocrActive || !_ocrDrag) return;
+    var p = evPos(e);
+    _ocrDrag.x2 = p.x; _ocrDrag.y2 = p.y;
+    var ctx = canvas.getContext('2d');
+    _ocrRedrawSelection(ctx, canvas.offsetWidth, canvas.offsetHeight);
+  });
+  canvas.addEventListener('mouseup', function(e) {
+    if (!_ocrActive || !_ocrDrag) return;
+    var p = evPos(e);
+    _ocrDrag.x2 = p.x; _ocrDrag.y2 = p.y;
+    var x = Math.min(_ocrDrag.x1, _ocrDrag.x2);
+    var y = Math.min(_ocrDrag.y1, _ocrDrag.y2);
+    var w = Math.abs(_ocrDrag.x2 - _ocrDrag.x1);
+    var h = Math.abs(_ocrDrag.y2 - _ocrDrag.y1);
+    var drag = _ocrDrag;
+    _ocrDrag = null;
+    if (w < 8 || h < 8) {
+      var ctx = canvas.getContext('2d');
+      _ocrRedrawSelection(ctx, canvas.offsetWidth, canvas.offsetHeight);
+      return;
+    }
+    // Crop from the ORIGINAL image (natural resolution) for best OCR quality.
+    var f = _ocrFit();
+    var sx = (x - f.dx) / f.scale, sy = (y - f.dy) / f.scale;
+    var sw = w / f.scale, sh = h / f.scale;
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(sw));
+    c.height = Math.max(1, Math.round(sh));
+    var cc = c.getContext('2d');
+    // White background — JPEG-ish scans OCR better than transparent.
+    cc.fillStyle = '#fff';
+    cc.fillRect(0, 0, c.width, c.height);
+    try { cc.drawImage(_ocrImage, sx, sy, sw, sh, 0, 0, c.width, c.height); } catch(err) { return; }
+    var base64 = c.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+    // Show the result panel in "working" state.
+    var res = document.getElementById('ocrResult');
+    var ta = document.getElementById('ocrTextarea');
+    var status = document.getElementById('ocrStatus');
+    ta.value = '';
+    status.textContent = 'Recognizing…';
+    document.getElementById('ocrHint').style.display = 'none';
+    res.style.display = 'flex';
+    if (window.electronAPI && window.electronAPI.ocrRecognize) {
+      window.electronAPI.ocrRecognize(base64).then(function(r) {
+        if (!_ocrActive) return;
+        if (r && r.ok) {
+          ta.value = r.text || '';
+          status.textContent = (r.text ? r.text.length + ' chars' : 'No text found');
+        } else {
+          status.textContent = 'Error: ' + ((r && r.error) || 'unknown');
+        }
+      }).catch(function() {
+        if (_ocrActive) status.textContent = 'Recognition failed';
+      });
+    } else {
+      status.textContent = 'OCR API unavailable';
+    }
+    void drag; void dpr;
+  });
+
+  document.getElementById('ocrClose').addEventListener('click', _ocrClose);
+  document.getElementById('ocrRetry').addEventListener('click', function() {
+    document.getElementById('ocrResult').style.display = 'none';
+    document.getElementById('ocrHint').style.display = '';
+    var ctx = canvas.getContext('2d');
+    _ocrRedrawSelection(ctx, canvas.offsetWidth, canvas.offsetHeight);
+  });
+  document.getElementById('ocrCopy').addEventListener('click', function() {
+    var ta = document.getElementById('ocrTextarea');
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    if (navigator.clipboard) navigator.clipboard.writeText(ta.value).catch(function() {});
+    var b = this; b.textContent = 'Copied';
+    setTimeout(function() { b.textContent = 'Copy text'; }, 1200);
+  });
+  document.addEventListener('keydown', function(e) {
+    if (!_ocrActive) return;
+    if (e.key === 'Escape') { _ocrClose(); e.stopPropagation(); }
+  });
+})();
+
 // ============== TOOLBAR CUSTOMIZATION ==============
 var _customizeActive = false;
 var _customizeBtnMap = {
@@ -10014,6 +11959,7 @@ var _customizeBtnMap = {
   bookmarks: { el: 'bookmarksBtn', name: 'Bookmarks', side: 'right' },
   history: { el: 'historyBtn', name: 'History', side: 'right' },
   reader: { el: 'readerBtn', name: 'Reader mode', side: 'right' },
+  tts: { el: 'ttsBtn', name: 'Read aloud', side: 'right' },
   screenshot: { el: 'screenshotBtn', name: 'Screenshot', side: 'right' },
   incognito: { el: 'incognitoBtn', name: 'Incognito', side: 'right' },
   translate: { el: 'translateBtn', name: 'Translate', side: 'right' },
@@ -10272,7 +12218,7 @@ function _addPoolItem(key) {
   var item = document.createElement('div');
   item.className = 'customize-pool-item';
   item.dataset.btnKey = key;
-  item.innerHTML = btn.innerHTML + '<span>' + cfg.name + '</span>';
+  item.innerHTML = btn.innerHTML + '<span>' + escapeHtmlSimple(cfg.name) + '</span>';
   item.draggable = true;
   item.addEventListener('dragstart', function(e) {
     e.dataTransfer.setData('text/plain', key);
@@ -10915,7 +12861,7 @@ document.addEventListener('keydown', function(e) {
     if (err) err.textContent = '';
     window.electronAPI.verifyAppLock(pw).then(function(res) {
       if (btn) { btn.disabled = false; btn.textContent = 'Unlock'; }
-      if (res && res.success) { hide(); }
+      if (res && res.success) { hide(); if (window.electronAPI.rearmIdleLock) window.electronAPI.rearmIdleLock(); }
       else { if (err) err.textContent = (res && res.message) || 'Wrong password'; if (inp) inp.focus(); }
     }).catch(function() {
       if (btn) { btn.disabled = false; btn.textContent = 'Unlock'; }
@@ -10941,11 +12887,138 @@ document.addEventListener('keydown', function(e) {
       if (err) err.textContent = '';
       if (!window.electronAPI || !window.electronAPI.appBiometricAuth) return;
       window.electronAPI.appBiometricAuth().then(function(res) {
-        if (res && res.success) hide();
+        if (res && res.success) { hide(); if (window.electronAPI.rearmIdleLock) window.electronAPI.rearmIdleLock(); }
         else if (err) err.textContent = (res && res.message) || 'Biometric failed';
       }).catch(function() { if (err) err.textContent = 'Biometric failed'; });
     });
+
+    // Auto-lock on inactivity: main fires 'idle-lock-triggered' when the
+    // system has been idle beyond the configured threshold — show the lock.
+    if (window.electronAPI && window.electronAPI.onIdleLockTriggered) {
+      window.electronAPI.onIdleLockTriggered(function() { show(); });
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
   else run();
+})();
+
+// ============== HOTKEYS OVERLAY ==============
+// A translucent cheat-sheet listing all configured shortcuts. Shown either by
+// holding a bare modifier key (Ctrl/Shift/Alt) for ~500 ms (VS Code style) or
+// by pressing '?' when not in an input field. Gated by the 'hotkeysOverlay'
+// setting (default ON). Toggled in Settings → Hotkeys.
+(function initHotkeysOverlay() {
+  var _enabled = true;
+  var _bindings = null;
+  var _actions = null;
+  var _overlay = document.getElementById('hotkeysOverlay');
+  var _grid = document.getElementById('hotkeysOverlayGrid');
+  var _holdTimer = null;
+  var _visible = false;
+
+  // Friendly labels for the action keys (mirrors _keybindingActions in main.js
+  // but with shorter text suitable for a small overlay).
+  function actionLabel(id) {
+    var map = {
+      newTab: 'New tab', closeTab: 'Close tab', focusUrl: 'Focus address bar',
+      reload: 'Reload page', find: 'Find on page', print: 'Print',
+      savePage: 'Save page', addBookmark: 'Add bookmark', goBack: 'Back',
+      goForward: 'Forward', reopenClosed: 'Reopen closed tab',
+      nextTab: 'Next tab', prevTab: 'Previous tab',
+      quickCommands: 'Command palette', devTools: 'Developer tools',
+      pip: 'Picture in picture', taskManager: 'Task manager'
+    };
+    return map[id] || id;
+  }
+  function comboStr(b) {
+    if (!b || !b.key) return '—';
+    var parts = [];
+    if (b.ctrl) parts.push('Ctrl');
+    if (b.alt) parts.push('Alt');
+    if (b.shift) parts.push('Shift');
+    var k = String(b.key);
+    // Tidy arrow / special key names.
+    k = k.replace('Arrow', '');
+    parts.push(k.length === 1 ? k.toUpperCase() : k);
+    return parts.join(' + ');
+  }
+  function renderGrid() {
+    if (!_grid || !_bindings) return;
+    var order = ['newTab','closeTab','nextTab','prevTab','reopenClosed','focusUrl',
+                 'reload','find','goBack','goForward','addBookmark','savePage',
+                 'print','pip','quickCommands','devTools','taskManager'];
+    var html = '';
+    order.forEach(function(id) {
+      var b = _bindings[id];
+      if (!b) return;
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--border-color,rgba(255,255,255,0.06));">'
+        + '<span style="color:var(--text-color,#fff);">' + actionLabel(id) + '</span>'
+        + '<kbd style="font-family:monospace;font-size:11px;background:var(--input-bg,rgba(255,255,255,0.08));color:var(--text-color,#fff);padding:2px 8px;border-radius:6px;border:1px solid var(--border-color,rgba(255,255,255,0.1));white-space:nowrap;">' + comboStr(b) + '</kbd>'
+        + '</div>';
+    });
+    _grid.innerHTML = html;
+  }
+  function loadBindings() {
+    if (!window.electronAPI || !window.electronAPI.getKeybindings) return;
+    window.electronAPI.getKeybindings().then(function(res) {
+      if (!res) return;
+      _enabled = res.overlayEnabled !== false;
+      _bindings = res.bindings || {};
+      _actions = res.actions || null;
+    }).catch(function() {});
+  }
+  function show() {
+    if (!_enabled || !_overlay) return;
+    if (_visible) return;
+    renderGrid();
+    _overlay.style.display = 'flex';
+    _visible = true;
+  }
+  function hide() {
+    if (!_overlay || !_visible) return;
+    _overlay.style.display = 'none';
+    _visible = false;
+  }
+  function inEditable(el) {
+    if (!el) return false;
+    var tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadBindings);
+  else loadBindings();
+
+  document.addEventListener('keydown', function(e) {
+    // Esc closes the overlay (always — even from an input).
+    if (e.key === 'Escape' && _visible) { hide(); return; }
+    if (inEditable(e.target)) return;
+    // '?' (Shift+/) toggles.
+    if (e.key === '?' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      if (_visible) hide(); else show();
+      return;
+    }
+    // Hold-to-show: a BARE modifier key (no other key) held for 500 ms.
+    // Detected by e.code so it works regardless of e.shiftKey/ctrlKey state.
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight' ||
+        e.code === 'ShiftLeft' || e.code === 'ShiftRight' ||
+        e.code === 'AltLeft' || e.code === 'AltRight' ||
+        e.code === 'MetaLeft' || e.code === 'MetaRight') {
+      if (_holdTimer) clearTimeout(_holdTimer);
+      _holdTimer = setTimeout(function() { show(); }, 500);
+    }
+  });
+  document.addEventListener('keyup', function(e) {
+    if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null; }
+    if (_visible && (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta')) {
+      hide();
+    }
+  });
+  // Click anywhere on the overlay backdrop closes it.
+  if (_overlay) {
+    _overlay.addEventListener('click', function(e) {
+      if (e.target === _overlay) hide();
+    });
+  }
+  // Reload bindings when returning to the window (user may have changed them).
+  window.addEventListener('focus', loadBindings);
 })();

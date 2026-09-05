@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StartPOZI Browser — Настройка</title>
+<title>StartPOZI Browser — Setup</title>
 <style>
 /* ============ ПЕРЕМЕННЫЕ ТЕМЫ ============ */
 :root{
@@ -57,14 +57,14 @@ body{
 }
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 
-/* ============ КОНТЕЙНЕР ОКНА (прозрачность) ============ */
-#app{
-  height:100vh;
-  width:100vw;
-  position:relative;
-  opacity:var(--win-opacity);
-  transition:opacity .25s ease;
-}
+ /* ============ КОНТЕЙНЕР ОКНА (без прозрачности UI) ============ */
+ /* NOTE: the start page UI itself NEVER becomes transparent — the slider
+    previews the browser window opacity via the native API, not CSS. */
+ #app{
+   height:100vh;
+   width:100vw;
+   position:relative;
+ }
 
 /* ============ ЭКРАНЫ ============ */
 .screen{
@@ -308,31 +308,33 @@ input[type=range]::-moz-range-thumb{
   background:var(--accent);cursor:pointer;border:3px solid var(--bg-soft);
 }
 
-/* ============ АКЦЕНТНЫЙ ЦВЕТ ============ */
-.color-row{
-  background:var(--bg-card);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:18px 22px;
-  margin-top:14px;
-}
-.color-row .c-name{font-size:16px;font-weight:600}
-.color-row .c-desc{font-size:13px;color:var(--text-mut);margin-top:3px;margin-bottom:14px}
-.swatches{display:flex;gap:12px;flex-wrap:wrap}
-.swatch{
-  width:38px;height:38px;border-radius:50%;
-  cursor:pointer;position:relative;
-  border:3px solid transparent;
-  transition:transform .15s,border-color .2s;
-}
-.swatch:hover{transform:scale(1.1)}
-.swatch.sel{border-color:var(--text)}
-.swatch.sel::after{
-  content:"";position:absolute;inset:-7px;border-radius:50%;
-  border:2px solid var(--accent);
-}
+/* ============ ПОИСКОВИК ============ */
+ .engine-grid{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+ .engine-card{
+   flex:1;min-width:120px;
+   border:2px solid var(--border);
+   border-radius:12px;
+   padding:16px 12px;
+   cursor:pointer;
+   background:var(--bg-card);
+   transition:border-color .2s,background .2s;
+   text-align:center;
+ }
+ .engine-card:hover{background:var(--bg-card-hover)}
+ .engine-card.sel{border-color:var(--accent)}
+ .engine-ico{
+   width:38px;height:38px;margin:0 auto 10px;
+   border-radius:50%;
+   display:flex;align-items:center;justify-content:center;
+   font-size:18px;font-weight:700;color:#fff;
+ }
+ .engine-card[data-engine*="google"] .engine-ico{background:#4285f4}
+ .engine-card[data-engine*="duckduckgo"] .engine-ico{background:#de5833}
+ .engine-card[data-engine*="bing"] .engine-ico{background:#008373}
+ .engine-card[data-engine*="startpozi"] .engine-ico{background:var(--accent)}
+ .engine-name{font-size:14px;font-weight:600}
 
-/* ============ ДЕЙСТВИЯ (экран 3) ============ */
+ /* ============ ДЕЙСТВИЯ (экран 3) ============ */
 .action-card{
   display:flex;align-items:center;gap:18px;
   background:var(--bg-card);
@@ -344,6 +346,7 @@ input[type=range]::-moz-range-thumb{
   transition:background .2s,border-color .2s,transform .15s;
 }
 .action-card:hover{background:var(--bg-card-hover);transform:translateY(-1px)}
+.action-card.queued{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .action-icon{
   flex:none;width:46px;height:46px;border-radius:12px;
   display:flex;align-items:center;justify-content:center;
@@ -414,9 +417,9 @@ input[type=range]::-moz-range-thumb{
   <section class="screen active" id="screen-intro">
     <iframe id="intro-frame" src="FirstLogonAnim.htm"></iframe>
     <div id="intro-overlay">
-      <div id="intro-tagline">По-настоящему приватный браузер</div>
+      <div id="intro-tagline">A truly private browser</div>
     </div>
-    <button id="intro-skip">Пропустить</button>
+    <button id="intro-skip">Skip</button>
     <div id="intro-progress"></div>
   </section>
 
@@ -439,9 +442,9 @@ input[type=range]::-moz-range-thumb{
       </div>
       <div class="logo-text">StartPOZI</div>
     </div>
-    <div class="screen-title">Добро пожаловать в<br>StartPOZI Browser</div>
-    <div class="screen-sub">Настроим браузер за несколько шагов, чтобы он работал именно так, как вам нужно.</div>
-    <button class="btn btn-primary" data-goto="screen-protection">Далее</button>
+    <div class="screen-title">Welcome to<br>StartPOZI Browser</div>
+    <div class="screen-sub">Let's set up your browser in a few steps so it works exactly the way you want.</div>
+    <button class="btn btn-primary" data-goto="screen-protection">Next</button>
   </section>
 
   <!-- ===================== ЭКРАН 2: ЗАЩИТА ===================== -->
@@ -450,35 +453,35 @@ input[type=range]::-moz-range-thumb{
       <span class="dot"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
     </div>
     <div style="width:100%;max-width:680px;overflow-y:auto;max-height:calc(100vh - 80px);padding-bottom:30px">
-      <div class="step-label">Шаг 2 из 5</div>
-      <div class="screen-title" style="text-align:left;font-size:30px">Защита</div>
-      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Настройте, что блокировать при просмотре сайтов.</div>
+      <div class="step-label">Step 2 of 5</div>
+      <div class="screen-title" style="text-align:left;font-size:30px">Protection</div>
+      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Choose what to block while browsing.</div>
 
       <div class="toggle-row">
         <div class="info">
-          <div class="t-name">Блокировать трекеры</div>
-          <div class="t-desc">Не позволять сайтам следить за вами в интернете.</div>
+          <div class="t-name">Block trackers</div>
+          <div class="t-desc">Stop sites from following you around the web.</div>
         </div>
         <label class="switch"><input type="checkbox" id="opt-trackers" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
         <div class="info">
-          <div class="t-name">Блокировать виджеты соцсетей</div>
-          <div class="t-desc">Запрещать кнопкам «Поделиться» и «Лайк» отслеживать ваши действия.</div>
+          <div class="t-name">Block social widgets</div>
+          <div class="t-desc">Keep Share and Like buttons from tracking you.</div>
         </div>
         <label class="switch"><input type="checkbox" id="opt-widgets" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
       <div class="toggle-row">
         <div class="info">
-          <div class="t-name">Блокировать поисковую рекламу и саморекламу сайтов</div>
-          <div class="t-desc">Блокировать рекламу в результатах поиска и собственную рекламу на сайтах.</div>
+          <div class="t-name">Block search ads and site self-promotion</div>
+          <div class="t-desc">Block ads in search results and the sites' own promotions.</div>
         </div>
         <label class="switch"><input type="checkbox" id="opt-ads" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
     </div>
     <div class="screen-foot">
-      <button class="btn btn-ghost" data-goto="screen-welcome">Назад</button>
-      <button class="btn btn-primary" data-goto="screen-appearance">Далее</button>
+      <button class="btn btn-ghost" data-goto="screen-welcome">Back</button>
+      <button class="btn btn-primary" data-goto="screen-appearance">Next</button>
     </div>
   </section>
 
@@ -488,54 +491,63 @@ input[type=range]::-moz-range-thumb{
       <span class="dot"></span><span class="dot"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span>
     </div>
     <div style="width:100%;max-width:680px;overflow-y:auto;max-height:calc(100vh - 80px);padding-bottom:30px">
-      <div class="step-label">Шаг 3 из 5</div>
-      <div class="screen-title" style="text-align:left;font-size:30px">Оформление</div>
-      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Выберите, как будет выглядеть браузер.</div>
+      <div class="step-label">Step 3 of 5</div>
+      <div class="screen-title" style="text-align:left;font-size:30px">Appearance</div>
+      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Choose how your browser looks.</div>
 
-      <div class="section-head">Тема</div>
+      <div class="section-head">Theme</div>
       <div class="theme-grid">
         <div class="theme-card auto sel" data-theme="auto">
           <div class="preview"><i></i><i></i><i></i></div>
-          <div class="t-label">Авто</div><div class="t-sub">По системе</div>
+          <div class="t-label">Auto</div><div class="t-sub">Follows the system</div>
         </div>
         <div class="theme-card light" data-theme="light">
           <div class="preview"><i></i><i></i><i></i></div>
-          <div class="t-label">Светлая</div><div class="t-sub">Днём</div>
+          <div class="t-label">Light</div><div class="t-sub">For daytime</div>
         </div>
         <div class="theme-card dark" data-theme="dark">
           <div class="preview"><i></i><i></i><i></i></div>
-          <div class="t-label">Тёмная</div><div class="t-sub">Для глаз</div>
+          <div class="t-label">Dark</div><div class="t-sub">Easy on the eyes</div>
         </div>
       </div>
 
       <div class="slider-row">
         <div class="slider-top">
           <div>
-            <div class="s-name">Прозрачность браузера</div>
-            <div class="s-desc">Насколько прозрачным будет окно браузера.</div>
+            <div class="s-name">Browser transparency</div>
+            <div class="s-desc">How transparent the browser window will be.</div>
           </div>
           <div class="s-val" id="opacity-val">100%</div>
         </div>
-        <input type="range" id="opacity-slider" min="70" max="100" value="100" step="1">
+        <input type="range" id="opacity-slider" min="10" max="100" value="100" step="1">
       </div>
 
       <div class="color-row">
-        <div class="c-name">Акцентный цвет</div>
-        <div class="c-desc">Цвет кнопок и ссылок.</div>
-        <div class="swatches" id="swatches">
-          <div class="swatch sel" data-color="#0c77ff" data-rgb="12,119,255" data-light="#3d9bff" style="background:#0c77ff"></div>
-          <div class="swatch" data-color="#7c3aed" data-rgb="124,58,237" data-light="#9d6cf2" style="background:#7c3aed"></div>
-          <div class="swatch" data-color="#db2777" data-rgb="219,39,119" data-light="#f05ba6" style="background:#db2777"></div>
-          <div class="swatch" data-color="#dc2626" data-rgb="220,38,38" data-light="#f05252" style="background:#dc2626"></div>
-          <div class="swatch" data-color="#ea580c" data-rgb="234,88,12" data-light="#f77f3a" style="background:#ea580c"></div>
-          <div class="swatch" data-color="#16a34a" data-rgb="22,163,74" data-light="#22c55e" style="background:#16a34a"></div>
-          <div class="swatch" data-color="#0d9488" data-rgb="13,148,136" data-light="#14b8a6" style="background:#0d9488"></div>
+        <div class="c-name">Search engine</div>
+        <div class="c-desc">What to use when you type in the address bar.</div>
+        <div class="engine-grid" id="engine-grid">
+          <div class="engine-card sel" data-engine="https://startpozi.netlify.app/search.html?q=">
+            <div class="engine-ico">S</div>
+            <div class="engine-name">StartPOZI</div>
+          </div>
+          <div class="engine-card" data-engine="https://www.google.com/search?q=">
+            <div class="engine-ico">G</div>
+            <div class="engine-name">Google</div>
+          </div>
+          <div class="engine-card" data-engine="https://duckduckgo.com/?q=">
+            <div class="engine-ico">D</div>
+            <div class="engine-name">DuckDuckGo</div>
+          </div>
+          <div class="engine-card" data-engine="https://www.bing.com/search?q=">
+            <div class="engine-ico">B</div>
+            <div class="engine-name">Bing</div>
+          </div>
         </div>
       </div>
     </div>
     <div class="screen-foot">
-      <button class="btn btn-ghost" data-goto="screen-protection">Назад</button>
-      <button class="btn btn-primary" data-goto="screen-setup">Далее</button>
+      <button class="btn btn-ghost" data-goto="screen-protection">Back</button>
+      <button class="btn btn-primary" data-goto="screen-setup">Next</button>
     </div>
   </section>
 
@@ -545,28 +557,17 @@ input[type=range]::-moz-range-thumb{
       <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot on"></span><span class="dot"></span>
     </div>
     <div style="width:100%;max-width:680px">
-      <div class="step-label">Шаг 4 из 5</div>
-      <div class="screen-title" style="text-align:left;font-size:30px">Закрепите StartPOZI</div>
-      <div class="screen-sub" style="text-align:left;margin-bottom:24px">Пара полезных действий, чтобы начать пользоваться быстрее.</div>
-
-      <div class="action-card" id="act-pin">
-        <div class="action-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v6l-3 4h12l-3-4V4"/><path d="M9 4h6"/><line x1="12" y1="16" x2="12" y2="20"/></svg>
-        </div>
-        <div class="action-body">
-          <div class="a-name">Закрепить StartPOZI на панели задач</div>
-          <div class="a-desc">Быстрый доступ к браузеру в один клик.</div>
-        </div>
-        <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="opt-pin" checked><span class="track"></span><span class="thumb"></span></label>
-      </div>
+      <div class="step-label">Step 4 of 5</div>
+      <div class="screen-title" style="text-align:left;font-size:30px">Get started</div>
+      <div class="screen-sub" style="text-align:left;margin-bottom:24px">A couple of quick actions to get you up and running faster.</div>
 
       <div class="action-card" id="act-import">
         <div class="action-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </div>
         <div class="action-body">
-          <div class="a-name">Импортировать закладки и пароли</div>
-          <div class="a-desc">Перенесите данные из другого браузера.</div>
+          <div class="a-name">Import bookmarks and passwords</div>
+          <div class="a-desc">Bring your data over from another browser.</div>
         </div>
         <div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
       </div>
@@ -576,15 +577,15 @@ input[type=range]::-moz-range-thumb{
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
         </div>
         <div class="action-body">
-          <div class="a-name">Восстанавливать предыдущие вкладки при запуске</div>
-          <div class="a-desc">Продолжайте с того места, где остановились.</div>
+          <div class="a-name">Restore previous tabs on startup</div>
+          <div class="a-desc">Pick up right where you left off.</div>
         </div>
         <label class="switch" onclick="event.stopPropagation()"><input type="checkbox" id="opt-restore" checked><span class="track"></span><span class="thumb"></span></label>
       </div>
     </div>
     <div class="screen-foot">
-      <button class="btn btn-ghost" data-goto="screen-appearance">Назад</button>
-      <button class="btn btn-primary" data-goto="screen-donate">Далее</button>
+      <button class="btn btn-ghost" data-goto="screen-appearance">Back</button>
+      <button class="btn btn-primary" data-goto="screen-donate">Next</button>
     </div>
   </section>
 
@@ -597,10 +598,10 @@ input[type=range]::-moz-range-thumb{
       <div class="donate-heart">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.2C.4 8.4 2 4.8 5.4 4.1c2-.4 3.9.5 5 2 1.1-1.5 3-2.4 5-2 3.4.7 5 4.3 3.4 7.7C19.5 16.4 12 21 12 21z"/></svg>
       </div>
-      <div class="donate-title">StartPOZI существует благодаря тебе</div>
-      <div class="donate-desc">StartPOZI — бесплатный браузер без рекламы и слежки. Если он вам нравится, поддержите разработку — так мы сможем делать его ещё лучше.</div>
-      <a class="btn btn-donate" id="donate-btn" href="https://startpozi.com/s/donate.html" target="_blank" rel="noopener">Поддержать проект</a>
-      <button id="skip-link">Пропустить и закончить</button>
+      <div class="donate-title">StartPOZI exists thanks to you</div>
+      <div class="donate-desc">StartPOZI is a free browser with no ads and no spying. If you like it, please support development — it helps us make it even better.</div>
+      <a class="btn btn-donate" id="donate-btn" href="https://startpozi.com/s/donate.html" target="_blank" rel="noopener">Support the project</a>
+      <button id="skip-link">Skip and finish</button>
     </div>
   </section>
 

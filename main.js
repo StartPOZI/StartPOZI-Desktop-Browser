@@ -5,6 +5,10 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const adblocker = require('./adblocker');
+// Embedded Mozilla CA root bundle (cacert.pem): trusted IN ADDITION to the
+// Chromium root store by the certificate verify procs below, and used as the
+// CA list for Node-side https requests (downloads, save-image).
+const certstore = require('./certstore');
 // Shared cookie-banner blocker payload — same function the renderer injects
 // into the top document; here it is injected into EVERY frame (see the
 // 'inject-cookie-blocker-frames' handler).
@@ -748,6 +752,29 @@ function _attachDownloadHandler(session) {
 // Every incognito/container partition session gets the same treatment.
 app.on('session-created', function (session) {
   try { _attachDownloadHandler(session); } catch(e) {}
+  // Same embedded-CA-bundle fallback as the default session's verify proc
+  // (see createWindow). Partitions previously ran pure Chromium verification;
+  // -3 keeps that verdict for everything the bundle cannot fully validate.
+  // NOTE: 'session-created' also fires for the default session — there this
+  // proc is immediately overwritten by createWindow()'s full exceptions-aware
+  // verifier, so ordering stays safe.
+  try {
+    session.setCertificateVerifyProc(function verifyCertPartition(request, callback) {
+      try {
+        var hostname = (request && request.hostname) || '';
+        if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+          callback(0); return;
+        }
+        if (request.verificationResult === 'net::ERR_CERT_AUTHORITY_INVALID' &&
+            certstore.verifyAgainstBundle(hostname, request.certificate)) {
+          callback(0); return;
+        }
+        callback(-3);
+      } catch(e) {
+        try { callback(-3); } catch(_) {}
+      }
+    });
+  } catch(e) {}
 });
 
 // ===== DOWNLOAD PAUSE / RESUME =====
@@ -1034,6 +1061,15 @@ function createWindow() {
         }
         // User-accepted per-site exception — trust regardless of cert state.
         if (_certExceptionsCache && _certExceptionsCache[hostname] === true) {
+          callback(0); return;
+        }
+        // Embedded CA bundle fallback: Chromium's root store does not know
+        // this chain — before failing, validate it against the bundled
+        // Mozilla roots (cacert.pem). Full validation (hostname, dates,
+        // signatures, CA flags) happens inside certstore; any other cert
+        // problem still takes the normal error-page path below.
+        if (request.verificationResult === 'net::ERR_CERT_AUTHORITY_INVALID' &&
+            certstore.verifyAgainstBundle(hostname, request.certificate)) {
           callback(0); return;
         }
         // Otherwise — defer to Chromium. -3 = "use the default verification"
@@ -7013,7 +7049,12 @@ ipcMain.handle('save-page-as', async (_, url) => {
         // (https → http or vice versa) must use the matching module,
         // otherwise the request fails with a protocol error.
         var client = String(u).indexOf('https') === 0 ? https : http;
-        client.get(u, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (response) => {
+        // Verify against the embedded CA bundle (certstore.pem() is null if
+        // the bundle is missing — then Node's default roots apply).
+        var caBundle = certstore.pem();
+        var reqOpts = { headers: { 'User-Agent': 'Mozilla/5.0' } };
+        if (caBundle) reqOpts.ca = caBundle;
+        client.get(u, reqOpts, (response) => {
           if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && redirectCount < 5) {
             redirectCount++;
             var newUrl = response.headers.location;
@@ -7466,7 +7507,10 @@ ipcMain.on('show-context-menu', (event, params) => {
       dialog.showSaveDialog(mainWindow, { defaultPath: filename }).then(function(result) {
         if (!result.canceled && result.filePath) {
           var client = params.srcURL.startsWith('https') ? require('https') : require('http');
-          client.get(params.srcURL, function(response) {
+          var imgOpts = {};
+          var imgCa = certstore.pem();
+          if (imgCa) imgOpts.ca = imgCa;
+          client.get(params.srcURL, imgOpts, function(response) {
             var stream = require('fs').createWriteStream(result.filePath);
             response.pipe(stream);
             stream.on('finish', function() { stream.close(); });

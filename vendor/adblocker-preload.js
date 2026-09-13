@@ -1,23 +1,20 @@
-// Self-contained, async-safe replacement for @cliqz/adblocker-electron-preload.
+// Self-contained, async-safe session preload for the cosmetic-filter engine.
 //
 // WHY THIS EXISTS:
-//  1. The library preload calls ipcRenderer.sendSync(...) at document-start —
-//     WHILE the webview is still committing its navigation. On Electron 42
-//     that synchronous round-trip re-enters the message loop and kills the
-//     in-flight load: the page commits EMPTY (no <head>/<body>, no title,
-//     blank viewport; only the injected script node remains). Reproduced 100%
-//     on YouTube with the blocker enabled.
-//  2. A thin wrapper that `require('@cliqz/adblocker-content')` does NOT work
-//     either: session preloads run in Electron's sandboxed preload context
-//     whose limited module loader cannot resolve arbitrary npm packages
-//     ("module not found: @cliqz/adblocker-content") — the preload silently
-//     failed to load. Hence this file is a fully self-contained bundle.
+//  1. ipcRenderer.sendSync(...) at document-start — WHILE the webview is
+//     still committing its navigation — re-enters the message loop and kills
+//     the in-flight load on Electron 42: the page commits EMPTY (no
+//     <head>/<body>, no title, blank viewport; only the injected script node
+//     remains). Reproduced 100% on YouTube with the blocker enabled. This
+//     preload therefore speaks the SAME protocol but fully asynchronously
+//     ('get-cosmetic-filters-first-async' / 'is-mutation-observer-enabled-async',
+//     handled in adblocker.js).
+//  2. `require('@cliqz/adblocker-content')` does not work here either: session
+//     preloads run in Electron's sandboxed preload context whose limited
+//     module loader cannot resolve arbitrary npm packages — the preload
+//     silently failed to load. Hence: a fully self-contained bundle.
 //
-// The DOM monitoring / scriptlet injection below is taken from
-// @cliqz/adblocker-electron-preload (MPL-2.0, © 2017-present Ghostery GmbH),
-// with the ONLY change being the sync→async IPC protocol
-// ('get-cosmetic-filters-first-async' / 'is-mutation-observer-enabled-async',
-// handled in adblocker.js).
+// Licensed under the Mozilla Public License 2.0 — see the notice below.
 'use strict';
 
 var electron = require('electron');

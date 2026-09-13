@@ -380,6 +380,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   cursor: default;
 }
 
+
 #downloadsBtn {
   position: relative;
   overflow: visible;
@@ -603,12 +604,119 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 .ab-toggle input:checked + .ab-slider { background-color: #28ca42; }
 .ab-toggle input:checked + .ab-slider:before { transform: translateX(18px); }
 
-.ab-panel-stats { display: flex; padding: 14px; gap: 4px; }
-.ab-stat { flex: 1; text-align: center; }
+/* --- Detailed panel interior --- */
+/* Status strip: green "Enabled" / gray "Disabled" */
+.ab-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(40, 202, 66, 0.1);
+  border: 1px solid rgba(40, 202, 66, 0.25);
+  color: #28ca42;
+}
+.ab-status .ab-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex-shrink: 0;
+}
+.ab-status .ab-status-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.ab-status.off {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+/* Section labels */
+.ab-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 14px 14px 6px;
+}
+
+/* "This page" row: domain + blocked counter */
+.ab-page-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.ab-page-domain {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.ab-page-count {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.ab-page-num {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary-color);
+  line-height: 1;
+}
+.ab-page-sub {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.ab-site-toggle {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ab-site-toggle:hover { background: var(--hover-bg); color: var(--text-primary); }
+.ab-site-toggle.whitelisted { background: rgba(255,107,107,0.15); border-color: rgba(255,107,107,0.3); color: #ff6b6b; }
+
+/* Session stats — card grid */
+.ab-panel-stats {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px;
+}
+.ab-stat {
+  flex: 1;
+  text-align: center;
+  padding: 10px 4px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+}
 
 .ab-stat-num {
   display: block;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--primary-color);
   line-height: 1.2;
@@ -623,38 +731,50 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   letter-spacing: 0.5px;
 }
 
-.ab-panel-site {
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-color);
+/* Action buttons: report a problem / check this site (stacked — the
+   Russian labels do not fit side by side in a 280px panel) */
+.ab-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 12px 0;
+}
+.ab-action-btn {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-#abSiteName {
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.ab-site-toggle {
-  padding: 5px 10px;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 6px;
   border: 1px solid var(--border-color);
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
 }
+.ab-action-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+}
 
-.ab-site-toggle:hover { background: var(--hover-bg); color: var(--text-primary); }
-.ab-site-toggle.whitelisted { background: rgba(255,107,107,0.15); border-color: rgba(255,107,107,0.3); color: #ff6b6b; }
+/* Footer settings link */
+.ab-panel-settings {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ab-panel-settings:hover { background: var(--hover-bg); color: var(--text-primary); }
 
 .download-panel {
   position: absolute;
@@ -1023,6 +1143,16 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 }
 .url-reveal-btn:hover { opacity: 1; color: var(--text-primary); }
 .url-reveal-btn.revealed { color: var(--primary-color); opacity: 1; }
+
+/* Bookmark button in the address bar (replaces the reveal "eye" on
+   non-search-engine pages). Filled star when the page is bookmarked. */
+#urlBookmarkBtn.bookmarked {
+  opacity: 1;
+  color: var(--primary-color);
+}
+#urlBookmarkBtn.bookmarked svg {
+  fill: currentColor;
+}
 
 /* Tabs Bar */
 .tabs-bar {

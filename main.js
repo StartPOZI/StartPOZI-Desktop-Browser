@@ -8952,7 +8952,7 @@ async function _findTorBinary() {
 function _probePort(host, port) {
   return new Promise(function(resolve) {
     var net = require('net');
-    var sock = net.connect({ host: host, port: port, timeout: 250 });
+    var sock = net.connect({ host: host, port: port, timeout: 2000 });
     var done = false;
     function finish(ok) {
       if (done) return;
@@ -8976,7 +8976,7 @@ function _probePort(host, port) {
 function _probeSocks5(host, port) {
   return new Promise(function(resolve) {
     var net = require('net');
-    var sock = net.connect({ host: host, port: port, timeout: 600 });
+    var sock = net.connect({ host: host, port: port, timeout: 2000 });
     var done = false;
     function finish(ok) {
       if (done) return;
@@ -9476,7 +9476,11 @@ function _offerDirectRelaunch(title, detail) {
       message: t(title),
       detail: t(detail),
       buttons: [t('Restart without proxy'), t('Keep proxy settings')],
-      defaultId: 0,
+      // "Keep" is the default: Enter must never wipe the proxy config —
+      // a slow-starting tor used to trigger this dialog at every startup,
+      // and the destructive option being the default reset "Tor" for users
+      // who simply pressed Enter.
+      defaultId: 1,
       cancelId: 1
     }).then(function(r) {
       if (r.response === 0) _relaunchWithoutProxy();
@@ -9493,8 +9497,15 @@ var _directRelaunchOffered = false;
 //    immediately (works, because local DNS is available) and notify; when
 //    the proxy comes back, traffic is re-routed automatically.
 function _startProxyWatchdog() {
+  var watchdogStartedAt = Date.now();
   setInterval(function() {
     try {
+      // Startup grace: tor daemons (and the system in general) commonly boot
+      // slower than the browser. Do not count probe failures in the first
+      // 2 minutes — previously two 45 s ticks of a still-warming tor were
+      // enough to pop the "Restart without proxy" dialog whose DEFAULT
+      // button wiped the proxy config on every restart.
+      if (Date.now() - watchdogStartedAt < 120000) return;
       if (!_proxySettings.enabled || !_proxySettings.host) return;
       var host = _proxySettings.host || '127.0.0.1';
       var port = parseInt(_proxySettings.port, 10) || 9050;
@@ -9513,7 +9524,9 @@ function _startProxyWatchdog() {
           return;
         }
         _proxyWatchdogFails++;
-        if (_proxyWatchdogFails < 2) return;
+        // 3 consecutive misses (~2.5 min of ticks) before acting — a single
+        // hiccup must never disable the user's proxy.
+        if (_proxyWatchdogFails < 3) return;
         _proxyWatchdogFails = 0;
         if (_dnsThroughProxyActive) {
           // Hardened Tor mode: no DNS without the proxy — restart required.

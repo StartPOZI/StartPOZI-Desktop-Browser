@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ========== WIDGET: SEARCH BAR ==========
-    // The default search engine is taken from browser settings (electronAPI.getSearchEngine)
+    // The default search engine is read from browser settings (electronAPI.getSearchEngine)
     async function resolveSearchEngineUrl() {
         const saved = localStorage.getItem('startpozi_search_engine');
         if (saved) return saved;

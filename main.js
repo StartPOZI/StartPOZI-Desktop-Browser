@@ -749,15 +749,105 @@ function _attachDownloadHandler(session) {
     });
   });
 }
+// Per-site certificate exceptions (settings.json → certExceptions), shared by
+// the certificate verify procs of ALL sessions (default + incognito/container
+// partitions) and refreshed by 'set-cert-exception' and settings import.
+// NOTE: this MUST be module-scoped. It used to be declared INSIDE
+// createWindow(), so the update in 'set-cert-exception' wrote to an accidental
+// implicit global while the default session's verifier kept reading its stale
+// closure copy — an exception accepted on ErrorPage/security.html never took
+// effect, the site failed again on the very next load and the user was bounced
+// back to the security page in a loop ("site never loads"). Only a full app
+// restart (which re-read settings.json into the closure) hid the problem.
+var _certExceptionsCache = null;
+function _loadCertExceptionsCache() {
+  try {
+    var s = readStorage();
+    _certExceptionsCache = s.certExceptions || {};
+  } catch(e) { _certExceptionsCache = {}; }
+}
+
+// === Suspect-certificate interstitial (pre-load warning) ===
+// Chromium CACHES certificate verdicts per (host, chain) for the WHOLE
+// session: once a verify proc answers -2/-3 for a host, that host is never
+// re-verified again — every later load instantly fails with the cached
+// verdict and the proc is not even called (verified experimentally on
+// Electron 42: clearCache/clearHostResolverCache/closeAllConnections/reload
+// do not bust it). Consequently an architecture where the proc REJECTS a bad
+// cert and the security page's "Proceed" saves an exception can NEVER work:
+// the retry hits the cached rejection and bounces back to the error page in
+// an infinite loop until the app is restarted.
+//
+// So the proc never rejects a certificate problem outright. Instead:
+//   • exception saved / chain valid against the embedded bundle / underlying
+//     verdict OK → callback(0);
+//   • otherwise the request is HELD (the callback stays unanswered), the
+//     hostname is reported to the shells as "suspect" and the shell routes
+//     the tab to ErrorPage/security.html BEFORE the page renders (mirrors
+//     the plain-http consent flow). The held request dies together with its
+//     cancelled navigation. "Proceed" saves the exception, the suspect entry
+//     is cleared and the retry passes cleanly.
+//   • Safety: if nothing answers within 8 s (e.g. a subresource on a suspect
+//     host, where no interstitial is shown) the held request is answered
+//     with the exception state at that moment (0 with an exception, else -2).
+var _suspectCertHosts = {};   // hostname → reason ('selfsigned' | 'expired' | …)
+var _heldCertRequests = [];   // [{ host, cb, timer }]
+
+function _certReasonFromResult(vres) {
+  if (vres === 'net::ERR_CERT_AUTHORITY_INVALID' || vres === 'ERR_CERT_AUTHORITY_INVALID') return 'selfsigned';
+  if (vres === 'net::ERR_CERT_DATE_INVALID' || vres === 'ERR_CERT_DATE_INVALID') return 'expired';
+  if (vres === 'net::ERR_CERT_COMMON_NAME_INVALID' || vres === 'ERR_CERT_COMMON_NAME_INVALID') return 'hostname';
+  return 'unknown';
+}
+
+function _broadcastSuspectCerts() {
+  _allShells().forEach(function (sh) {
+    try { sh.webContents.send('suspect-certs-changed', _suspectCertHosts); } catch(e) {}
+  });
+}
+
+// Called from the verify procs instead of callback(-2/-3) for cert problems.
+function _handleSuspectCert(hostname, reason, cb) {
+  var wasSuspect = Object.prototype.hasOwnProperty.call(_suspectCertHosts, hostname);
+  _suspectCertHosts[hostname] = reason;
+  if (!wasSuspect) _broadcastSuspectCerts();
+  var held = { host: hostname, cb: cb, timer: null };
+  held.timer = setTimeout(function() {
+    for (var i = 0; i < _heldCertRequests.length; i++) {
+      if (_heldCertRequests[i] === held) { _heldCertRequests.splice(i, 1); break; }
+    }
+    try {
+      cb((_certExceptionsCache && _certExceptionsCache[hostname] === true) ? 0 : -2);
+    } catch(e) {}
+  }, 8000);
+  _heldCertRequests.push(held);
+}
+
+// Answer or drop held requests for a host (called when an exception changes).
+// allow=true → accept (the exception makes that verdict correct); allow=false
+// → drop silently: the request's navigation was replaced by the security
+// page anyway, and answering -2 would poison the session-wide verdict cache.
+function _releaseHeldCerts(hostname, allow) {
+  for (var i = _heldCertRequests.length - 1; i >= 0; i--) {
+    var h = _heldCertRequests[i];
+    if (h.host !== hostname) continue;
+    clearTimeout(h.timer);
+    _heldCertRequests.splice(i, 1);
+    if (allow) { try { h.cb(0); } catch(e) {} }
+  }
+}
+
 // Every incognito/container partition session gets the same treatment.
 app.on('session-created', function (session) {
   try { _attachDownloadHandler(session); } catch(e) {}
-  // Same embedded-CA-bundle fallback as the default session's verify proc
-  // (see createWindow). Partitions previously ran pure Chromium verification;
-  // -3 keeps that verdict for everything the bundle cannot fully validate.
+  // Same cert policy as the default session's verify proc (see createWindow):
+  // exceptions + embedded CA bundle + suspect-hold interstitial. Partitions
+  // previously ran pure Chromium verification with NO exception support at
+  // all — sites with self-signed/exotic-CA certs could never be opened in
+  // incognito or container tabs, even after clicking "Proceed".
   // NOTE: 'session-created' also fires for the default session — there this
-  // proc is immediately overwritten by createWindow()'s full exceptions-aware
-  // verifier, so ordering stays safe.
+  // proc is immediately overwritten by createWindow()'s verifier, so ordering
+  // stays safe.
   try {
     session.setCertificateVerifyProc(function verifyCertPartition(request, callback) {
       try {
@@ -765,9 +855,19 @@ app.on('session-created', function (session) {
         if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
           callback(0); return;
         }
-        if (request.verificationResult === 'net::ERR_CERT_AUTHORITY_INVALID' &&
+        // User-accepted per-site exception — trust regardless of cert state.
+        if (_certExceptionsCache === null) _loadCertExceptionsCache();
+        if (_certExceptionsCache && _certExceptionsCache[hostname] === true) {
+          callback(0); return;
+        }
+        var vres = String(request.verificationResult || '');
+        if (vres === 'net::ERR_CERT_AUTHORITY_INVALID' &&
             certstore.verifyAgainstBundle(hostname, request.certificate)) {
           callback(0); return;
+        }
+        if (vres.indexOf('ERR_CERT_') !== -1) {
+          _handleSuspectCert(hostname, _certReasonFromResult(vres), callback);
+          return;
         }
         callback(-3);
       } catch(e) {
@@ -1039,17 +1139,12 @@ function createWindow() {
     mainWindow.webContents.session.setPermissionCheckHandler(_makePermissionCheckHandler(initSec));
   } catch(e) {}
 
-  // === Certificate verifier — per-site exceptions for self-signed/expired
-  // certs. IMPORTANT: this runs for EVERY https request, so it must be fast.
-  // We cache certExceptions in memory instead of reading settings.json each
-  // time (which made every page take seconds to load).
-  var _certExceptionsCache = null;
-  function _loadCertExceptionsCache() {
-    try {
-      var s = readStorage();
-      _certExceptionsCache = s.certExceptions || {};
-    } catch(e) { _certExceptionsCache = {}; }
-  }
+  // === Certificate verifier — exceptions, embedded CA bundle and the
+  // suspect-certificate interstitial (see the _handleSuspectCert block above
+  // for why this proc must never outright-reject certificate problems).
+  // IMPORTANT: this runs for EVERY https request, so it must be fast. The
+  // exceptions cache lives at MODULE scope so 'set-cert-exception' can
+  // refresh it and all verify procs see the update immediately.
   _loadCertExceptionsCache();
   try {
     mainWindow.webContents.session.setCertificateVerifyProc(function verifyCert(request, callback) {
@@ -1060,23 +1155,29 @@ function createWindow() {
           callback(0); return;
         }
         // User-accepted per-site exception — trust regardless of cert state.
+        if (_certExceptionsCache === null) _loadCertExceptionsCache();
         if (_certExceptionsCache && _certExceptionsCache[hostname] === true) {
           callback(0); return;
         }
         // Embedded CA bundle fallback: Chromium's root store does not know
         // this chain — before failing, validate it against the bundled
         // Mozilla roots (cacert.pem). Full validation (hostname, dates,
-        // signatures, CA flags) happens inside certstore; any other cert
-        // problem still takes the normal error-page path below.
-        if (request.verificationResult === 'net::ERR_CERT_AUTHORITY_INVALID' &&
+        // signatures, CA flags) happens inside certstore.
+        var vres = String(request.verificationResult || '');
+        if (vres === 'net::ERR_CERT_AUTHORITY_INVALID' &&
             certstore.verifyAgainstBundle(hostname, request.certificate)) {
           callback(0); return;
         }
-        // Otherwise — defer to Chromium. -3 = "use the default verification"
-        // so any ERR_CERT_* error code is preserved on its way to
-        // did-fail-load, where the renderer routes it to ErrorPage/security.html.
-        // Returning -2 (distrust) here collapsed every cert problem into a
-        // generic error and made some borderline-but-valid sites fail outright.
+        // Any other certificate problem: hold the request and let the shell
+        // show ErrorPage/security.html BEFORE the page renders. Never answer
+        // with a rejection here — the verdict is cached per session and
+        // would make a later "Proceed" (saved exception) impossible.
+        if (vres.indexOf('ERR_CERT_') !== -1) {
+          _handleSuspectCert(hostname, _certReasonFromResult(vres), callback);
+          return;
+        }
+        // No certificate problem (or a non-cert network error) — defer to
+        // Chromium. -3 = "use the default verification".
         callback(-3);
       } catch(e) {
         try { callback(-3); } catch(_) {}
@@ -1472,6 +1573,14 @@ app.whenReady().then(async () => {
   const initStore = readStorage();
   initStore._sessionStartTime = Date.now();
   writeStorage(initStore);
+  // Donation support prompt — count this launch (the show/hide schedule
+  // lives in the renderer, see initDonatePrompt).
+  try {
+    storage.update(function (s) {
+      if (!s.donatePrompt) s.donatePrompt = {};
+      s.donatePrompt.launches = (s.donatePrompt.launches || 0) + 1;
+    });
+  } catch (e) {}
   // One-time secure defaults: if a master password already exists (set before
   // the Protection/Backup toggles were introduced), turn those two protections
   // ON. Runs once (_secureDefaultsApplied flag); later the user's explicit
@@ -1511,7 +1620,12 @@ app.whenReady().then(async () => {
   // CRITICAL: if host-resolver-rules was set at startup (Tor port detected),
   // we MUST apply a proxy, otherwise ALL DNS is disabled and nothing loads.
   if (_proxySettings && _proxySettings.enabled && _proxySettings.host) {
-    applyProxyToSession();
+    applyProxyToSession().then(function() {
+      // Warm up the onion-mirror probes through the now-proxied session, so
+      // the effective (onion vs clearnet) search engine is settled before
+      // the first search.
+      try { _maybeProbeOnionMirrors(); } catch(e) {}
+    });
   } else {
     // Try auto-detection as fallback
     _autoApplyTorIfNeeded().catch(function() {});
@@ -2799,15 +2913,244 @@ ipcMain.handle('set-translucent-mode', (_, val) => {
 
 ipcMain.handle('get-search-engine', () => {
   const store = readStorage();
-  return store.searchEngine || 'https://startpozi.netlify.app/search.html?q=';
+  return store.searchEngine || 'https://startpozi.com/search.html?q=';
 });
 
 ipcMain.handle('set-search-engine', (_, url) => {
   const store = readStorage();
   store.searchEngine = url;
   writeStorage(store);
+  try {
+    _allShells().forEach(function (sh) {
+      try { sh.webContents.send('search-settings-changed'); } catch(e) {}
+    });
+  } catch(e) {}
   return { success: true };
 });
+
+// Default search TYPE (vertical): web | images | video | news | maps. Appended
+// as &ia=<type> for engines that support the parameter (StartPOZI, DuckDuckGo)
+// — see _applySearchType below and buildSearchUrl in renderer.js.
+const SEARCH_TYPES = ['web', 'images', 'video', 'news', 'maps'];
+ipcMain.handle('get-search-type', () => {
+  const t = readStorage().searchType;
+  return SEARCH_TYPES.indexOf(t) !== -1 ? t : 'web';
+});
+ipcMain.handle('set-search-type', (_, t) => {
+  storage.update(function (s) {
+    if (SEARCH_TYPES.indexOf(t) !== -1 && t !== 'web') s.searchType = t;
+    else delete s.searchType; // 'web' = default = no parameter
+  });
+  try {
+    _allShells().forEach(function (sh) {
+      try { sh.webContents.send('search-settings-changed'); } catch(e) {}
+    });
+  } catch(e) {}
+  return { success: true };
+});
+
+// ===== Onion search engines (Tor) =====
+// When Tor is active and the user did not opt out (settings.searchOnionMaps),
+// search engines that have .onion mirrors are used through them, so the
+// search traffic never leaves the Tor network via a clearnet engine host.
+// Resolution is HOSTNAME-based (not exact-URL): the StartPOZI engine exists
+// under TWO clearnet domains (startpozi.com and the netlify.app deploy) and
+// either may be stored in settings — both must map to the same onion mirror.
+const SEARCH_ONION_MIRRORS = {
+  startpozi: 'http://stpozb3hldo6gj2t7c5z57slmqitig2nb4sbeioiqfzdcm63ilcnhlid.onion/search.html?q=',
+  // NOTE: DuckDuckGo rotates its onion address. Current official one
+  // (user-verified); the older …j7i5hxk…cznjc3jlad address is retired.
+  duckduckgo: 'https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q='
+};
+function _onionEngineFor(engineUrl) {
+  try {
+    var h = new URL(engineUrl).hostname.toLowerCase().replace(/^www\./, '');
+    if (h === 'startpozi.com' || h === 'startpozi.netlify.app' || h.endsWith('.startpozi.com') || h.endsWith('.startpozi.netlify.app')) {
+      return { key: 'startpozi', url: SEARCH_ONION_MIRRORS.startpozi };
+    }
+    if (h === 'duckduckgo.com' || h.endsWith('.duckduckgo.com')) {
+      return { key: 'duckduckgo', url: SEARCH_ONION_MIRRORS.duckduckgo };
+    }
+  } catch(e) {}
+  return null;
+}
+// Network-level Tor exit detection. Config-based detection above misses
+// setups where traffic egresses through Tor without an obvious local proxy
+// (transparent Tor router, VPN over Tor, torsocks, …). check.torproject.org
+// answers whether the REQUEST's exit IP is a Tor exit node — net.fetch goes
+// through the session proxy, so every form of Tor shows up. The check runs
+// in the BACKGROUND (never blocking a search) behind a TTL cache; when the
+// answer flips, the shells are told to re-read the effective search engine.
+// Gated by the Security → External services → diagnostics toggle.
+var _torExitCheck = { isTor: false, at: 0 };
+var TOR_EXIT_CHECK_TTL = 5 * 60 * 1000;
+function _broadcastSearchSettings() {
+  try {
+    _allShells().forEach(function (sh) {
+      try { sh.webContents.send('search-settings-changed'); } catch(e) {}
+    });
+  } catch(e) {}
+}
+function _maybeRefreshTorExitCheck() {
+  var now = Date.now();
+  if (_torExitCheck.at && now - _torExitCheck.at < TOR_EXIT_CHECK_TTL) return;
+  if (!_svcEnabled('diagnosticsEnabled')) return;
+  _torExitCheck.at = now; // claim the slot to prevent parallel checks
+  var settled = false;
+  var timer = setTimeout(function() { if (!settled) { settled = true; _torExitCheck.at = 0; } }, 12000);
+  try {
+    require('electron').net.fetch(EXTERNAL_SERVICES.torCheck, { cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (settled) return;
+        settled = true; clearTimeout(timer);
+        var was = _torExitCheck.isTor;
+        _torExitCheck.isTor = !!(j && j.IsTor);
+        if (was !== _torExitCheck.isTor) _broadcastSearchSettings();
+      })
+      .catch(function() { if (!settled) { settled = true; clearTimeout(timer); _torExitCheck.at = 0; } });
+  } catch(e) { if (!settled) { settled = true; clearTimeout(timer); _torExitCheck.at = 0; } }
+}
+function _torExitDetected() { return _torExitCheck.isTor === true; }
+
+// === Onion mirror probes (per mirror) ===
+// Some setups have no local tor SOCKS but their provider still routes .onion
+// (a transparent gateway that ENTERS the Tor network, …). And conversely: a
+// WORKING tor route does not imply every onion is reachable — some daemons
+// cannot reach specific onions (observed in the wild with DuckDuckGo's).
+// Therefore each mirror is probed SEPARATELY, and an engine only switches to
+// a mirror that was probed reachable through the CURRENT network path
+// (net.fetch uses the session proxy). Probes are background with a TTL cache.
+var ONION_MIRROR_PROBE_URLS = {
+  startpozi: SEARCH_ONION_MIRRORS.startpozi.replace('/search.html?q=', '/favicon.ico'),
+  duckduckgo: SEARCH_ONION_MIRRORS.duckduckgo.replace('/?q=', '/favicon.ico')
+};
+var _onionMirrorProbe = {
+  startpozi: { ok: false, at: 0, done: false },
+  duckduckgo: { ok: false, at: 0, done: false }
+};
+var ONION_PROBE_TTL = 10 * 60 * 1000;
+function _probeOneOnionMirror(name) {
+  var p = _onionMirrorProbe[name];
+  var now = Date.now();
+  if (p.at && now - p.at < ONION_PROBE_TTL) return;
+  p.at = now;
+  var settled = false;
+  var finish = function(ok) {
+    if (settled) return;
+    settled = true;
+    var was = p.done && p.ok;
+    p.ok = !!ok;
+    p.done = true;
+    if (ok) {
+      if (!was) _broadcastSearchSettings();
+    } else {
+      // Transient failures (session proxy not applied yet at startup, a cold
+      // tor circuit, a momentary timeout) must NOT brand the mirror dead for
+      // the whole TTL — clear the timestamp so the next poll retries. Only a
+      // CONFIRMED reachable mirror is cached for the full TTL.
+      p.at = 0;
+    }
+  };
+  var timer = setTimeout(function() { finish(false); }, 8000);
+  try {
+    require('electron').net.fetch(ONION_MIRROR_PROBE_URLS[name], { cache: 'no-store', redirect: 'error' })
+      .then(function(r) { clearTimeout(timer); finish(r && r.status < 500); })
+      .catch(function() { clearTimeout(timer); finish(false); });
+  } catch(e) { clearTimeout(timer); finish(false); }
+}
+function _maybeProbeOnionMirrors() {
+  _probeOneOnionMirror('startpozi');
+  _probeOneOnionMirror('duckduckgo');
+}
+// Was at least one mirror probed reachable? (.onion is routable at all)
+function _onionProbeOk() {
+  return (_onionMirrorProbe.startpozi.done && _onionMirrorProbe.startpozi.ok) ||
+         (_onionMirrorProbe.duckduckgo.done && _onionMirrorProbe.duckduckgo.ok);
+}
+// .onion is usable right now: a local tor SOCKS route, or a probed
+// onion-capable path.
+function _onionCapable() {
+  if (_torActiveNow()) return true;
+  return _onionProbeOk();
+}
+
+function _torActiveNow() {
+  if (!_proxySettings || !_proxySettings.enabled || !_proxySettings.host) return false;
+  // Manual "Tor (SOCKS5)" proxy config (Settings → Proxy → type 'tor').
+  if (_proxySettings.type === 'tor') return true;
+  if (_proxySettings.type === 'socks5') {
+    var h = String(_proxySettings.host || '').toLowerCase();
+    var p = String(_proxySettings.port || '');
+    var isLocal = (h === '127.0.0.1' || h === 'localhost' || h === '::1');
+    // Built-in Tor (Settings → "start Tor"): tor-start stores the connection
+    // as a plain socks5 proxy on the local tor port — recognized by the
+    // running tor process AND the port match.
+    if (_torProcess && p === String(_torPort)) return true;
+    // System Tor configured manually as plain SOCKS5 on a canonical Tor port
+    // (9050 = tor daemon, 9150 = Tor Browser). The user's own tor setup must
+    // get onion search engines too, even though the browser did not spawn it.
+    if (isLocal && (p === '9050' || p === '9150')) return true;
+  }
+  return false;
+}
+// The engine the address bar should ACTUALLY use right now: the clearnet one,
+// or its onion mirror — but ONLY the mirror that was PROBED reachable through
+// the current path. A working tor route does not imply every onion is
+// reachable (some daemons cannot reach specific onions — e.g. DuckDuckGo's);
+// switching to a dead mirror makes every search ERR_SOCKS_CONNECTION_FAILED.
+function _effectiveSearchEngine() {
+  var url = readStorage().searchEngine || 'https://startpozi.com/search.html?q=';
+  if (readStorage().searchOnionMaps === false) return url;
+  var m = _onionEngineFor(url);
+  if (!m) return url;
+  var p = _onionMirrorProbe[m.key];
+  if (p.done && p.ok) return m.url;
+  return url; // mirror unproven or unreachable → keep the clearnet engine
+}
+ipcMain.handle('get-effective-search-engine', () => {
+  _maybeRefreshTorExitCheck(); // background, non-blocking
+  _maybeProbeOnionMirrors();   // background, non-blocking
+  return _effectiveSearchEngine();
+});
+ipcMain.handle('get-search-onion-maps', () => readStorage().searchOnionMaps !== false);
+ipcMain.handle('set-search-onion-maps', (_, on) => {
+  storage.update(function (s) {
+    if (on === false) s.searchOnionMaps = false;
+    else delete s.searchOnionMaps; // default: enabled
+  });
+  try {
+    _allShells().forEach(function (sh) {
+      try { sh.webContents.send('search-settings-changed'); } catch(e) {}
+    });
+  } catch(e) {}
+  return { success: true };
+});
+
+// Builds the full search URL for a query, appending the default search type
+// for engines that support the &ia= vertical parameter.
+function _applySearchType(engineUrl, query, type) {
+  var url = engineUrl + encodeURIComponent(query);
+  if (!type || type === 'web') return url;
+  var e = String(engineUrl);
+  // IMPORTANT: DuckDuckGo resets a bare "&ia=<type>" to "ia=web" with its own
+  // JS right after load — only the canonical per-vertical forms survive
+  // (verified empirically): images → iax, videos → iax, news → iar,
+  // maps → iaxm (all plus "&ia=<type>").
+  if (e.indexOf('duckduckgo') !== -1) {
+    switch (type) {
+      case 'images': url += '&iax=images&ia=images'; break;
+      case 'video':  url += '&iax=videos&ia=videos'; break;
+      case 'news':   url += '&iar=news&ia=news'; break;
+      case 'maps':   url += '&iaxm=maps&ia=maps'; break;
+    }
+  } else if (e.indexOf('startpozi') !== -1 || e.indexOf('.onion') !== -1) {
+    // StartPOZI search honours the plain "&ia=<type>" form — including its
+    // .onion mirror (the only other onion-mapped engine is DuckDuckGo above).
+    url += '&ia=' + type;
+  }
+  return url;
+}
 
 // ============== EXTERNAL SERVICES ==============
 // Every third-party endpoint the browser can talk to, in one place. Each
@@ -3534,6 +3877,38 @@ ipcMain.handle('mark-welcomed', () => {
   return { success: true };
 });
 
+// ============== DONATION SUPPORT PROMPT ==============
+// settings.json → donatePrompt: { launches, lastShown, never, supported }.
+// launches is incremented ONCE per app start (see whenReady); the renderer
+// decides when to actually show the card (not before the 3rd launch, ≥3 days
+// apart, ~1 of 4 launches) — see initDonatePrompt in renderer.js.
+ipcMain.handle('get-donate-prompt-state', () => {
+  const d = readStorage().donatePrompt || {};
+  return {
+    launches: d.launches || 0,
+    lastShown: d.lastShown || 0,
+    never: d.never === true,
+    supported: d.supported === true,
+    forceNext: d.forceNext === true
+  };
+});
+ipcMain.handle('set-donate-prompt-shown', () => {
+  storage.update(function (s) {
+    if (!s.donatePrompt) s.donatePrompt = {};
+    s.donatePrompt.lastShown = Date.now();
+    delete s.donatePrompt.forceNext; // one-shot
+  });
+  return { success: true };
+});
+ipcMain.handle('set-donate-prompt-choice', (_, opts) => {
+  storage.update(function (s) {
+    if (!s.donatePrompt) s.donatePrompt = {};
+    if (opts && opts.never) s.donatePrompt.never = true;
+    if (opts && opts.supported) s.donatePrompt.supported = true;
+  });
+  return { success: true };
+});
+
 // Called from Start.htm setup wizard — saves all settings at once
 ipcMain.handle('complete-setup', (_, settings) => {
   const store = readStorage();
@@ -3953,10 +4328,39 @@ ipcMain.handle('set-cert-exception', (_, domain, allow) => {
   if (allow) store.certExceptions[domain] = true;
   else delete store.certExceptions[domain];
   writeStorage(store);
-  // Refresh the in-memory cache so the verifier picks up the change without
+  // Refresh the shared in-memory cache so the verify procs of ALL sessions
+  // (default + incognito/container partitions) pick up the change without
   // re-reading settings.json on the next request.
-  try { _certExceptionsCache = store.certExceptions; } catch(e) {}
+  try { _certExceptionsCache = store.certExceptions || {}; } catch(e) { _loadCertExceptionsCache(); }
+  // Accepting clears the suspect-certificate state (no more interstitial for
+  // this host) and releases every held verification with an accept verdict,
+  // so the immediate retry after "Proceed" loads the site. Revoking drops
+  // held requests silently — never answer them with a rejection: the
+  // session-wide verdict cache would make the host unloadable until restart.
+  if (allow) {
+    if (Object.prototype.hasOwnProperty.call(_suspectCertHosts, domain)) {
+      delete _suspectCertHosts[domain];
+      _broadcastSuspectCerts();
+    }
+    _releaseHeldCerts(domain, true);
+  } else {
+    _releaseHeldCerts(domain, false);
+  }
   return { success: true };
+});
+
+// Renderer-side pre-navigation check (mirrors getHttpConsent in the plain-http
+// warning flow): should this https:// host be routed to security.html?
+ipcMain.handle('check-cert-warning', (_, host) => {
+  try {
+    if (!host || typeof host !== 'string') return { warn: false };
+    if (_certExceptionsCache === null) _loadCertExceptionsCache();
+    var hasException = !!(_certExceptionsCache && _certExceptionsCache[host] === true);
+    var reason = _suspectCertHosts[host] || '';
+    return { warn: !hasException && !!reason, reason: reason };
+  } catch(e) {
+    return { warn: false };
+  }
 });
 
 ipcMain.handle('get-cert-exceptions', () => {
@@ -7552,11 +7956,14 @@ ipcMain.on('show-context-menu', (event, params) => {
 
   if (params.selectionText) {
     var store = readStorage();
-    var searchUrl = store.searchEngine || 'https://startpozi.netlify.app/search.html?q=';
-    var searchName = getSearchEngineName(searchUrl);
+    // Effective engine: switches to the .onion mirror when Tor is active
+    // (unless the user disabled onion search engines).
+    var searchUrl = _effectiveSearchEngine();
+    var searchName = getSearchEngineName(store.searchEngine || searchUrl);
+    var searchType = (SEARCH_TYPES.indexOf(store.searchType) !== -1) ? store.searchType : 'web';
     template.push({ label: t('Copy selection'), accelerator: 'CmdOrCtrl+C', click: function() { clipboard.writeText(params.selectionText); } });
     template.push({ label: t('Search in') + ' ' + searchName, click: function() {
-      shell.webContents.send('open-in-new-tab', searchUrl + encodeURIComponent(params.selectionText));
+      shell.webContents.send('open-in-new-tab', _applySearchType(searchUrl, params.selectionText, searchType));
     }});
   }
 
@@ -8234,6 +8641,20 @@ async function applyProxyToSession() {
     });
   } catch(e) {}
   await Promise.all(promises);
+  // Proxy state changed → the effective (clearnet vs .onion) search engine
+  // may have changed too; tell the shells to re-read it, and re-probe the
+  // Tor exit and onion reachability (the traffic path just changed, cached
+  // answers are stale).
+  _torExitCheck.at = 0;
+  _maybeRefreshTorExitCheck();
+  _onionMirrorProbe.startpozi.at = 0;
+  _onionMirrorProbe.duckduckgo.at = 0;
+  _maybeProbeOnionMirrors();
+  try {
+    _allShells().forEach(function (sh) {
+      try { sh.webContents.send('search-settings-changed'); } catch(e) {}
+    });
+  } catch(e) {}
 }
 
 // Called from web-contents-created for EVERY new webview — applies
@@ -8829,18 +9250,28 @@ ipcMain.handle('get-snowflake-preset', async function() {
 // IPC: call when the user opens a .onion site.
 // Returns { applied: bool, info, needsRestart: bool, reason: string }.
 // host-resolver-rules (MAP * ~NOTFOUND) can only be set at process start.
-// If it wasn't set (Tor wasn't running at startup), .onion won't work without restart.
 ipcMain.handle('ensure-tor-for-onion', async function() {
   try {
-    var hasDnsFlag = app.commandLine.hasSwitch('host-resolver-rules');
-    // Proxy already enabled and working?
+    // Proxy already enabled and working? .onion needs no special DNS setup —
+    // Chromium hands .onion hostnames to the SOCKS5 proxy (SOCKS5h), which
+    // tor resolves. (Previously this returned needsRestart when the startup
+    // host-resolver-rules flag was absent — a false alarm: the flag exists to
+    // suppress DNS leaks in hardened mode, not to make .onion work.)
     if (_proxySettings && _proxySettings.enabled && _proxySettings.host) {
-      // If host-resolver-rules is set → .onion works. If not → need restart.
-      return { applied: false, needsRestart: !hasDnsFlag, reason: 'Proxy already configured' };
+      return { applied: false, needsRestart: false, reason: 'Proxy already configured' };
     }
-    // Did the user explicitly disable the proxy?
+    // No proxy configured, but the provider itself delivers .onion (probed):
+    // nothing to set up — navigate without the "Tor not found" warning.
+    _maybeProbeOnionMirrors();
+    if (_onionProbeOk()) {
+      return { applied: false, needsRestart: false, reason: 'Proxy already configured' };
+    }
+    // Did the user EXPLICITLY disable the proxy? Only when a real proxy was
+    // configured before (a non-empty host) — a reset/default config
+    // (enabled:false, host:'') is NOT an opt-out and must fall through to
+    // auto-detection, so a running system tor gets picked up automatically.
     if (_proxySettings && _proxySettings.enabled === false &&
-        _proxySettings.host !== undefined) {
+        _proxySettings.host) {
       return { applied: false, needsRestart: false, reason: 'Proxy disabled by user' };
     }
     // Proxy not configured — look for Tor
@@ -8973,7 +9404,13 @@ app.on('before-quit', function() {
 });
 
 ipcMain.handle('get-proxy-settings', function() {
-  return _proxySettings;
+  var r = Object.assign({}, _proxySettings);
+  // Computed flags (used by diagnostics/tests): does the current state count
+  // as "Tor active", and is .onion actually routable (local SOCKS or a
+  // probed onion-capable provider)?
+  r.torActive = _torActiveNow() || _torExitDetected();
+  r.onionCapable = _onionCapable();
+  return r;
 });
 
 function _sanitizeProxyHost(h) {
@@ -9550,8 +9987,16 @@ var _MAIN_WORLD_PICKER_CODE = `
       var t = e.target;
       if (!t || t === overlay || t === hint) return;
       var sel = buildSelector(t);
-      if (sel) done({ domain: window.location.hostname, selector: sel });
-      else done(null);
+      if (sel) { done({ domain: window.location.hostname, selector: sel }); return; }
+      // Unselectable target (the html/body root or the bare page background
+      // produce an empty selector). Do NOT close the picker here: silently
+      // vanishing on a stray click looks like "the zapper stopped working".
+      // Flash the hint so the user knows the click was seen but ignored.
+      try {
+        hint.style.transition = 'opacity .12s';
+        hint.style.opacity = '0.25';
+        setTimeout(function(){ try { hint.style.opacity = '1'; } catch(e2){} }, 200);
+      } catch(e2) {}
     }
     function key(e){
       if (!e.isTrusted) return;
@@ -9781,6 +10226,9 @@ ipcMain.handle('settings-apply-imported', function(_, data) {
     });
     writeStorage(current);
     if (_keyBindings) _loadKeybindings();
+    // Imported settings may replace certExceptions wholesale — refresh the
+    // shared verify-proc cache so exception changes take effect immediately.
+    try { _loadCertExceptionsCache(); } catch(e) {}
     try { applySecuritySettings(); } catch(e) {}
     return { success: true };
   } catch(e) {

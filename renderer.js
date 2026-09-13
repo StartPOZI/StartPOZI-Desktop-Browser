@@ -230,6 +230,32 @@ var _tabPreviewTimer = null;
 
 // ============== GLOBAL SETTINGS (loaded at startup) ==============
 let searchEngineUrl = 'https://www.google.com/search?q=';
+// Default search vertical (web | images | video | news | maps). Appended to
+// searches as &ia=<type> for engines that support it (StartPOZI, DuckDuckGo).
+var _searchType = 'web';
+// Builds a search URL for a query, applying the default search type where the
+// engine supports search verticals (mirrors _applySearchType in main.js).
+// DuckDuckGo resets a bare "&ia=<type>" to web via its own JS — only the
+// canonical per-vertical forms survive there (iax=images / iax=videos /
+// iar=news / iaxm=maps, each with &ia=<type>).
+function buildSearchUrl(q) {
+  var url = searchEngineUrl + encodeURIComponent(q);
+  if (!_searchType || _searchType === 'web') return url;
+  var e = String(searchEngineUrl);
+  if (e.indexOf('duckduckgo') !== -1) {
+    switch (_searchType) {
+      case 'images': url += '&iax=images&ia=images'; break;
+      case 'video':  url += '&iax=videos&ia=videos'; break;
+      case 'news':   url += '&iar=news&ia=news'; break;
+      case 'maps':   url += '&iaxm=maps&ia=maps'; break;
+    }
+  } else if (e.indexOf('startpozi') !== -1 || e.indexOf('.onion') !== -1) {
+    // StartPOZI — including its .onion mirror (the only other onion-mapped
+    // engine, DuckDuckGo, is handled above).
+    url += '&ia=' + _searchType;
+  }
+  return url;
+}
 let currentTheme = 'dark';
 var _urlBarFullUrl = '';
 var _urlBarRevealed = false;
@@ -1364,12 +1390,40 @@ urlInput.addEventListener('focus', function() {
   }
 });
 
-// Load search engine setting
+// Load search engine setting. searchEngineUrl tracks the EFFECTIVE engine:
+// when Tor is active (and the user did not disable onion search engines),
+// engines with .onion mirrors are used through them (see
+// _effectiveSearchEngine in main.js). Refreshed on every proxy/settings
+// change and polled, so enabling Tor switches searches to .onion promptly.
 (function loadSearchEngine() {
-  if (window.electronAPI && window.electronAPI.getSearchEngine) {
-    window.electronAPI.getSearchEngine().then(function(url) {
-      if (url) searchEngineUrl = url;
-    }).catch(function() {});
+  function reloadEngine() {
+    if (window.electronAPI && window.electronAPI.getEffectiveSearchEngine) {
+      window.electronAPI.getEffectiveSearchEngine().then(function(url) {
+        if (url) searchEngineUrl = url;
+      }).catch(function() {});
+    } else if (window.electronAPI && window.electronAPI.getSearchEngine) {
+      window.electronAPI.getSearchEngine().then(function(url) {
+        if (url) searchEngineUrl = url;
+      }).catch(function() {});
+    }
+  }
+  function reloadType() {
+    if (window.electronAPI && window.electronAPI.getSearchType) {
+      window.electronAPI.getSearchType().then(function(tp) {
+        if (tp) _searchType = tp;
+      }).catch(function() {});
+    }
+  }
+  reloadEngine();
+  reloadType();
+  setInterval(function() { reloadEngine(); }, 10000);
+  // Live-update when the engine/type/onion preference or the proxy state
+  // changes (no browser restart needed).
+  if (window.electronAPI && window.electronAPI.onSearchSettingsChanged) {
+    window.electronAPI.onSearchSettingsChanged(function() {
+      reloadEngine();
+      reloadType();
+    });
   }
 })();
 
@@ -2185,23 +2239,51 @@ function createNewTab(url, lazy, opts) {
   webview.addEventListener('did-start-navigation', function(e) {
     if (!e || e.isMainFrame === false) return;
     var target = e && e.url;
-    if (!target || target.indexOf('http://') !== 0) return;
-    var host = '';
-    try { host = new URL(target).hostname; } catch(_) {}
-    if (_isLocalHostname(host)) return;
-    // Async consent check.
-    if (window.electronAPI && window.electronAPI.getHttpConsent) {
-      window.electronAPI.getHttpConsent(host).then(function(allowed) {
-        if (allowed) return;
-        // No prior consent — switch the webview to the security page.
-        // NOTE: do not call webview.stop() here. Setting .src to a different
-        // URL already cancels the in-flight navigation; calling stop() right
-        // before it leaves the page in a half-loaded state ("about:blank").
+    if (!target) return;
+    if (target.indexOf('http://') === 0) {
+      var host = '';
+      try { host = new URL(target).hostname; } catch(_) {}
+      if (_isLocalHostname(host)) return;
+      // Async consent check.
+      if (window.electronAPI && window.electronAPI.getHttpConsent) {
+        window.electronAPI.getHttpConsent(host).then(function(allowed) {
+          if (allowed) return;
+          // No prior consent — switch the webview to the security page.
+          // NOTE: do not call webview.stop() here. Setting .src to a different
+          // URL already cancels the in-flight navigation; calling stop() right
+          // before it leaves the page in a half-loaded state ("about:blank").
+          tabData._lastFailedUrl = target;
+          var secUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
+            '?url=' + encodeURIComponent(target) +
+            '&reason=http';
+          webview.src = secUrl;
+          if (tabId === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(target); }
+        }).catch(function() {});
+      }
+      return;
+    }
+    // Suspect https host — a certificate problem was recorded for it this
+    // session and the user has not accepted an exception yet. Warn BEFORE
+    // the page loads, exactly like the plain-http flow above. The check is
+    // async: on the very first visit the host usually becomes suspect only
+    // during the TLS handshake (the verify proc holds the verdict), and the
+    // global 'suspect-certs-changed' listener (see setupSuspectCertSwap)
+    // swaps the tab to the security page at that moment.
+    if (target.indexOf('https://') === 0 && window.electronAPI && window.electronAPI.checkCertWarning) {
+      var certHost = '';
+      try { certHost = new URL(target).hostname; } catch(_) {}
+      if (!certHost) return;
+      window.electronAPI.checkCertWarning(certHost).then(function(res) {
+        if (!res || !res.warn) return;
+        try { if (webview.isDestroyed && webview.isDestroyed()) return; } catch(_) { return; }
+        var cur = '';
+        try { cur = webview.src || ''; } catch(_) {}
+        if (cur !== target) return; // user navigated elsewhere meanwhile
         tabData._lastFailedUrl = target;
-        var secUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
+        var certSecUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
           '?url=' + encodeURIComponent(target) +
-          '&reason=http';
-        webview.src = secUrl;
+          '&reason=' + encodeURIComponent(res.reason || 'unknown');
+        webview.src = certSecUrl;
         if (tabId === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(target); }
       }).catch(function() {});
     }
@@ -3087,7 +3169,7 @@ function navigateTo(url, tabId) {
     if (/^localhost/i.test(url) || /^127\./.test(url) || /^192\.168\./.test(url) || /^10\./.test(url) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(url)) {
       finalUrl = 'http://' + url;
     } else {
-      finalUrl = searchEngineUrl + encodeURIComponent(url);
+      finalUrl = buildSearchUrl(url);
     }
   } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
     finalUrl = 'https://' + url;
@@ -3821,7 +3903,7 @@ newTabBtn.addEventListener('click', function() {
   window.electronAPI.onSuperDragAction(function(d) {
     if (!d || !d.payload) return;
     if (d.kind === 'text') {
-      createNewTab(searchEngineUrl + encodeURIComponent(d.payload), true);
+      createNewTab(buildSearchUrl(d.payload), true);
     } else if (d.kind === 'link') {
       try { var u = new URL(d.payload); if (u.protocol === 'http:' || u.protocol === 'https:') createNewTab(u.href, true); } catch(e) {}
     } else if (d.kind === 'image') {
@@ -4030,6 +4112,164 @@ window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TA
 // MainPage/index.html which opens as a tab in initTabs().
 (function initWelcomeTour() {
   // disabled — Start.htm handles onboarding now
+})();
+
+// ====== Donation support prompt ======
+// A small card that appears SOMETIMES on startup in the primary window:
+//   • never before the 3rd launch,
+//   • at least 3 days between shows,
+//   • ~1 of 4 launches (randomized),
+//   • never again after "Больше не показывать" / after the user supported.
+// State lives in settings.json → donatePrompt (see main.js handlers).
+(function initDonatePrompt() {
+  if (!window.electronAPI || !window.electronAPI.getDonatePromptState) return;
+  // Only the primary window shows it — not incognito/secondary shells.
+  if (window._canSaveSession === false) return;
+
+  var DONATE_URL = 'https://startpozi.com/s/donate.html';
+  var MIN_LAUNCHES = 3;
+  var MIN_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+  var SHOW_CHANCE = 0.25; // ~1 of 4 launches
+
+  var L10N = {
+    ru: {
+      title: 'Поддержите StartPOZI',
+      text: 'Браузер развивается независимо и остаётся бесплатным. Если StartPOZI вам нравится — поддержите проект любой суммой.',
+      support: 'Поддержать проект',
+      later: 'Позже',
+      never: 'Больше не показывать'
+    },
+    en: {
+      title: 'Support StartPOZI',
+      text: 'The browser is developed independently and stays free. If you like StartPOZI, consider supporting the project with any amount.',
+      support: 'Support the project',
+      later: 'Later',
+      never: "Don't show again"
+    }
+  };
+
+  // Do not bother the user right at login — give the session ~10s to settle.
+  setTimeout(function() {
+    window.electronAPI.getDonatePromptState().then(function(st) {
+      try {
+        if (!st || st.never || st.supported) return;
+        if ((st.launches || 0) < MIN_LAUNCHES) return;
+        if (st.lastShown && (Date.now() - st.lastShown) < MIN_INTERVAL_MS) return;
+        // forceNext (set manually in settings.json) bypasses the random gate —
+        // handy for previewing the card without waiting for the schedule.
+        if (st.forceNext !== true && Math.random() >= SHOW_CHANCE) return;
+        showDonateCard();
+      } catch(e) {}
+    }).catch(function() {});
+  }, 10000);
+
+  function showDonateCard() {
+    var lang = 'en';
+    var getLang = window.electronAPI && window.electronAPI.getLanguage;
+    if (getLang) {
+      getLang().then(function(l) { try { render(l === 'ru' ? 'ru' : 'en'); } catch(e) { render('en'); } }).catch(function() { render('en'); });
+    } else {
+      render('en');
+    }
+  }
+
+  function render(lang) {
+    var t = L10N[lang] || L10N.en;
+
+    var card = document.createElement('div');
+    card.id = 'donate-prompt-card';
+    card.style.cssText =
+      'position:fixed;right:20px;bottom:20px;z-index:2147483000;max-width:330px;padding:18px 18px 14px;' +
+      'background:var(--bg-secondary,#2d2d2d);border:1px solid var(--border-color,#3d3d3d);border-radius:12px;' +
+      'box-shadow:0 10px 34px rgba(0,0,0,.45);font-family:inherit;color:var(--text-primary,#fff);' +
+      'opacity:0;transform:translateX(24px);transition:opacity .25s ease,transform .25s ease;';
+    document.body.appendChild(card);
+    // Mark as shown immediately so a quick "Позже" still enforces the cooldown.
+    if (window.electronAPI.setDonatePromptShown) window.electronAPI.setDonatePromptShown().catch(function() {});
+
+    // Header: heart icon + title
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+    var icon = document.createElement('div');
+    icon.style.cssText =
+      'flex:0 0 auto;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(226,74,101,.15);color:#e24a65;';
+    icon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:15px;font-weight:600;';
+    title.textContent = t.title;
+    head.appendChild(icon);
+    head.appendChild(title);
+    card.appendChild(head);
+
+    var text = document.createElement('div');
+    text.style.cssText = 'font-size:13px;line-height:1.5;color:var(--text-secondary,#aaa);margin-bottom:14px;';
+    text.textContent = t.text;
+    card.appendChild(text);
+
+    function closeCard() {
+      try {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(24px)';
+        setTimeout(function() { if (card.parentNode) card.parentNode.removeChild(card); }, 260);
+      } catch(e) {}
+      try { document.removeEventListener('keydown', onKey); } catch(e) {}
+    }
+    var onKey = function(e) { if (e.key === 'Escape') { e.preventDefault(); closeCard(); } };
+    document.addEventListener('keydown', onKey);
+
+    // Buttons
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+    var btnSupport = document.createElement('button');
+    btnSupport.textContent = t.support;
+    btnSupport.style.cssText =
+      'flex:1 1 auto;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;' +
+      'background:var(--primary-color,#1da1f2);color:#fff;';
+    btnSupport.addEventListener('mouseenter', function() { btnSupport.style.filter = 'brightness(1.12)'; });
+    btnSupport.addEventListener('mouseleave', function() { btnSupport.style.filter = ''; });
+    btnSupport.addEventListener('click', function() {
+      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
+        window.electronAPI.setDonatePromptChoice({ supported: true }).catch(function() {});
+      }
+      closeCard();
+      createNewTab(DONATE_URL);
+    });
+    var btnLater = document.createElement('button');
+    btnLater.textContent = t.later;
+    btnLater.style.cssText =
+      'flex:0 0 auto;padding:8px 14px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;cursor:pointer;' +
+      'font-size:13px;background:transparent;color:var(--text-primary,#fff);';
+    btnLater.addEventListener('mouseenter', function() { btnLater.style.background = 'var(--hover-bg,rgba(255,255,255,.08))'; });
+    btnLater.addEventListener('mouseleave', function() { btnLater.style.background = 'transparent'; });
+    btnLater.addEventListener('click', closeCard);
+    row.appendChild(btnSupport);
+    row.appendChild(btnLater);
+    card.appendChild(row);
+
+    var btnNever = document.createElement('button');
+    btnNever.textContent = t.never;
+    btnNever.style.cssText =
+      'margin-top:10px;padding:2px 0;border:none;background:none;cursor:pointer;font-size:11px;' +
+      'color:var(--text-secondary,#aaa);text-decoration:underline;';
+    btnNever.addEventListener('mouseenter', function() { btnNever.style.color = 'var(--text-primary,#fff)'; });
+    btnNever.addEventListener('mouseleave', function() { btnNever.style.color = 'var(--text-secondary,#aaa)'; });
+    btnNever.addEventListener('click', function() {
+      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
+        window.electronAPI.setDonatePromptChoice({ never: true }).catch(function() {});
+      }
+      closeCard();
+    });
+    card.appendChild(btnNever);
+
+    // Slide in
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        card.style.opacity = '1';
+        card.style.transform = 'translateX(0)';
+      });
+    });
+  }
 })();
 
 function getTabUrlForSave(tab) {
@@ -5094,7 +5334,7 @@ var _qcCommands = [
   }},
   { name: 'widget', desc: 'Widget mode (mini panel)', cat: 'misc', args: '', fn: function() { toggleQcWidget(); }},
   { name: 'settings', desc: 'Open settings section', cat: 'cfg', args: 'section', fn: function(a) {
-    var sections = ['search-engine','startup','scripts','customization','permissions','proxy','system-integration','profiles','blocker','security','optimization','paths','backup','hotkeys'];
+    var sections = ['main','search-engine','scripts','customization','permissions','proxy','system-integration','profiles','blocker','security','optimization','paths','backup','hotkeys'];
     var target = a && sections.indexOf(a) >= 0 ? a : '';
     createNewTab('Settings.html' + (target ? '#' + target : ''));
   }},
@@ -6175,7 +6415,49 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
   var abTotal = document.getElementById('abTotal');
   var abSiteName = document.getElementById('abSiteName');
   var abSiteToggle = document.getElementById('abSiteToggle');
+  var abStatusText = document.getElementById('abStatusText');
+  var abStatusStrip = document.getElementById('abStatusStrip');
+  var abPageBlocked = document.getElementById('abPageBlocked');
+  var abSettingsLink = document.getElementById('abPanelSettings');
   var abPanelOpen = false;
+  var _abEnabled = null; // last known global on/off state
+
+  // Classic button look: green when on, gray when off. Additionally synced
+  // at startup and every 5 s so toggling from Settings/hamburger is reflected
+  // without reopening this panel.
+  function setAbBtnState(on) {
+    _abEnabled = !!on;
+    if (!abBtn) return;
+    abBtn.style.color = _abEnabled ? '#28ca42' : '#666';
+    if (abStatusText) abStatusText.textContent = _abEnabled ? 'Enabled' : 'Disabled';
+    if (abStatusStrip) abStatusStrip.classList.toggle('off', !_abEnabled);
+  }
+
+  // Per-page blocked count for the CURRENT tab (shown in the panel).
+  function updateAbPageStats() {
+    if (!abPageBlocked) return;
+    var tab = tabs.find(function(t) { return t.id === activeTabId; });
+    if (!tab || !tab.webview || tab.isReady === false ||
+        !window.electronAPI || !window.electronAPI.adblockerGetPageStats) {
+      abPageBlocked.textContent = '0';
+      return;
+    }
+    var wcId = null;
+    try { wcId = tab.webview.getWebContentsId ? tab.webview.getWebContentsId() : null; } catch(e) {}
+    if (!wcId) { abPageBlocked.textContent = '0'; return; }
+    window.electronAPI.adblockerGetPageStats(wcId).then(function(r) {
+      abPageBlocked.textContent = String((r && r.stats && r.stats.blocked) || 0);
+    }).catch(function() {});
+  }
+  setInterval(function() { if (abPanelOpen) updateAbPageStats(); }, 1500);
+
+  function updateAbEnabled() {
+    if (!window.electronAPI || !window.electronAPI.adblockerIsEnabled) return;
+    window.electronAPI.adblockerIsEnabled().then(function(r) {
+      if (r && r.success) setAbBtnState(r.enabled);
+    }).catch(function() {});
+  }
+  setInterval(updateAbEnabled, 5000);
 
   function getActiveDomain() {
     var activeTab = tabs.find(function(t) { return t.id === activeTabId; });
@@ -6191,10 +6473,12 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     if (!window.electronAPI || !window.electronAPI.adblockerIsEnabled) return;
     window.electronAPI.adblockerIsEnabled().then(function(r) {
       if (!r || !r.success) return;
-      var on = r.enabled;
-      abBtn.style.color = on ? '#28ca42' : '#666';
-      if (abToggle) abToggle.checked = on;
+      setAbBtnState(r.enabled);
+      if (abToggle) abToggle.checked = r.enabled;
     }).catch(function() {});
+    // Bootstrap the page stats + button state before the first interval tick.
+    updateAbEnabled();
+    updateAbPageStats();
 
     var domain = getActiveDomain();
     if (abSiteName) abSiteName.textContent = domain || '—';
@@ -6225,11 +6509,48 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     });
   }
 
+  if (abSettingsLink) {
+    abSettingsLink.addEventListener('click', function() {
+      abPanelOpen = false;
+      abPanel.classList.remove('open');
+      createNewTab('Settings.html#blocker');
+    });
+  }
+
+  // "Report a problem" — external feedback form.
+  var abReport = document.getElementById('abReportIssue');
+  if (abReport) {
+    abReport.addEventListener('click', function() {
+      abPanelOpen = false;
+      abPanel.classList.remove('open');
+      createNewTab('https://startpoziblog.wordpress.com/feedback/');
+    });
+  }
+
+  // "Check this site" — StartPOZI site-check service with the current page
+  // URL appended (?url=<link>). On internal pages the service opens without
+  // a URL (it shows its own input there).
+  var abCheck = document.getElementById('abCheckSite');
+  if (abCheck) {
+    abCheck.addEventListener('click', function() {
+      var tab = tabs.find(function(t) { return t.id === activeTabId; });
+      var curUrl = '';
+      try { curUrl = (tab && tab.webview && tab.webview.getURL) ? tab.webview.getURL() : ''; } catch(e) {}
+      abPanelOpen = false;
+      abPanel.classList.remove('open');
+      var checkUrl = 'https://startpozi.com/VirInfoTest';
+      if (curUrl && /^https?:\/\//i.test(curUrl)) {
+        checkUrl += '?url=' + encodeURIComponent(curUrl);
+      }
+      createNewTab(checkUrl);
+    });
+  }
+
   if (abToggle) {
     abToggle.addEventListener('change', function() {
       if (window.electronAPI && window.electronAPI.adblockerToggle) {
         window.electronAPI.adblockerToggle(abToggle.checked).then(function() {
-          abBtn.style.color = abToggle.checked ? '#28ca42' : '#666';
+          setAbBtnState(abToggle.checked);
         });
       }
     });
@@ -8980,6 +9301,38 @@ document.addEventListener('dragover', function(e) {
     _tearHideHint();
   }
 }, true);
+
+// Suspect-certificate swap: when the main process records a certificate
+// problem for a host (the verify proc holds the verdict instead of rejecting
+// it — rejections are cached per session and would make a later "Proceed"
+// impossible), every tab currently navigating to that host is rerouted to the
+// security page BEFORE the content renders.
+(function setupSuspectCertSwap() {
+  if (window.electronAPI && window.electronAPI.onSuspectCertsChanged) {
+    window.electronAPI.onSuspectCertsChanged(function(hosts) {
+      try {
+        if (!hosts || typeof hosts !== 'object') return;
+        tabs.forEach(function(t) {
+          if (!t || !t.webview) return;
+          var u = '';
+          try { u = t.webview.src || ''; } catch(e) { return; }
+          if (!u || u.indexOf('https://') !== 0) return;
+          var h = '';
+          try { h = new URL(u).hostname; } catch(e) { return; }
+          if (!h || !Object.prototype.hasOwnProperty.call(hosts, h)) return;
+          // Already showing the security page for this host? (its src is a
+          // file:// URL then, so the https:// check above already skipped it)
+          t._lastFailedUrl = u;
+          var secUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
+            '?url=' + encodeURIComponent(u) +
+            '&reason=' + encodeURIComponent(hosts[h] || 'unknown');
+          try { t.webview.src = secUrl; } catch(e) {}
+          if (t.id === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(u); }
+        });
+      } catch(e) {}
+    });
+  }
+})();
 
 // ============== FILE DROP ON TAB STRIP ==============
 // Drag an HTML (or any viewable) file onto the tab bar to open it in a new

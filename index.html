@@ -221,15 +221,38 @@
       </div>
       <label class="ab-toggle"><input type="checkbox" id="abToggle" checked><span class="ab-slider"></span></label>
     </div>
+
+    <div class="ab-status" id="abStatusStrip">
+      <span class="ab-status-dot"></span>
+      <span class="ab-status-text" id="abStatusText">Enabled</span>
+    </div>
+
+    <div class="ab-section-label">This page</div>
+    <div class="ab-page-row">
+      <div class="ab-page-domain" id="abSiteName">—</div>
+      <div class="ab-page-count"><span class="ab-page-num" id="abPageBlocked">0</span><span class="ab-page-sub">blocked here</span></div>
+    </div>
+    <button class="ab-site-toggle" id="abSiteToggle">Disable for this site</button>
+
+    <div class="ab-section-label">This session</div>
     <div class="ab-panel-stats" id="abPanelStats">
       <div class="ab-stat"><span class="ab-stat-num" id="abBlocked">0</span><span class="ab-stat-label">Ads</span></div>
       <div class="ab-stat"><span class="ab-stat-num" id="abTrackers">0</span><span class="ab-stat-label">Trackers</span></div>
       <div class="ab-stat"><span class="ab-stat-num" id="abTotal">0</span><span class="ab-stat-label">Total</span></div>
     </div>
-    <div class="ab-panel-site" id="abPanelSite">
-      <span id="abSiteName">—</span>
-      <button class="ab-site-toggle" id="abSiteToggle">Disable for this site</button>
+
+    <div class="ab-panel-actions">
+      <button class="ab-action-btn" id="abReportIssue" title="Report a problem">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Report a problem
+      </button>
+      <button class="ab-action-btn" id="abCheckSite" title="Check this site">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        Check this site
+      </button>
     </div>
+
+    <button class="ab-panel-settings" id="abPanelSettings">Open in settings</button>
   </div>
 
   <!-- Autofill Panel -->

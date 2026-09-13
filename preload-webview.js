@@ -116,6 +116,10 @@ var _electronApi = {
   // Search Engine
   getSearchEngine: () => ipcRenderer.invoke('get-search-engine'),
   setSearchEngine: (url) => ipcRenderer.invoke('set-search-engine', url),
+  getSearchType: () => ipcRenderer.invoke('get-search-type'),
+  setSearchType: (t) => ipcRenderer.invoke('set-search-type', t),
+  getSearchOnionMaps: () => ipcRenderer.invoke('get-search-onion-maps'),
+  setSearchOnionMaps: (on) => ipcRenderer.invoke('set-search-onion-maps', on),
 
   // Startup
   getSaveTabs: () => ipcRenderer.invoke('get-save-tabs'),
@@ -145,6 +149,11 @@ var _electronApi = {
 
   // Blocked log
   getBlockedLog: () => ipcRenderer.invoke('get-blocked-log'),
+  // Persistent blocked-log toggle (Settings → Blocker). These were previously
+  // exposed only in the shell preload — the Settings page runs in a webview,
+  // so its guarded api.* calls silently no-opped and the toggle was dead.
+  getBlockerLogPersistent: () => ipcRenderer.invoke('get-blocker-log-persistent'),
+  setBlockerLogPersistent: (val) => ipcRenderer.invoke('set-blocker-log-persistent', val),
   clearBlockedLog: () => ipcRenderer.invoke('clear-blocked-log'),
 
   // Security settings
@@ -490,6 +499,9 @@ var _electronApi = {
   setKeybinding: (action, binding) => ipcRenderer.invoke('set-keybinding', action, binding),
   resetKeybindings: () => ipcRenderer.invoke('reset-keybindings'),
   setKeybindingRecording: (on) => ipcRenderer.send('keybinding-recording', on),
+  // Hotkeys overlay toggle (Settings → Hotkeys) — was shell-preload-only,
+  // leaving the overlay checkbox in Settings dead.
+  setHotkeysOverlay: (on) => ipcRenderer.invoke('set-hotkeys-overlay', on),
 
   // Session Guard — request for forced duplicate check
   sessionGuardScanAll: () => ipcRenderer.invoke('session-guard-scan'),
@@ -2569,6 +2581,17 @@ function _startElementPicker() {
     var t = e.target;
     if (t === overlay || t === hint) return;
     var sel = buildSelector(t);
+    if (!sel) {
+      // Unselectable target (html/body root / bare background). Keep the
+      // picker alive — silently closing on a stray click looks like the
+      // zapper stopped working. Flash the hint as feedback instead.
+      try {
+        hint.style.transition = 'opacity .12s';
+        hint.style.opacity = '0.25';
+        setTimeout(function() { try { hint.style.opacity = '1'; } catch(err) {} }, 200);
+      } catch(err) {}
+      return;
+    }
     _stopElementPicker();
     if (sel) {
       var domain = '';

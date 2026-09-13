@@ -1914,5 +1914,20 @@
   "Delete shortcut": "Удалить ярлык",
   "Enter a title": "Введите название",
   "Select an image": "Выберите изображение",
-  "Could not load widget": "Не удалось загрузить виджет"
+  "Could not load widget": "Не удалось загрузить виджет",
+  "Search type": "Настройки поисковика",
+  "Choose what is searched by default from the address bar and the selection context menu. Applies to search engines that support search categories (StartPOZI, DuckDuckGo); other engines always search the web.": "Что искать по умолчанию из адресной строки и контекстного меню выделения. Применяется к поисковикам с поддержкой категорий поиска (StartPOZI, DuckDuckGo); остальные всегда ищут по вебу.",
+  "Web": "Веб",
+  "Images": "Картинки",
+  "Videos": "Видео",
+  "News": "Новости",
+  "Maps": "Карты",
+  "Main": "Главное",
+  "This page": "На этой странице",
+  "This session": "За сессию",
+  "blocked here": "заблокировано",
+  "Report a problem": "Сообщить о проблеме",
+  "Check this site": "Проверить сайт",
+  "Onion search engines when Tor is active": "Onion-поиск при активном Tor",
+  "Search engines that have .onion mirrors (StartPOZI, DuckDuckGo) will be used through them while Tor is enabled, so search traffic stays inside the Tor network.": "Поисковики с .onion-зеркалами (StartPOZI, DuckDuckGo) будут использоваться через них, пока включён Tor — поисковый трафик не покидает сеть Tor."
 }

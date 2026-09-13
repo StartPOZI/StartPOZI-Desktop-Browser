@@ -64,6 +64,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Search Engine
   getSearchEngine: () => ipcRenderer.invoke('get-search-engine'),
   setSearchEngine: (url) => ipcRenderer.invoke('set-search-engine', url),
+  getSearchType: () => ipcRenderer.invoke('get-search-type'),
+  setSearchType: (t) => ipcRenderer.invoke('set-search-type', t),
+  getEffectiveSearchEngine: () => ipcRenderer.invoke('get-effective-search-engine'),
+  getSearchOnionMaps: () => ipcRenderer.invoke('get-search-onion-maps'),
+  setSearchOnionMaps: (on) => ipcRenderer.invoke('set-search-onion-maps', on),
+  onSearchSettingsChanged: (callback) => {
+    ipcRenderer.on('search-settings-changed', () => callback());
+  },
 
   searchSuggest: (query) => ipcRenderer.invoke('search-suggest', query),
 
@@ -89,6 +97,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setGeoOverride: (domain, coords) => ipcRenderer.invoke('set-geo-override', domain, coords),
   setCertException: (domain, allow) => ipcRenderer.invoke('set-cert-exception', domain, allow),
   getCertExceptions: () => ipcRenderer.invoke('get-cert-exceptions'),
+  // Suspect-certificate interstitial: pre-navigation check + change push
+  checkCertWarning: (host) => ipcRenderer.invoke('check-cert-warning', host),
+  onSuspectCertsChanged: (callback) => {
+    ipcRenderer.on('suspect-certs-changed', (_, hosts) => callback(hosts));
+  },
   setHttpConsent: (domain, allow) => ipcRenderer.invoke('set-http-consent', domain, allow),
   getHttpConsent: (domain) => ipcRenderer.invoke('get-http-consent', domain),
   getCookies: () => ipcRenderer.invoke('get-cookies'),
@@ -529,6 +542,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===== First-launch welcome tour =====
   isFirstLaunch: () => ipcRenderer.invoke('is-first-launch'),
   markWelcomed: () => ipcRenderer.invoke('mark-welcomed'),
+
+  // Donation support prompt (shown sometimes on startup — see renderer.js)
+  getDonatePromptState: () => ipcRenderer.invoke('get-donate-prompt-state'),
+  setDonatePromptShown: () => ipcRenderer.invoke('set-donate-prompt-shown'),
+  setDonatePromptChoice: (opts) => ipcRenderer.invoke('set-donate-prompt-choice', opts),
 
   // ===== Vim-like управление =====
   getVimSettings: () => ipcRenderer.invoke('get-vim-settings'),

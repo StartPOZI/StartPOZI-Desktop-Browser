@@ -8,7 +8,10 @@ const path = require('path');
 // document-start into ALL frames, polls DOM mutations and applies extended
 // CSS selectors (:has(), :has-text()). Without it only late, main-frame
 // CSS injection is possible — too late for CMP cookie popups.
-const ADBLOCKER_PRELOAD_PATH = require.resolve('@cliqz/adblocker-electron-preload');
+// Vendored async-safe preload (see vendor/adblocker-preload.js — the library
+// one sendSync's at document-start, which kills in-flight navigations on
+// Electron 42 and leaves pages committed-but-empty).
+const ADBLOCKER_PRELOAD_PATH = path.join(__dirname, 'vendor', 'adblocker-preload.js');
 
 function getCacheDir() {
   const { app: electronApp } = require('electron');
@@ -654,20 +657,53 @@ var _ipcWired = false;
 function wireCosmeticsIpc() {
   if (_ipcWired) return;
   _ipcWired = true;
-  ipcMain.on('get-cosmetic-filters-first', function(event, url) {
-    if (!blocker || !enabled || isWhitelistedUrl(url)) {
-      // sendSync handler must always set returnValue; null = "not active"
-      event.returnValue = null;
-      return;
+  // ASYNC first-load cosmetics handler (invoked by vendor/adblocker-preload.js).
+  // Reimplemented from ElectronBlocker.onGetCosmeticFiltersFirst: the vendored
+  // preload calls this via ipcRenderer.invoke (never sendSync — a synchronous
+  // round-trip from a document-start preload re-enters the message loop while
+  // the webview is still committing its navigation and, on Electron 42, kills
+  // the in-flight load: the page ends up committed-but-empty with no <head>,
+  // <body> or title).
+  ipcMain.handle('get-cosmetic-filters-first-async', function(event, url) {
+    if (process.env.SPZ_ADB_DEBUG) console.log('[adbdbg] cosmetic-first-async CALLED for ' + String(url).slice(0, 60));
+    try {
+      if (!blocker || !enabled || isWhitelistedUrl(url)) return null;
+      var tldts = require('tldts-experimental');
+      var parsed = tldts.parse(url);
+      var res = blocker.getCosmeticsFilters({
+        domain: parsed.domain || '',
+        hostname: parsed.hostname || '',
+        url: url,
+        getBaseRules: true,
+        getInjectionRules: true,
+        getExtendedRules: true,
+        getRulesFromHostname: true,
+        getRulesFromDOM: false,
+      });
+      if (!res || res.active === false) return null;
+      // Safe here (async context, navigation already settled or settling):
+      // insert the cosmetic stylesheet and notify the preload.
+      try {
+        if (res.styles && res.styles.length > 0) {
+          event.sender.insertCSS(res.styles, { cssOrigin: 'user' });
+        }
+        event.sender.send('get-cosmetic-filters-response', {
+          active: true,
+          extended: res.extended || [],
+          styles: '',
+        });
+      } catch(e1) {}
+      return res.scripts || [];
+    } catch(e2) {
+      return null;
     }
-    blocker.onGetCosmeticFiltersFirst(event, url);
+  });
+  ipcMain.handle('is-mutation-observer-enabled-async', function() {
+    return !!(blocker && blocker.config && blocker.config.enableMutationObserver);
   });
   ipcMain.on('get-cosmetic-filters', function(event, url, msg) {
     if (!blocker || !enabled || isWhitelistedUrl(url)) return;
     blocker.onGetCosmeticFiltersUpdated(event, url, msg);
-  });
-  ipcMain.on('is-mutation-observer-enabled', function(event) {
-    event.returnValue = !!(blocker && blocker.config && blocker.config.enableMutationObserver);
   });
 }
 

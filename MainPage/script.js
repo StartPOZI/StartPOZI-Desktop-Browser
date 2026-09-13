@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ========== GENERAL WIDGET SYSTEM ==========
     const SEARCH_ENGINES = [
-        { name: 'StartPOZI',  url: 'https://startpozi.netlify.app/search.html?q=' },
+        { name: 'StartPOZI',  url: 'https://startpozi.com/search.html?q=' },
         { name: 'Google',     url: 'https://www.google.com/search?q=' },
         { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
         { name: 'Yandex',     url: 'https://yandex.ru/search/?text=' },

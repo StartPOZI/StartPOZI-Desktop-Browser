@@ -325,9 +325,35 @@ function _internalUrlToAbout(url) {
   return '';
 }
 
+// Is this URL a SEARCH ENGINE results page? On such pages the address bar
+// keeps the reveal "eye" (the full search URL is what the user may want to
+// inspect); everywhere else the eye is replaced by the bookmark button.
+function _isSearchEnginePage(url) {
+  if (!url || url.indexOf('http') !== 0) return false;
+  try {
+    var h = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    // The CONFIGURED engine (clearnet or its onion mirror)…
+    if (searchEngineUrl) {
+      try {
+        var eh = new URL(searchEngineUrl).hostname.toLowerCase().replace(/^www\./, '');
+        if (h === eh) return true;
+      } catch (e0) {}
+    }
+    // …plus the well-known engines, so switching the engine in Settings does
+    // not leave a stale eye on the previous engine's result pages.
+    return /(^|\.)google\.[a-z.]+$/.test(h) || h === 'yandex.com' || h.endsWith('.yandex.com') || h.endsWith('.yandex.ru') ||
+           h === 'bing.com' || h.endsWith('.bing.com') ||
+           h === 'duckduckgo.com' || h.endsWith('.duckduckgo.com') || h.endsWith('.duckduckgo.any') ||
+           h === 'startpozi.com' || h === 'startpozi.netlify.app' || h.endsWith('.startpozi.com') ||
+           h === 'stpozb3hldo6gj2t7c5z57slmqitig2nb4sbeioiqfzdcm63ilcnhlid.onion' ||
+           h === 'duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion';
+  } catch (e) { return false; }
+}
+
 function setUrlBarDisplay(url) {
   _urlBarFullUrl = url;
   var revealBtn = document.getElementById('urlRevealBtn');
+  var bmBtn = document.getElementById('urlBookmarkBtn');
 
   // Internal pages: never leak the local filesystem path. The bar is cleared
   // and the reveal "eye" button is hidden so it cannot be toggled to expose
@@ -336,9 +362,15 @@ function setUrlBarDisplay(url) {
   if (_isInternalPageUrl(url)) {
     urlInput.value = '';
     if (revealBtn) revealBtn.style.display = 'none';
+    if (bmBtn) bmBtn.style.display = 'none';
     return;
   }
-  if (revealBtn) revealBtn.style.display = '';
+  // Search-engine pages keep the "eye" (revealing the full search URL is
+  // useful there); every other page replaces it with the bookmark button.
+  var enginePage = _isSearchEnginePage(url);
+  if (revealBtn) revealBtn.style.display = enginePage ? '' : 'none';
+  if (bmBtn) bmBtn.style.display = enginePage ? 'none' : '';
+  if (bmBtn) _refreshBookmarkBtnState(url);
 
   var showText = '';
   if (_urlBarSearchText && _urlBarSearchTabId === activeTabId && url && url.indexOf('http') === 0) {
@@ -351,6 +383,178 @@ function setUrlBarDisplay(url) {
     urlInput.value = url;
     if (revealBtn) { if (_urlBarRevealed) revealBtn.classList.add('revealed'); else revealBtn.classList.remove('revealed'); }
   }
+}
+
+// ===== Address-bar bookmark button =====
+// Cache of bookmark URLs (drives the filled-star state).
+var _bmUrlCache = null;
+function _bmUrls() {
+  if (_bmUrlCache) return _bmUrlCache;
+  _bmUrlCache = new Set();
+  if (window.electronAPI && window.electronAPI.loadBookmarks) {
+    window.electronAPI.loadBookmarks().then(function(bm) {
+      var s = new Set();
+      (bm || []).forEach(function(b) { if (b && b.url && b.folder !== '__folder__') s.add(b.url); });
+      _bmUrlCache = s;
+      var btn = document.getElementById('urlBookmarkBtn');
+      if (btn) _refreshBookmarkBtnState(_urlBarFullUrl);
+    }).catch(function() {});
+  }
+  return _bmUrlCache;
+}
+function _refreshBookmarkBtnState(url) {
+  var btn = document.getElementById('urlBookmarkBtn');
+  if (!btn) return;
+  var urls = _bmUrls();
+  var bookmarked = !!(url && urls && urls.has && urls.has(url));
+  btn.classList.toggle('bookmarked', bookmarked);
+  btn.title = bookmarked ? 'Edit bookmark' : 'Add bookmark';
+}
+
+(function setupUrlBookmarkButton() {
+  var btn = document.getElementById('urlBookmarkBtn');
+  if (!btn) return;
+  _bmUrls(); // warm the cache at startup
+
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var tab = tabs.find(function(t) { return t.id === activeTabId; });
+    if (!tab || !tab.webview) return;
+    var url = '';
+    var title = '';
+    try {
+      url = tab.webview.getURL ? tab.webview.getURL() : (tab.webview.src || '');
+      title = tab.webview.getTitle ? tab.webview.getTitle() : '';
+    } catch (err) {}
+    if (!url || url.indexOf('http') !== 0) return;
+    _openBookmarkDialog(url, title || url);
+  });
+})();
+
+// Dialog: choose the bookmark NAME and the target FOLDER (folders come from
+// the bookmarks list — entries with folder === '__folder__'). If the URL is
+// bookmarked already, saving UPDATES it instead of adding a duplicate.
+function _openBookmarkDialog(url, defaultTitle) {
+  if (!window.electronAPI || !window.electronAPI.loadBookmarks) return;
+  window.electronAPI.loadBookmarks().then(function(bm) {
+    bm = bm || [];
+    var folders = bm.filter(function(b) { return b.folder === '__folder__'; });
+    var existing = bm.find(function(b) { return b.url === url && b.folder !== '__folder__'; });
+
+    var L = (window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru')
+      ? {
+          title: existing ? 'Изменить закладку' : 'Добавить закладку',
+          name: 'Название',
+          folder: 'Папка',
+          noFolder: 'Без папки',
+          save: 'Сохранить',
+          cancel: 'Отмена',
+          done: existing ? 'Закладка обновлена' : 'Закладка добавлена'
+        }
+      : {
+          title: existing ? 'Edit bookmark' : 'Add bookmark',
+          name: 'Name',
+          folder: 'Folder',
+          noFolder: 'No folder',
+          save: 'Save',
+          cancel: 'Cancel',
+          done: existing ? 'Bookmark updated' : 'Bookmark added'
+        };
+
+    // overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'bm-dialog-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;';
+    var card = document.createElement('div');
+    card.style.cssText =
+      'width:340px;max-width:90vw;padding:18px;border-radius:12px;background:var(--bg-secondary,#2d2d2d);' +
+      'border:1px solid var(--border-color,#3d3d3d);box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--text-primary,#fff);font-family:inherit;';
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    function closeDialog() {
+      try { document.removeEventListener('keydown', onKey); } catch(e) {}
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+    var onKey = function(e) { if (e.key === 'Escape') { e.preventDefault(); closeDialog(); } };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('mousedown', function(e) { if (e.target === overlay) closeDialog(); });
+
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:14px;font-weight:600;margin-bottom:14px;';
+    h.textContent = L.title + ' — ' + (function() { try { return new URL(url).hostname.replace(/^www\./, ''); } catch(e) { return url.slice(0, 24); } })();
+    card.appendChild(h);
+
+    function addLabel(text) {
+      var l = document.createElement('label');
+      l.style.cssText = 'display:block;font-size:11px;color:var(--text-secondary,#aaa);margin:10px 0 4px;';
+      l.textContent = text;
+      card.appendChild(l);
+      return l;
+    }
+    addLabel(L.name);
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = existing ? (existing.title || defaultTitle) : defaultTitle;
+    nameInput.style.cssText = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;background:var(--input-bg,rgba(0,0,0,.2));color:var(--text-primary,#fff);font-size:13px;outline:none;';
+    card.appendChild(nameInput);
+
+    if (folders.length > 0) {
+      addLabel(L.folder);
+      var sel = document.createElement('select');
+      sel.style.cssText = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;background:var(--input-bg,rgba(0,0,0,.2));color:var(--text-primary,#fff);font-size:13px;outline:none;';
+      var optNone = document.createElement('option');
+      optNone.value = '';
+      optNone.textContent = L.noFolder;
+      sel.appendChild(optNone);
+      folders.forEach(function(f) {
+        var o = document.createElement('option');
+        o.value = f.id;
+        o.textContent = f.title || '—';
+        if (existing && existing.folder === f.id) o.selected = true;
+        sel.appendChild(o);
+      });
+      card.appendChild(sel);
+    }
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:16px;';
+    function mkBtn(text, primary) {
+      var b = document.createElement('button');
+      b.textContent = text;
+      b.style.cssText =
+        'padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;' +
+        (primary
+          ? 'border:none;background:var(--primary-color,#1da1f2);color:#fff;font-weight:600;'
+          : 'border:1px solid var(--border-color,#3d3d3d);background:transparent;color:var(--text-primary,#fff);');
+      return b;
+    }
+    var btnCancel = mkBtn(L.cancel, false);
+    btnCancel.addEventListener('click', closeDialog);
+    var btnSave = mkBtn(L.save, true);
+    btnSave.addEventListener('click', function() {
+      var title = (nameInput.value || '').trim() || defaultTitle;
+      var folderId = (typeof sel !== 'undefined' && sel) ? sel.value : '';
+      var done = function() {
+        closeDialog();
+        _bmUrlCache = null; // invalidate
+        _bmUrls();
+        var b = document.getElementById('urlBookmarkBtn');
+        if (b) _refreshBookmarkBtnState(url);
+        if (typeof _showToast === 'function') _showToast(' ' + L.done);
+      };
+      if (existing && window.electronAPI.updateBookmark) {
+        window.electronAPI.updateBookmark(existing.id, { title: title, folder: folderId }).then(done).catch(done);
+      } else {
+        window.electronAPI.addBookmark({ url: url, title: title, folder: folderId }).then(done).catch(done);
+      }
+    });
+    row.appendChild(btnCancel);
+    row.appendChild(btnSave);
+    card.appendChild(row);
+    setTimeout(function() { nameInput.focus(); nameInput.select(); }, 30);
+  }).catch(function() {});
 }
 
 // Preload path for webviews — loaded asynchronously once
@@ -1735,7 +1939,7 @@ if (window.matchMedia) {
 // otherwise Google blocks sign-in ("This browser or app may not be secure").
 const platform = window.electronAPI ? window.electronAPI.platform : 'linux';
 // process.versions.chrome is available in the renderer with nodeIntegration via preload,
-// otherwise taken from navigator.userAgent (if already spoofed) or fallback 148.
+// or read from navigator.userAgent (if already spoofed) or fallback 148.
 let _chromeVer = '148.0.7778.96';
 try {
   if (typeof process !== 'undefined' && process.versions && process.versions.chrome) {
@@ -10485,7 +10689,8 @@ window._ttsToggle = function() {
         _ttsState.tabId = resumeTab;
         _ttsState.speaking = true;
         _ttsState.paused = false;
-        // engine resolution copied from _ttsStart
+        // engine preference: offline | system | auto (auto = system when
+        // voices are available, offline otherwise)
         var useOffline = _ttsEnginePref === 'offline' ? true :
           (_ttsEnginePref === 'system' ? false : !_ttsState.voices.length);
         _ttsState.engineMode = useOffline ? 'offline' : 'system';

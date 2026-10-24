@@ -72,9 +72,11 @@ function _bloatGuard(data) {
   // settings.json must stay small: a multi-MB file makes the browser sluggish
   // (it is still serialized on every write). Hard-cap the worst offenders.
   try {
-    // 1) blockedLog — limit to 200 entries.
-    if (Array.isArray(data.blockedLog) && data.blockedLog.length > 200) {
-      data.blockedLog = data.blockedLog.slice(-200);
+    // 1) blockedLog — limit to 2000 entries. (Was 200 while the adblocker
+    // writes up to 5000: storage silently truncated the persisted log on
+    // every write — the "keep block log" option lost all but 200 rows.)
+    if (Array.isArray(data.blockedLog) && data.blockedLog.length > 2000) {
+      data.blockedLog = data.blockedLog.slice(-2000);
     }
     // 2) Base64 background images can balloon to 250KB each and are often
     //    stored 2-3 times (customization + mainPage). De-duplicate identical

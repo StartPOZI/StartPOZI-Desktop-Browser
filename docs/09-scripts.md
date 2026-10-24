@@ -22,12 +22,12 @@ my-script.skit  (ZIP)
 | `author` | Нет | Имя автора |
 | `version` | Нет | Версия |
 | `description` | Нет | Описание (показывается в галерее) |
-| `type` | Нет | `js` (по умолчанию). `ts` и `py` — планируется |
-| `main` | Нет | Главный файл (по умолчанию `script.js`) |
+| `type` | Нет | `js` (единственный поддерживаемый тип) |
+| `main` | Нет | Главный файл (по умолчанию `script.js`; `.ts`/`.py` отклоняются при импорте) |
 | `match` | Нет | URL-шаблон (по умолчанию `*://*/*` — все сайты) |
 | `runAt` | Нет | Когда запускать: `document-start`, `document-end`, `document-idle` |
 | `runInFrames` | Нет | `true` — запускать в iframe |
-| `permissions` | Нет | Зарезервировано на будущее |
+| `permissions` | Нет | Массив возможностей: `storage`, `clipboard`, `notifications` (см. ниже) |
 
 Пример:
 ```json
@@ -40,7 +40,8 @@ my-script.skit  (ZIP)
   "main": "script.js",
   "match": "*://*.example.com/*",
   "runAt": "document-idle",
-  "runInFrames": false
+  "runInFrames": false,
+  "permissions": ["storage", "clipboard"]
 }
 ```
 
@@ -120,6 +121,29 @@ with zipfile.ZipFile("my-script.skit", "w", zipfile.ZIP_DEFLATED) as z:
 
 Скрипты НЕ имеют доступа к Node.js / Electron API (изолированы в webview).
 
+### Права (permissions) и объект SKit
+
+Если в `script.json` объявлен массив `permissions`, перед кодом скрипта создаётся
+объект `SKit` с гейтованными возможностями. Необъявленные права дают `null` —
+так галерея и пользователь заранее видят, что запрашивает пакет. Импорт пакета
+с неизвестным именем права или дубликатом отклоняется.
+
+| Право | API | Описание |
+|-------|-----|----------|
+| `storage` | `SKit.storage.get/set/remove(key, …)` | Именованное хранилище пакета с префиксом `skit:` в `localStorage` (пакеты не видят ключи друг друга) |
+| `clipboard` | `SKit.clipboard.writeText(text)` | Запись в буфер обмена через Clipboard API страницы |
+| `notifications` | `SKit.notifications.request()`, `SKit.notifications.show(title, opts)` | Запрос разрешения и показ браузерных уведомлений |
+
+Вспомогательные члены: `SKit.permissions` — массив объявленных прав, `SKit.has(name)` — проверка права.
+
+```javascript
+if (SKit.has('storage')) {
+  var n = parseInt(SKit.storage.get('runs') || '0', 10) + 1;
+  SKit.storage.set('runs', String(n));
+  console.log('run #' + n);
+}
+```
+
 ### Защита от повторного запуска
 
 Используйте флаг, чтобы скрипт не запускался дважды на одной странице:
@@ -133,7 +157,7 @@ with zipfile.ZipFile("my-script.skit", "w", zipfile.ZIP_DEFLATED) as z:
 
 ## Готовые скрипты
 
-В папке `docs/scripts/` находятся 5 готовых пакетов:
+В папке `docs/scripts/` находятся готовые пакеты (плюс `docs/build-extras.py` пересобирает расширенный пак):
 
 | Файл | Описание |
 |------|----------|
@@ -142,8 +166,23 @@ with zipfile.ZipFile("my-script.skit", "w", zipfile.ZIP_DEFLATED) as z:
 | `auto-translate.skit` | 🌐 Автоперевод иностранных страниц |
 | `reading-mode.skit` | 📖 Режим чтения без отвлекающих элементов |
 | `privacy-shield.skit` | 🛡️ Блокировка трекеров и fingerprinting |
+| `scroll-progress.skit` | 📊 Полоса прогресса прокрутки страницы |
+| `video-speed.skit` | ⏩ Скорость любого видео (0.25x–4x) кнопками −/+ |
+| `no-sticky.skit` | 📌 Открепляет «прилипающие» шапки сайтов |
+| `reading-font.skit` | 🅰 Комфортная книжная типографика статей |
+| `select-to-search.skit` | 🔍 Поиск выделенного текста в StartPOZI |
+| `toc-sidebar.skit` | 📑 Оглавление длинных статей по заголовкам |
+| `youtube-pure.skit` | ▶️ YouTube без Shorts/рекламы/автоперехода |
+| `x-clean.skit` | ✕ Чистая лента X/Twitter без промо |
+| `vk-clean.skit` | 🇷🇺 VK без рекламы в ленте |
+| `github-clean.skit` | 🐙 GitHub без промо-баннеров и футера |
+| `show-password.skit` | 👁 Кнопка «показать пароль» в полях входа |
+| `copy-code-button.skit` | 📋 Кнопка «Копировать» у блоков кода |
+| `selection-stats.skit` | 🔢 Счётчик символов и слов в выделении |
+| `wikipedia-wide.skit` | 📖 Широкая Википедия без баннеров |
 
-Пересобрать все пакеты: `python3 docs/scripts/build-skits.py`
+Пересобрать базовые пакеты: `python3 docs/scripts/build-skits.py`
+Пересобрать расширенный пак: `python3 docs/build-extras.py`
 
 ## Управление
 
@@ -157,3 +196,5 @@ with zipfile.ZipFile("my-script.skit", "w", zipfile.ZIP_DEFLATED) as z:
 - Скрипты выполняются в песочнице webview (без доступа к файловой системе)
 - Код не может вызывать Node.js / Electron API
 - `.skit` проверяется: архив без `script.json` отклоняется
+- Манифест `permissions` валидируется по белому списку (`storage`, `clipboard`, `notifications`) — пакет с неизвестными правами не устанавливается
+- Главный файл `.ts`/`.py` отклоняется при импорте с понятной ошибкой (раньше такой код молча исполнялся как JS и падал)

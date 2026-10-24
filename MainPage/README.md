@@ -1,14 +1,32 @@
-# KCE HTML View Widget
+# MainPage — стартовая страница StartPOZI Browser
 
-A regular Discord app with additional features and bypasses.
+Стартовая страница браузера (новая вкладка: `about:newtab` / `about:home`;
+внешние ссылки ОС могут приходить и через протокол `startpozi://newtab`) и её
+приватный вариант `IncognitoPage.html`.
 
+## Что здесь находится
 
-**Author:** tim4087
-**Contributors:** Claude (Anthropic)  
-**License:** GPL-3.0-or-later
+| Файл / папка | Назначение |
+|--------------|-----------|
+| `index.html` | Разметка стартовой страницы: обои, ярлыки, виджеты, мини-плеер, TODO |
+| `script.js` | Логика страницы: раскладка виджетов, ярлыки, поиск, настройки |
+| `style.css` | Стили страницы |
+| `IncognitoPage.html` | Упрощённая страница для режима инкогнито |
+| `Wallpaper/` | Наборы фонов: Abstraction, Nature, Photo, Space |
+| `Widgets/` | Плагины-виджеты в стиле Plasma (метаданные KPlugin) |
+
+## Виджеты
+
+Каждый виджет — папка в `Widgets/` с метаданными `metadata.json` и разметкой
+`.htm`. Доступны: аналоговые часы, цифровые часы/дата, мини-календарь, погода,
+цитата дня, media_upload.
+
+## Заметки по разработке
+
+- Скрипты стартовой страницы работают в контексте внутреннего `file://`-окна
+  браузера и не имеют доступа к привилегированному API произвольных страниц.
+- Ранние экспериментальные файлы (`MouseConfig.js`, `debug.js`, старые скриншоты
+  и `Readme.txt`) удалены при уборке репозитория.
 
 ---
-
-  © tim4087, 2026 - All rights are protected . 
-  
-  .
+© 2026 StartPOZI Project · GPL-3.0-or-later

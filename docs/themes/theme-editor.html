@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StartPOZI — Theme Editor</title>
+<style>
+:root{
+  --ed-bg:#14161c;--ed-panel:#1b1e26;--ed-card:#20242e;--ed-border:#2c313d;
+  --ed-text:#e8ebf2;--ed-dim:#8a93a6;--ed-accent:#1da1f2;--ed-ok:#28ca42;--ed-err:#ff453a;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--ed-bg);color:var(--ed-text);overflow:hidden;display:flex;flex-direction:column;user-select:none}
+button,input,select,textarea{font-family:inherit}
+button{cursor:pointer;border:none;background:none;color:inherit}
+a{color:var(--ed-accent)}
+
+#topbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--ed-panel);border-bottom:1px solid var(--ed-border);flex:none;flex-wrap:wrap}
+#topbar .title{font-size:16px;font-weight:700;margin-right:6px}
+#topbar .title span{color:var(--ed-accent)}
+.tbtn{padding:8px 16px;border-radius:9px;font-size:13px;font-weight:600;background:var(--ed-card);border:1px solid var(--ed-border);transition:background .15s,border-color .15s}
+.tbtn:hover{background:#262b37;border-color:#3a4150}
+.tbtn.primary{background:var(--ed-accent);border-color:var(--ed-accent);color:#fff}
+.tbtn.primary:hover{background:#4db1f7}
+#status{margin-left:auto;font-size:12px;color:var(--ed-dim);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#status.ok{color:var(--ed-ok)}#status.err{color:var(--ed-err)}
+
+#main{flex:1;display:flex;min-height:0}
+#controls{width:340px;flex:none;background:var(--ed-panel);border-right:1px solid var(--ed-border);overflow-y:auto;padding:14px}
+#previewCol{flex:1;display:flex;flex-direction:column;min-width:0}
+#previewWrap{flex:1;overflow:auto;padding:22px;display:flex;align-items:flex-start;justify-content:center;background:repeating-conic-gradient(#171a21 0% 25%, #13161c 0% 50%) 50%/22px 22px}
+#codeWrap{height:300px;flex:none;border-top:1px solid var(--ed-border);display:flex;flex-direction:column;background:var(--ed-panel)}
+#codeTabs{display:flex;gap:2px;padding:8px 12px 0;border-bottom:1px solid var(--ed-border)}
+.ctab{padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--ed-dim);border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none}
+.ctab.on{color:var(--ed-text);background:var(--ed-bg);border-color:var(--ed-border)}
+#cssCode{flex:1;width:100%;resize:none;border:none;outline:none;background:#10131a;color:#cfe3f5;
+  font-family:"Cascadia Mono",Consolas,monospace;font-size:12.5px;line-height:1.55;padding:12px 14px;white-space:pre;tab-size:2}
+#iconPanel{flex:1;overflow-y:auto;padding:12px 14px;background:#10131a;display:none}
+
+.grp{margin-bottom:16px;background:var(--ed-card);border:1px solid var(--ed-border);border-radius:12px;padding:12px 12px 6px}
+.grp>.ghead{font-size:11.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ed-dim);margin-bottom:10px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.grp>.ghead .mini{font-weight:600;letter-spacing:0;text-transform:none;color:var(--ed-accent);cursor:pointer}
+.crow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.crow label{flex:1;font-size:12.5px;color:var(--ed-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow input[type=color]{width:46px;height:26px;border:1px solid var(--ed-border);border-radius:6px;background:none;padding:1px;cursor:pointer;flex:none}
+.crow input[type=text]{width:88px;flex:none;background:#171b23;border:1px solid var(--ed-border);color:var(--ed-text);border-radius:6px;padding:4px 7px;font-size:12px;font-family:Consolas,monospace}
+.crow input[type=range]{flex:1;accent-color:var(--ed-accent)}
+.crow select{background:#171b23;border:1px solid var(--ed-border);color:var(--ed-text);border-radius:6px;padding:5px 8px;font-size:12.5px}
+.txtrow input[type=text]{width:100%;background:#171b23;border:1px solid var(--ed-border);color:var(--ed-text);border-radius:6px;padding:7px 9px;font-size:13px}
+.txtrow textarea{width:100%;background:#171b23;border:1px solid var(--ed-border);color:var(--ed-text);border-radius:6px;padding:7px 9px;font-size:12.5px;resize:vertical;min-height:48px}
+
+#iconGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.slot{border:1px dashed var(--ed-border);border-radius:10px;padding:8px 4px 6px;text-align:center;cursor:pointer;position:relative;transition:border-color .15s,background .15s}
+.slot:hover{border-color:var(--ed-accent);background:#191e28}
+.slot .ic{width:30px;height:30px;margin:0 auto 5px;border-radius:7px;background:#171b23;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.slot .ic img{width:20px;height:20px;object-fit:contain}
+.slot .nm{font-size:10px;color:var(--ed-dim);line-height:1.25}
+.slot.has{border-style:solid;border-color:var(--ed-ok)}
+.slot .del{position:absolute;top:2px;right:4px;color:var(--ed-err);font-size:12px;display:none}
+.slot.has .del{display:block}
+
+#mock{width:760px;max-width:100%;border-radius:14px;overflow:hidden;border:1px solid var(--border-color,#333);
+  box-shadow:0 18px 60px rgba(0,0,0,.5);flex:none;background:var(--bg-color,#202020)}
+.mk-titlebar{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--bg-secondary,#2a2a2a);border-bottom:1px solid var(--border-color,#333)}
+.mk-dot{width:11px;height:11px;border-radius:50%}
+.mk-tabbar{display:flex;gap:6px;padding:7px 10px 0;background:var(--bg-color,#202020)}
+.mk-tab{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px 9px 0 0;font-size:12px;color:var(--text-secondary,#aaa)}
+.mk-tab.on{background:var(--bg-secondary,#2d2d2d);color:var(--text-primary,#fff)}
+.mk-fav{width:13px;height:13px;border-radius:3px;background:var(--primary-color,#1da1f2);opacity:.85}
+.mk-tab .x{color:var(--text-secondary,#999);font-size:13px;margin-left:2px}
+.mk-nav{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-secondary,#2d2d2d);border-bottom:1px solid var(--border-color,#333)}
+.mk-btn{width:28px;height:28px;border-radius:50%;background:var(--bg-hover,#3d3d3d);opacity:.55;flex:none}
+.mk-btn.p{opacity:1;background:var(--primary-color,#1da1f2)}
+.mk-url{flex:1;height:30px;border-radius:15px;background:var(--bg-color,#202020);border:1px solid var(--border-color,#3d3d3d);
+  display:flex;align-items:center;padding:0 12px;font-size:12.5px;color:var(--text-secondary,#aaa);gap:8px}
+.mk-url .lock{width:10px;height:10px;border-radius:2px;background:var(--primary-color,#1da1f2);flex:none}
+.mk-body{padding:16px;background:var(--bg-color,#202020);display:flex;gap:12px}
+.mk-card{flex:1;border-radius:11px;background:var(--bg-secondary,#2d2d2d);border:1px solid var(--border-color,#3d3d3d);padding:14px}
+.mk-card h4{font-size:13px;color:var(--text-primary,#fff);margin-bottom:8px}
+.mk-line{height:8px;border-radius:4px;background:var(--bg-hover,#3d3d3d);margin-bottom:7px;opacity:.8}
+.mk-line.s{width:62%}.mk-line.m{width:84%}
+.mk-acc{display:inline-block;margin-top:4px;padding:7px 16px;border-radius:9px;background:var(--primary-color,#1da1f2);color:#fff;font-size:12px;font-weight:600}
+.mk-panel{width:200px;flex:none;border-radius:11px;background:var(--overlay-bg,#232332);border:1px solid var(--border-color,#3d3d3d);padding:12px}
+.mk-panel .row{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:8px;font-size:12px;color:var(--text-primary,#eee)}
+.mk-panel .row:hover{background:var(--hover-bg,rgba(255,255,255,.08))}
+.mk-panel .row .ico{width:14px;height:14px;border-radius:4px;background:var(--primary-color,#1da1f2)}
+#hint{padding:10px 16px;background:var(--ed-panel);border-top:1px solid var(--ed-border);font-size:11.5px;color:var(--ed-dim);flex:none}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#2c313d;border-radius:5px}
+@media (max-width:900px){#main{flex-direction:column;overflow-y:auto}#controls{width:100%;border-right:none;border-bottom:1px solid var(--ed-border)}#previewWrap{padding:12px}}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="title">StartPOZI <span>Theme Editor</span></div>
+  <button class="tbtn" id="btnLoadCss">Load CSS…</button>
+  <button class="tbtn primary" id="btnExport">Download .thmz</button>
+  <div id="status"></div>
+</div>
+
+<div id="main">
+  <div id="controls">
+
+    <div class="grp">
+      <div class="ghead">Theme info</div>
+      <div class="txtrow crow" style="display:block;margin-bottom:8px"><input type="text" id="mName" placeholder="Name" value="My theme"></div>
+      <div class="crow"><label>Author</label><input type="text" id="mAuthor" placeholder="author" style="width:150px"></div>
+      <div class="crow"><label>Version</label><input type="text" id="mVersion" value="1.0" style="width:70px"></div>
+      <div class="crow"><label>Type</label>
+        <select id="mType"><option value="dark">dark</option><option value="light">light</option><option value="auto">auto</option></select>
+      </div>
+      <div class="txtrow" style="margin-bottom:8px"><textarea id="mDesc" placeholder="Description…"></textarea></div>
+    </div>
+
+    <div class="grp">
+      <div class="ghead">Colors</div>
+      <div id="colorRows"></div>
+    </div>
+
+    <div class="grp">
+      <div class="ghead">Window &amp; shape</div>
+      <div class="crow"><label>Window opacity</label><input type="range" id="vOpacity" min="30" max="100" value="100"><span id="vOpacityVal" style="width:38px;font-size:12px;color:var(--ed-dim)">100%</span></div>
+      <div class="crow"><label>Corner radius (px)</label><input type="range" id="vRadius" min="0" max="22" value="11"><span id="vRadiusVal" style="width:38px;font-size:12px;color:var(--ed-dim)">11</span></div>
+      <div class="crow"><label>Interface font</label>
+        <select id="vFont">
+          <option value="">default</option>
+          <option value="'Segoe UI', system-ui, sans-serif">Segoe UI</option>
+          <option value="system-ui, sans-serif">System</option>
+          <option value="Verdana, sans-serif">Verdana</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="'Cascadia Mono', Consolas, monospace">Monospace</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="ghead">Icons (SVG per button)</div>
+      <div id="iconGrid"></div>
+      <div style="font-size:11px;color:var(--ed-dim);margin:8px 0 4px">Click a slot to upload an SVG; the browser button icon is replaced when the theme is installed.</div>
+    </div>
+
+    <div class="grp">
+      <div class="ghead">Presets</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="tbtn" data-preset="dark-stock">Stock dark</button>
+        <button class="tbtn" data-preset="light-stock">Stock light</button>
+        <button class="tbtn" data-preset="midnight">Midnight blue</button>
+        <button class="tbtn" data-preset="forest">Forest</button>
+        <button class="tbtn" data-preset="candy">Candy</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="previewCol">
+    <div id="previewWrap">
+      <div id="mock">
+        <div class="mk-titlebar">
+          <div class="mk-dot" style="background:#ff5f57"></div>
+          <div class="mk-dot" style="background:#febc2e"></div>
+          <div class="mk-dot" style="background:#28c840"></div>
+          <div style="margin-left:8px;font-size:11.5px;color:var(--text-secondary,#999)">StartPOZI Browser</div>
+        </div>
+        <div class="mk-tabbar">
+          <div class="mk-tab on"><span class="mk-fav"></span>Tab one<span class="x">×</span></div>
+          <div class="mk-tab"><span class="mk-fav" style="opacity:.4"></span>Tab two<span class="x">×</span></div>
+          <div class="mk-tab" style="opacity:.55">＋</div>
+        </div>
+        <div class="mk-nav">
+          <div class="mk-btn"></div><div class="mk-btn"></div><div class="mk-btn p"></div>
+          <div class="mk-url"><span class="lock"></span>https://startpozi.com — search the web privately</div>
+          <div class="mk-btn p"></div><div class="mk-btn"></div>
+        </div>
+        <div class="mk-body">
+          <div style="flex:1">
+            <div class="mk-card" style="margin-bottom:12px">
+              <h4>Page content sample</h4>
+              <div class="mk-line"></div><div class="mk-line m"></div><div class="mk-line s"></div><div class="mk-line m"></div>
+              <span class="mk-acc">Primary button</span>
+            </div>
+            <div class="mk-card">
+              <h4>Card · secondary background</h4>
+              <div class="mk-line s"></div><div class="mk-line"></div>
+            </div>
+          </div>
+          <div class="mk-panel">
+            <div class="row"><span class="ico"></span>Menu item</div>
+            <div class="row"><span class="ico" style="opacity:.5"></span>Menu item</div>
+            <div class="row"><span class="ico" style="opacity:.25"></span>Menu item</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="codeWrap">
+      <div id="codeTabs">
+        <div class="ctab on" data-tab="css">theme.css</div>
+        <div class="ctab" data-tab="icons">Icons (<span id="iconCount">0</span>)</div>
+      </div>
+      <textarea id="cssCode" spellcheck="false" placeholder="/* CSS — the visual controls generate it; edit anything freely */"></textarea>
+      <div id="iconPanel"><div id="iconGrid2" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="hint"><b>No CSS knowledge needed</b> — pick colors, sliders and icons on the left, the preview updates instantly. When happy, press <b>Download .thmz</b> and import it in StartPOZI Browser: <b>Settings → Customization → Themes → Import .thmz</b>. The code tab is optional fine-tuning for pros. <a href="https://startpozi.com" target="_blank" rel="noopener">startpozi.com</a></div>
+<input type="file" id="svgPick" accept=".svg" style="display:none">
+<input type="file" id="cssPick" accept=".css,.txt" style="display:none">
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+
+  // DOM handles used by regenerate() — must exist BEFORE the first control
+  // is built (the color rows call regenerate() on creation). Declaring them
+  // later crashed the whole editor at startup.
+  var cssCode = $('#cssCode');
+  var previewStyle = document.createElement('style');
+  document.head.appendChild(previewStyle);
+
+  // ================= Minimal ZIP writer (STORE method) =================
+  // Pure JS, no dependencies: local file headers + central directory,
+  // CRC32 of the payload, entries stored uncompressed. A .thmz is a plain
+  // ZIP archive, so this is all a theme needs.
+  var CRC_TABLE = (function () {
+    var t = [], c, n, k;
+    for (n = 0; n < 256; n++) {
+      c = n;
+      for (k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function makeZip(files) { // files: [{ name, data: Uint8Array }]
+    var chunks = [], central = [], offset = 0;
+    function u16(v) { return [v & 255, (v >> 8) & 255]; }
+    function u32(v) { return [v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255]; }
+    files.forEach(function (f) {
+      var nameB = new TextEncoder().encode(f.name);
+      var crc = crc32(f.data);
+      var local = [].concat(
+        u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+        u32(crc), u32(f.data.length), u32(f.data.length),
+        u16(nameB.length), u16(0), Array.from(nameB)
+      );
+      chunks.push(new Uint8Array(local), f.data);
+      central = central.concat(
+        u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+        u32(crc), u32(f.data.length), u32(f.data.length),
+        u16(nameB.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset),
+        Array.from(nameB)
+      );
+      offset += local.length + f.data.length;
+    });
+    var end = [].concat(
+      u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+      u32(central.length), u32(offset), u16(0)
+    );
+    chunks.push(new Uint8Array(central), new Uint8Array(end));
+    return new Blob(chunks, { type: 'application/zip' });
+  }
+
+  // ================= State =================
+  var VARS = [
+    ['--primary-color', '#1da1f2', 'Primary / accent'],
+    ['--bg-color', '#202020', 'Background'],
+    ['--bg-secondary', '#2d2d2d', 'Secondary background'],
+    ['--bg-hover', '#3d3d3d', 'Hover background'],
+    ['--text-primary', '#ffffff', 'Text'],
+    ['--text-secondary', '#aaaaaa', 'Secondary text'],
+    ['--border-color', '#3d3d3d', 'Borders'],
+    ['--overlay-bg', 'rgba(28,28,38,0.92)', 'Panels / overlays'],
+    ['--hover-bg', 'rgba(255,255,255,0.08)', 'Hover highlight']
+  ];
+  var state = { colors: {}, opacity: 1, radius: 11, font: '', icons: {} };
+  VARS.forEach(function (v) { state.colors[v[0]] = v[1]; });
+
+  var ICON_SLOTS = ['back','forward','reload','home','library','downloads','autofill','adblock','scripts',
+    'darkMode','media','equalizer','qrScan','split','newTab','bookmarks','history','reader','tts','screenshot',
+    'incognito','translate','findAll','autoscroll','breakLoupe','settings','workspace','hamburger'];
+
+  var statusEl = $('#status'), statusTimer;
+  function status(msg, cls) {
+    statusEl.textContent = msg;
+    statusEl.className = cls || '';
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function () { statusEl.textContent = ''; }, 4500);
+  }
+
+  // ================= Colors =================
+  var colorRows = $('#colorRows');
+  VARS.forEach(function (v) {
+    var row = document.createElement('div');
+    row.className = 'crow';
+    var lab = document.createElement('label'); lab.textContent = v[2]; lab.title = v[0];
+    var col = document.createElement('input'); col.type = 'color';
+    var txt = document.createElement('input'); txt.type = 'text';
+    function setColor(val, skipTxt) {
+      state.colors[v[0]] = val;
+      if (/^#[0-9a-f]{6}$/i.test(val)) col.value = val;
+      if (!skipTxt) txt.value = val;
+      regenerate();
+    }
+    col.addEventListener('input', function () { setColor(col.value); });
+    txt.addEventListener('change', function () { setColor(txt.value, true); });
+    setColor(v[1]);
+    row.appendChild(lab); row.appendChild(col); row.appendChild(txt);
+    colorRows.appendChild(row);
+  });
+  function rebuildColorInputs() {
+    var rows = colorRows.querySelectorAll('.crow');
+    VARS.forEach(function (v, i) {
+      var row = rows[i]; if (!row) return;
+      var val = state.colors[v[0]];
+      row.querySelector('input[type=text]').value = val;
+      if (/^#[0-9a-f]{6}$/i.test(val)) row.querySelector('input[type=color]').value = val;
+    });
+  }
+
+  function bindRange(id, valId, fn, fmt) {
+    var el = $(id), ve = $(valId);
+    el.addEventListener('input', function () { fn(parseInt(el.value, 10)); ve.textContent = fmt(el.value); regenerate(); });
+  }
+  bindRange('#vOpacity', '#vOpacityVal', function (v) { state.opacity = v / 100; }, function (v) { return v + '%'; });
+  bindRange('#vRadius', '#vRadiusVal', function (v) { state.radius = v; }, function (v) { return v; });
+  var fontSel = $('#vFont');
+  if (fontSel) fontSel.addEventListener('change', function () { state.font = fontSel.value; regenerate(); });
+
+  // ================= Presets =================
+  var PRESETS = {
+    'dark-stock': { '--primary-color': '#1da1f2', '--bg-color': '#202020', '--bg-secondary': '#2d2d2d', '--bg-hover': '#3d3d3d', '--text-primary': '#ffffff', '--text-secondary': '#aaaaaa', '--border-color': '#3d3d3d' },
+    'light-stock': { '--primary-color': '#0a84ff', '--bg-color': '#f5f5f7', '--bg-secondary': '#ffffff', '--bg-hover': '#e2e2e8', '--text-primary': '#1d1d1f', '--text-secondary': '#6e6e73', '--border-color': '#d1d1d6' },
+    'midnight': { '--primary-color': '#5b8cff', '--bg-color': '#0d1220', '--bg-secondary': '#141b2e', '--bg-hover': '#1d2740', '--text-primary': '#e6ecff', '--text-secondary': '#8b97b8', '--border-color': '#223052' },
+    'forest': { '--primary-color': '#3fbf6f', '--bg-color': '#101a13', '--bg-secondary': '#182619', '--bg-hover': '#223625', '--text-primary': '#e8f5ea', '--text-secondary': '#93b39a', '--border-color': '#26402a' },
+    'candy': { '--primary-color': '#ff5f8f', '--bg-color': '#1c1017', '--bg-secondary': '#2a1822', '--bg-hover': '#3a2130', '--text-primary': '#ffeef5', '--text-secondary': '#c49aad', '--border-color': '#432838' }
+  };
+  document.querySelectorAll('[data-preset]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = PRESETS[b.getAttribute('data-preset')];
+      Object.keys(p).forEach(function (k) { state.colors[k] = p[k]; });
+      rebuildColorInputs();
+      regenerate();
+      status('Preset applied: ' + b.textContent);
+    });
+  });
+
+  // ================= Icons =================
+  var svgPick = $('#svgPick');
+  var pendingSlot = null;
+  function b64svg(text) {
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(text)));
+  }
+  function buildIconGrid() {
+    var grid = $('#iconGrid');
+    grid.innerHTML = '';
+    ICON_SLOTS.forEach(function (slot) {
+      var d = document.createElement('div');
+      d.className = 'slot' + (state.icons[slot] ? ' has' : '');
+      var ic = document.createElement('div'); ic.className = 'ic';
+      if (state.icons[slot]) {
+        var img = document.createElement('img'); img.src = b64svg(state.icons[slot]);
+        ic.appendChild(img);
+      } else {
+        ic.textContent = '＋'; ic.style.color = '#3a4150'; ic.style.fontSize = '15px';
+      }
+      var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = slot;
+      d.appendChild(ic); d.appendChild(nm);
+      if (state.icons[slot]) {
+        var del = document.createElement('div'); del.className = 'del'; del.textContent = '✕';
+        del.addEventListener('click', function (e) {
+          e.stopPropagation(); delete state.icons[slot];
+          buildIconGrid(); regenerate();
+        });
+        d.appendChild(del);
+      }
+      d.addEventListener('click', function () { pendingSlot = slot; svgPick.value = ''; svgPick.click(); });
+      grid.appendChild(d);
+    });
+    $('#iconCount').textContent = Object.keys(state.icons).length;
+    buildIconPanel();
+  }
+  svgPick.addEventListener('change', function () {
+    var f = svgPick.files && svgPick.files[0];
+    if (!f || !pendingSlot) return;
+    if (f.size > 65536) { status('SVG too large (max 64 KB)', 'err'); return; }
+    var r = new FileReader();
+    r.onload = function () {
+      var text = String(r.result || '');
+      if (!/^(<\?xml|<svg)|^[\s\r\n]*<svg/i.test(text)) { status('Not an SVG file', 'err'); return; }
+      if (/<script|javascript:|\son[a-z]+\s*=/i.test(text)) { status('SVG contains scripts — rejected', 'err'); return; }
+      state.icons[pendingSlot] = text;
+      buildIconGrid(); regenerate();
+      status('Icon set: ' + pendingSlot);
+    };
+    r.readAsText(f);
+  });
+  function buildIconPanel() {
+    var g = $('#iconGrid2'); g.innerHTML = '';
+    Object.keys(state.icons).forEach(function (slot) {
+      var d = document.createElement('div');
+      d.style.cssText = 'border:1px solid #2c313d;border-radius:10px;padding:10px;text-align:center;font-size:11px;color:#8a93a6';
+      var img = document.createElement('img'); img.src = b64svg(state.icons[slot]);
+      img.style.cssText = 'width:22px;height:22px;display:block;margin:0 auto 6px';
+      d.appendChild(img);
+      d.appendChild(document.createTextNode(slot + '.svg'));
+      g.appendChild(d);
+    });
+    if (!Object.keys(state.icons).length) g.innerHTML = '<div style="color:#8a93a6;font-size:12px">No icons uploaded yet — use the Icons group on the left.</div>';
+  }
+
+  // ================= CSS =================
+  function hexToRgb(hex) {
+    var m = hex.replace('#', '');
+    if (m.length === 3) m = m[0] + m[0] + m[1] + m[1] + m[2] + m[2];
+    var n = parseInt(m, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function regenerate() {
+    var c = state.colors;
+    var bg = hexToRgb(/^#/.test(c['--bg-color']) ? c['--bg-color'] : '#202020');
+    var bg2 = hexToRgb(/^#/.test(c['--bg-secondary']) ? c['--bg-secondary'] : '#2d2d2d');
+    var css =
+      ':root {\n' +
+      '  --primary-color: ' + c['--primary-color'] + ';\n' +
+      '  --bg-color: ' + c['--bg-color'] + ';\n' +
+      '  --bg-secondary: ' + c['--bg-secondary'] + ';\n' +
+      '  --bg-hover: ' + c['--bg-hover'] + ';\n' +
+      '  --text-primary: ' + c['--text-primary'] + ';\n' +
+      '  --text-secondary: ' + c['--text-secondary'] + ';\n' +
+      '  --border-color: ' + c['--border-color'] + ';\n' +
+      '  --hover-bg: ' + c['--hover-bg'] + ';\n' +
+      '  --overlay-bg: ' + c['--overlay-bg'] + ';\n' +
+      '  --win-opacity: ' + state.opacity + ';\n' +
+      '  --bg-color-alpha: rgba(' + bg.join(', ') + ', var(--win-opacity));\n' +
+      '  --bg-secondary-alpha: rgba(' + bg2.join(', ') + ', var(--win-opacity));\n' +
+      '  --text-color: var(--text-primary);\n' +
+      '  --theme-radius: ' + state.radius + 'px;\n' +
+      '}\n' +
+      'body.theme-dark, body.theme-light {\n' +
+      '  --primary-color: ' + c['--primary-color'] + ';\n' +
+      '  --bg-color: ' + c['--bg-color'] + ';\n' +
+      '  --bg-secondary: ' + c['--bg-secondary'] + ';\n' +
+      '  --bg-hover: ' + c['--bg-hover'] + ';\n' +
+      '  --text-primary: ' + c['--text-primary'] + ';\n' +
+      '  --text-secondary: ' + c['--text-secondary'] + ';\n' +
+      '  --border-color: ' + c['--border-color'] + ';\n' +
+      '  --hover-bg: ' + c['--hover-bg'] + ';\n' +
+      '  --overlay-bg: ' + c['--overlay-bg'] + ';\n' +
+      '  --bg-color-alpha: rgba(' + bg.join(', ') + ', var(--win-opacity));\n' +
+      '  --bg-secondary-alpha: rgba(' + bg2.join(', ') + ', var(--win-opacity));\n' +
+      '}\n' +
+      '/* corner radius hint */\n' +
+      '.adblock-panel, .url-suggestions, .ctx-menu { border-radius: var(--theme-radius); }\n' +
+      (state.font ? '/* interface font */\nbody, button, input, select { font-family: ' + state.font + '; }\n' : '');
+    cssCode.value = css;
+    applyPreview(css);
+  }
+
+  function applyPreview(css) {
+    previewStyle.textContent = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  }
+
+  cssCode.addEventListener('input', function () {
+    applyPreview(cssCode.value);
+    status('Manual edit mode — press «sync from CSS» in the Colors header to update pickers');
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab' && document.activeElement === cssCode) {
+      e.preventDefault();
+      var s = cssCode.selectionStart;
+      cssCode.value = cssCode.value.slice(0, s) + '  ' + cssCode.value.slice(cssCode.selectionEnd);
+      cssCode.selectionStart = cssCode.selectionEnd = s + 2;
+    }
+  });
+  function syncFromCss() {
+    var m, re = /--([a-z0-9-]+)\s*:\s*([^;}]+)/gi, found = {};
+    while ((m = re.exec(cssCode.value))) found['--' + m[1]] = m[2].trim();
+    VARS.forEach(function (v) { if (found[v[0]]) state.colors[v[0]] = found[v[0]]; });
+    if (found['--win-opacity']) state.opacity = parseFloat(found['--win-opacity']) || 1;
+    $('#vOpacity').value = Math.round(state.opacity * 100);
+    $('#vOpacityVal').textContent = Math.round(state.opacity * 100) + '%';
+    rebuildColorInputs();
+    status('Visual controls synced from CSS', 'ok');
+  }
+  var syncBtn = document.createElement('span');
+  syncBtn.className = 'mini'; syncBtn.textContent = 'sync from CSS';
+  syncBtn.addEventListener('click', syncFromCss);
+  document.querySelector('.grp .ghead').appendChild(syncBtn);
+
+  // Tabs
+  document.querySelectorAll('.ctab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.ctab').forEach(function (x) { x.classList.remove('on'); });
+      t.classList.add('on');
+      var icons = t.getAttribute('data-tab') === 'icons';
+      $('#cssCode').style.display = icons ? 'none' : '';
+      $('#iconPanel').style.display = icons ? 'block' : 'none';
+    });
+  });
+
+  // ================= Load CSS =================
+  $('#btnLoadCss').addEventListener('click', function () { $('#cssPick').value = ''; $('#cssPick').click(); });
+  $('#cssPick').addEventListener('change', function () {
+    var f = $('#cssPick').files && $('#cssPick').files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      cssCode.value = String(r.result || '');
+      applyPreview(cssCode.value);
+      syncFromCss();
+      status('CSS loaded', 'ok');
+    };
+    r.readAsText(f);
+  });
+
+  // ================= Export .thmz =================
+  $('#btnExport').addEventListener('click', function () {
+    var css = cssCode.value;
+    if (!css.trim()) { status('CSS is empty', 'err'); return; }
+    if (css.includes('javascript:') || css.includes('expression(')) { status('Dangerous CSS rejected', 'err'); return; }
+    var name = ($('#mName').value || 'My theme').trim().slice(0, 60);
+    var meta = {
+      name: name,
+      author: ($('#mAuthor').value || '').slice(0, 60),
+      version: ($('#mVersion').value || '1.0').slice(0, 12),
+      description: ($('#mDesc').value || '').slice(0, 300),
+      type: (function () { var t = $('#mType').value; return (t === 'light' || t === 'auto') ? t : 'dark'; })()
+    };
+    var enc = new TextEncoder();
+    var files = [
+      { name: 'theme.json', data: enc.encode(JSON.stringify(meta, null, 2)) },
+      { name: 'theme.css', data: enc.encode(css) }
+    ];
+    Object.keys(state.icons).forEach(function (slot) {
+      if (ICON_SLOTS.indexOf(slot) !== -1) files.push({ name: 'icons/' + slot + '.svg', data: enc.encode(state.icons[slot]) });
+    });
+    var blob = makeZip(files);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') + '.thmz';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    status('.thmz downloaded — import it in StartPOZI: Settings → Themes', 'ok');
+  });
+
+  buildIconGrid();
+  regenerate();
+})();
+</script>
+</body>
+</html>

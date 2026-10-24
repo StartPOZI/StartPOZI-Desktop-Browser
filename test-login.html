@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<!-- Local autofill test page (opened from Library → Passwords → Autofill test).
+     Purpose: a stable offline page with a standard login form so the
+     password autofill heuristics can be verified without a network. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>Autofill test — StartPOZI</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #202020; color: #eee; display: flex; min-height: 100vh; align-items: center; justify-content: center; margin: 0; }
+  form { background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 12px; padding: 32px; width: 320px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { font-size: 12px; color: #999; margin: 0; }
+  label { font-size: 12px; color: #aaa; }
+  input { background: #1d1d1d; border: 1px solid #444; color: #eee; border-radius: 6px; padding: 10px; font-size: 14px; }
+  input:focus { outline: none; border-color: #1da1f2; }
+  button { background: #1da1f2; color: #fff; border: 0; border-radius: 6px; padding: 10px; font-size: 14px; cursor: pointer; }
+  button:hover { background: #0d8ee9; }
+</style>
+</head>
+<body>
+  <form id="loginForm" action="#" method="get" autocomplete="on">
+    <h1>Sign in</h1>
+    <p>Test page for the password autofill. Nothing is submitted anywhere.</p>
+    <div>
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" autocomplete="username" placeholder="user@example.com">
+    </div>
+    <div>
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button type="submit">Log in</button>
+  </form>
+</body>
+</html>

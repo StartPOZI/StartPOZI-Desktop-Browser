@@ -220,13 +220,34 @@ with zipfile.ZipFile("my-theme.thmz", "w", zipfile.ZIP_DEFLATED) as z:
 
 ## Примеры тем
 
-В папке `docs/themes/` находятся примеры:
+В папке `docs/themes/` находятся примеры (плюс пак `docs/build-extras.py` пересобирает все):
+
+**Тёмные:**
 
 | Файл | Описание |
 |------|----------|
-| `sample-ocean-blue.thmz` | Океанский синий (тёмная) |
-| `sample-forest-green.thmz` | Лесной зелёный (тёмная) |
-| `sample-sunset-orange.thmz` | Закат оранжевый (тёмная) |
+| `sample-ocean-blue.thmz` | Океанский синий |
+| `sample-forest-green.thmz` | Лесной зелёный |
+| `sample-sunset-orange.thmz` | Закат оранжевый |
+| `nord.thmz` | Nord — холодная скандинавская палитра |
+| `dracula.thmz` | Dracula — фиолетовые акценты |
+| `tokyo-night.thmz` | Tokyo Night — ночной Токио |
+| `catppuccin-mocha.thmz` | Catppuccin Mocha — мягкая пастель |
+| `gruvbox-dark.thmz` | Gruvbox Dark — янтарь и охра |
+| `cyberpunk-neon.thmz` | Cyberpunk Neon — неон на чёрном |
+| `solarized-dark.thmz` | Solarized Dark — бирюзовый фон |
+| `rose-pine.thmz` | Rosé Pine — розовая пыль и лаванда |
+| `everforest.thmz` | Everforest — хвойный лес |
+| `kanagawa.thmz` | Kanagawa — чернила суми |
+| `onyx-graphite.thmz` | Onyx Graphite — нейтральный графит |
+
+**Светлые:**
+
+| Файл | Описание |
+|------|----------|
+| `paper-white.thmz` | Paper White — белая бумага |
+| `catppuccin-latte.thmz` | Catppuccin Latte — пастель |
+| `nord-light.thmz` | Nord Light — снежные вершины |
 
 ## Хранение
 
@@ -239,3 +260,36 @@ themes/
 ```
 
 ID темы генерируется из названия: перевод в нижний регистр, все символы кроме `[a-z0-9-_]` заменяются на `-`.
+
+## Иконки в темах (icons/)
+
+Тема может заменять **иконки кнопок браузера**. Положите в архив папку `icons/` с SVG-файлами, имя файла = слот кнопки:
+
+```
+theme.thmz
+├── theme.json
+├── theme.css
+└── icons/
+    ├── back.svg
+    ├── forward.svg
+    ├── adblock.svg
+    └── …
+```
+
+**Слоты:** `back` `forward` `reload` `home` `library` `downloads` `autofill` `adblock` `scripts` `darkMode` `media` `equalizer` `qrScan` `split` `newTab` `bookmarks` `history` `reader` `tts` `screenshot` `incognito` `translate` `findAll` `autoscroll` `breakLoupe` `settings` `workspace` `hamburger`.
+
+Требования: только чистый SVG (без `<script>`, обработчиков `on*=` и `javascript:`), до 64 КБ и до 30 файлов. Иконки встраиваются в браузер как data-URL при применении темы.
+
+## Визуальный редактор тем
+
+Полноценный редактор: **Settings → Customization → Themes → «Theme editor»**, адрес `about:themeeditor` или Quick Commands → `:theme-editor`.
+
+Возможности:
+- подбор цветов для всех переменных + ручной ввод (hex/rgba)
+- пресеты (Stock dark/light, Midnight, Forest, Candy) и загрузка любой установленной темы для правки
+- слайдеры прозрачности окна и скруглений
+- живой предпросмотр макета браузера (таб-бар, навбар, панели, карточки)
+- редактор CSS-кода с ручным редактированием и обратной синхронизацией («sync from CSS»)
+- загрузка SVG-иконок для любой кнопки (слоты выше)
+- «Apply to browser» — мгновенное применение к реальному интерфейсу
+- «Export .thmz» — сохранение установочного архива (тема сразу появляется в Settings → Themes)

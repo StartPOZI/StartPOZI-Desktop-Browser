@@ -7,9 +7,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowMaximize: () => ipcRenderer.send('window-maximize'),
   windowClose: () => ipcRenderer.send('window-close'),
-  onMaximizeChange: (callback) => {
-    ipcRenderer.on('maximize-change', (_, isMaximized) => callback(isMaximized));
-  },
 
   // New tab from main process (for middle-click etc.)
   onOpenInNewTab: (callback) => {
@@ -26,6 +23,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onToggleCustomizeMode: (callback) => {
     ipcRenderer.on('toggle-customize-mode', () => callback());
+  },
+
+  // Dark Reader (professional dark mode)
+  getDarkReader: () => ipcRenderer.invoke('get-darkreader'),
+  setDarkReader: (settings) => ipcRenderer.invoke('set-darkreader', settings),
+  onDarkReaderChanged: (callback) => {
+    ipcRenderer.on('darkreader-changed', (_, settings) => callback(settings));
   },
 
   // Theme
@@ -54,6 +58,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLanguage: () => ipcRenderer.invoke('get-language'),
   setLanguage: (l) => ipcRenderer.invoke('set-language', l),
   getLocale: (l) => ipcRenderer.invoke('get-locale', l),
+  getAvailableLanguages: () => ipcRenderer.invoke('get-available-languages'),
+  getExternalServices: () => ipcRenderer.invoke('get-external-services'),
   onLanguageChanged: (callback) => {
     ipcRenderer.on('language-changed', (_, lang) => callback(lang));
   },
@@ -91,6 +97,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getHistory: () => ipcRenderer.invoke('get-history'),
   addHistory: (entry) => ipcRenderer.invoke('add-history', entry),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
+  removeHistoryEntry: (url) => ipcRenderer.invoke('remove-history-entry', url),
   getSitePermissions: () => ipcRenderer.invoke('get-site-permissions'),
   setSitePermission: (domain, permission, value) => ipcRenderer.invoke('set-site-permission', domain, permission, value),
   removeSitePermissions: (domain) => ipcRenderer.invoke('remove-site-permissions', domain),
@@ -111,6 +118,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   breakLoupe: () => ipcRenderer.invoke('break-loupe'),
   onHistoryUpdated: (callback) => {
     ipcRenderer.on('history-updated', () => callback());
+  },
+  onMediaPlaying: (callback) => {
+    ipcRenderer.on('media-playing-wcids', (_, ids) => callback(ids || []));
   },
 
   // Downloads
@@ -154,6 +164,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Bookmarks
   loadBookmarks: () => ipcRenderer.invoke('load-bookmarks'),
   addBookmark: (bookmark) => ipcRenderer.invoke('add-bookmark', bookmark),
+  // Editing an existing bookmark from the shell (sidebar/bookmark manager).
+  // The channel existed in main.js all along; the shell preload bridge was
+  // missing, which silently discarded every edit made outside webviews.
+  updateBookmark: (id, data) => ipcRenderer.invoke('update-bookmark', id, data),
   removeBookmark: (id) => ipcRenderer.invoke('remove-bookmark', id),
   importBookmarks: () => ipcRenderer.invoke('import-bookmarks'),
   // Import from an installed browser (Chrome/Edge/Brave/Vivaldi/Firefox)
@@ -191,6 +205,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   unregisterSystem: () => ipcRenderer.invoke('unregister-system'),
   checkRegistration: () => ipcRenderer.invoke('check-registration'),
   showInstructions: () => ipcRenderer.invoke('show-instructions'),
+  checkDefaultBrowser: () => ipcRenderer.invoke('check-default-browser'),
+  setDefaultBrowser: () => ipcRenderer.invoke('set-default-browser'),
+  sslCertsGet: () => ipcRenderer.invoke('ssl-certs-get'),
+  sslCertsAdd: () => ipcRenderer.invoke('ssl-certs-add'),
+  sslCertsToggle: (id, enabled) => ipcRenderer.invoke('ssl-certs-toggle', id, enabled),
+  sslCertsRemove: (id) => ipcRenderer.invoke('ssl-certs-remove', id),
+  sslCertsSetSystem: (enabled) => ipcRenderer.invoke('ssl-certs-set-system', enabled),
+  sslCertsSetService: (enabled) => ipcRenderer.invoke('ssl-certs-set-service', enabled),
 
   // Misc
   restartBrowser: () => ipcRenderer.invoke('restart-browser'),
@@ -206,8 +228,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseDataPath: () => ipcRenderer.invoke('choose-data-path'),
   migrateDataPath: (newPath) => ipcRenderer.invoke('migrate-data-path', newPath),
 
-  backupExport: (usePassword, password) => ipcRenderer.invoke('backup-export', usePassword, password),
-  backupImport: (filePath, password, options) => ipcRenderer.invoke('backup-import', filePath, password, options),
+  backupExport: (usePassword, password, keyFilePath) => ipcRenderer.invoke('backup-export', usePassword, password, keyFilePath),
+  backupImport: (filePath, password, options, keyFilePath) => ipcRenderer.invoke('backup-import', filePath, password, options, keyFilePath),
+  backupPickKeyfile: () => ipcRenderer.invoke('backup-pick-keyfile'),
   backupChooseImport: () => ipcRenderer.invoke('backup-choose-import'),
   backupCheckFile: (filePath) => ipcRenderer.invoke('backup-check-file', filePath),
   getBackupSettings: () => ipcRenderer.invoke('get-backup-settings'),
@@ -235,6 +258,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   lockVault: () => ipcRenderer.invoke('lock-vault'),
   isVaultUnlocked: () => ipcRenderer.invoke('is-vault-unlocked'),
   removeMasterPassword: (pw) => ipcRenderer.invoke('remove-master-password', pw),
+
+  // First-run wizard (4-step onboarding, shell only)
+  getFirstRun: () => ipcRenderer.invoke('get-first-run'),
+  finishFirstRun: () => ipcRenderer.invoke('finish-first-run'),
+  applyPrivacyPreset: (preset) => ipcRenderer.invoke('apply-privacy-preset', preset),
 
   // Library protection (gates Library access behind master password)
   getLibraryProtection: () => ipcRenderer.invoke('get-library-protection'),
@@ -348,6 +376,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Adblocker
   adblockerGetStats: () => ipcRenderer.invoke('adblocker-get-stats'),
   adblockerGetPageStats: (tabId) => ipcRenderer.invoke('adblocker-get-page-stats', tabId),
+  adblockerEngineInfo: () => ipcRenderer.invoke('adblocker-engine-info'),
+  updateFilterLists: () => ipcRenderer.invoke('update-filter-lists'),
+  getCookieCount: (webContentsId, url) => ipcRenderer.invoke('get-cookie-count', webContentsId, url),
   adblockerResetPageStats: (tabId) => ipcRenderer.invoke('adblocker-reset-page-stats', tabId),
   adblockerToggle: (val) => ipcRenderer.invoke('adblocker-toggle', val),
   adblockerIsEnabled: () => ipcRenderer.invoke('adblocker-is-enabled'),
@@ -361,6 +392,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getBlockerLogPersistent: () => ipcRenderer.invoke('get-blocker-log-persistent'),
   setBlockerLogPersistent: (val) => ipcRenderer.invoke('set-blocker-log-persistent', val),
   checkForUpdate: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  // Microphone-in-use indicator on tabs (see renderer _injectMicTracker).
+  onTabMicState: (cb) => {
+    const listener = (_, s) => cb(s);
+    ipcRenderer.on('tab-mic-state', listener);
+    return () => ipcRenderer.removeListener('tab-mic-state', listener);
+  },
   skipUpdateVersion: (ver) => ipcRenderer.invoke('skip-update-version', ver),
 
   // Profiles
@@ -397,6 +435,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   contextMenuOpenTab: (url) => ipcRenderer.send('context-menu-open-tab', url),
   contextMenuCopyImage: (dataUrl) => ipcRenderer.send('context-menu-copy-image', dataUrl),
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
+  clearCacheReload: () => ipcRenderer.invoke('clear-cache-reload'),
 
   onShortcutAction: (callback) => ipcRenderer.on('shortcut-action', (_, data) => callback(data)),
 
@@ -461,6 +500,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAllSecuritySettings: () => ipcRenderer.invoke('get-all-security-settings'),
   // Security (single key) — used by renderer-side injectors (e.g. cookie-banner blocker)
   getSecuritySetting: (key) => ipcRenderer.invoke('get-security-setting', key),
+  // Window state one-shot query (startup sync for rounded-corner squaring).
+  getWindowState: () => ipcRenderer.invoke('get-window-state'),
+  // Site Info panel: TLS certificate + main-document details (CDP cache).
+  getPageSecurityInfo: (wcId) => ipcRenderer.invoke('get-page-security-info', wcId),
+  // Site Info panel: wipe cookies + site data for the current origin.
+  clearSiteData: (wcId, url) => ipcRenderer.invoke('clear-site-data', wcId, url),
+  // Omnibox "frequent sites": rolling 48h per-origin visit counters.
+  recordFrequentVisit: (url) => ipcRenderer.invoke('record-frequent-visit', url),
+  getFrequentSites: () => ipcRenderer.invoke('get-frequent-sites'),
+  clearFrequentSites: () => ipcRenderer.invoke('clear-frequent-sites'),
   // Cookie-banner blocker: inject the payload into every frame of the
   // webview (cross-origin CMP iframes can't be reached from the top doc).
   injectCookieBlockerFrames: (wcId) => ipcRenderer.invoke('inject-cookie-blocker-frames', wcId),
@@ -474,20 +523,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Open the current site in a chromeless "app" window.
   openSiteAsApp: (url) => ipcRenderer.invoke('open-site-as-app', url),
 
-  // Auto-hide top bar: main polls the cursor and tells the renderer when to
-  // reveal/hide the chrome. (A renderer-side mousemove can't see the cursor
-  // over <webview> guest content.)
-  onChromeReveal: (cb) => {
-    const listener = (_, s) => cb(s);
-    ipcRenderer.on('chrome-reveal', listener);
-    return () => ipcRenderer.removeListener('chrome-reveal', listener);
-  },
-  onChromeDebug: (cb) => {
-    const listener = (_, s) => cb(s);
-    ipcRenderer.on('chrome-debug', listener);
-    return () => ipcRenderer.removeListener('chrome-debug', listener);
-  },
-
   // Task Manager
   getTaskManagerData: () => ipcRenderer.invoke('get-task-manager-data'),
   taskManagerAction: (action, tabId) => ipcRenderer.send('task-manager-action', action, tabId),
@@ -498,6 +533,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Translate
   translateText: (text, from, to) => ipcRenderer.invoke('translate-text', text, from, to),
+
+  // Proxy-friendly fetch for the chrome (its CSP forbids remote origins):
+  // main downloads the URL and returns a data: URL, or null on failure.
+  fetchAsDataUrl: (url) => ipcRenderer.invoke('fetch-as-data-url', url),
+  // Structured renderer-side log line (crash recovery diagnostics).
+  addConsoleLog: (line) => ipcRenderer.invoke('add-console-log', line),
 
   // Keybindings (редактор горячих клавиш)
   getKeybindings: () => ipcRenderer.invoke('get-keybindings'),
@@ -514,6 +555,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Element Zapper
   getElementHidingRules: () => ipcRenderer.invoke('get-element-hiding-rules'),
+  // User CSS hide-styles (Settings → cosmetic filtering). Mirrors the
+  // webview bridge so the shell can apply custom cosmetics too.
+  getCustomHideStyles: () => ipcRenderer.invoke('get-custom-hide-styles'),
   startElementPicker: (webContentsId) => ipcRenderer.invoke('start-element-picker', webContentsId),
   addElementHidingRule: (domain, selector) => ipcRenderer.invoke('add-element-hiding-rule', domain, selector),
   removeElementHidingRule: (domain, selector) => ipcRenderer.invoke('remove-element-hiding-rule', domain, selector),
@@ -552,6 +596,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVimSettings: () => ipcRenderer.invoke('get-vim-settings'),
   setVimSettings: (settings) => ipcRenderer.invoke('set-vim-settings', settings),
   resetVimSettings: () => ipcRenderer.invoke('reset-vim-settings'),
+  // Live vim-settings updates from main (the chrome keeps its own keymap
+  // cache for deciding which keys to forward to webviews).
+  onVimSettingsChanged: (cb) => {
+    const listener = (_, vim) => cb(vim);
+    ipcRenderer.on('vim-settings-changed', listener);
+    return () => ipcRenderer.removeListener('vim-settings-changed', listener);
+  },
   onVimAction: (callback) => {
     ipcRenderer.on('vim-action', (_, action) => callback(action));
   },

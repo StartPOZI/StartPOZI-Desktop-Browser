@@ -21,3 +21,12 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+
+# Optional Widevine DRM runtime (castlabs ECS)
+.drm/
+
+# Update-server packaging: signing keys must NEVER be committed; generated
+# release artifacts live here too (copied from dist/ by make-update.js).
+update-server/keys/
+update-server/stable/
+update-server/beta/

@@ -1,12 +1,14 @@
 document.addEventListener('DOMContentLoaded', function(){
   "use strict";
-  var screens = ["screen-intro","screen-welcome","screen-protection","screen-appearance","screen-setup","screen-donate"];
+  var screens = ["screen-intro","screen-welcome","screen-language","screen-protection","screen-appearance","screen-levels","screen-setup","screen-default","screen-donate"];
   var current = 0;
 
   var pendingSettings = {
     theme: null,
     opacity: null,
     searchEngine: null,
+    language: null,
+    protectionLevel: null,
     blockTrackers: null, blockSocialWidgets: null, blockAds: null,
     restoreTabs: null
   };
@@ -124,6 +126,59 @@ document.addEventListener('DOMContentLoaded', function(){
     }).catch(function(){});
   }
 
+  /* ЯЗЫК */
+  var langCards = document.querySelectorAll(".lang-card");
+  for(var li=0;li<langCards.length;li++){
+    (function(c){
+      c.addEventListener("click",function(){
+        for(var x=0;x<langCards.length;x++) langCards[x].classList.remove("sel");
+        c.classList.add("sel");
+        var lang = c.getAttribute("data-lang");
+        pendingSettings.language = lang;
+        // Live: switch the browser language right away (i18n translates
+        // this page too, so the wizard flips languages instantly).
+        var api0 = window.electronAPI;
+        if(api0 && api0.setLanguage) { try { api0.setLanguage(lang); } catch(e) {} }
+        if(window.i18n && window.i18n.setLanguage) { try { window.i18n.setLanguage(lang); } catch(e) {} }
+      });
+    })(langCards[li]);
+  }
+  // Preselect the current browser language.
+  var apiLang = window.electronAPI;
+  if(apiLang && apiLang.getLanguage){
+    apiLang.getLanguage().then(function(l){
+      if(!l) return;
+      for(var x=0;x<langCards.length;x++){
+        langCards[x].classList.toggle("sel", langCards[x].getAttribute("data-lang")===l);
+      }
+      pendingSettings.language = l;
+    }).catch(function(){});
+  } else if(window.i18n && window.i18n.getLanguage){
+    var cl = window.i18n.getLanguage();
+    if(cl){ pendingSettings.language = cl;
+      for(var x2=0;x2<langCards.length;x2++){
+        langCards[x2].classList.toggle("sel", langCards[x2].getAttribute("data-lang")===cl);
+      }
+    }
+  }
+
+  /* УРОВЕНЬ ЗАЩИТЫ (списки фильтров) */
+  var levelCards = document.querySelectorAll(".level-card");
+  for(var lv=0;lv<levelCards.length;lv++){
+    (function(c){
+      c.addEventListener("click",function(){
+        for(var x=0;x<levelCards.length;x++) levelCards[x].classList.remove("sel");
+        c.classList.add("sel");
+        var level = c.getAttribute("data-level");
+        pendingSettings.protectionLevel = level;
+        // Live: apply the FilterHub preset immediately (light/medium/full —
+        // the same three levels as Settings → Blocker).
+        var api0 = window.electronAPI;
+        if(api0 && api0.setFilterhubPreset) { try { api0.setFilterhubPreset(level); } catch(e) {} }
+      });
+    })(levelCards[lv]);
+  }
+
   /* ЭКРАН ДЕЙСТВИЙ */
   var wantImportAfter = false;
   var importBtn = document.getElementById("act-import");
@@ -134,6 +189,41 @@ document.addEventListener('DOMContentLoaded', function(){
       ? "Import will open right after setup."
       : "Import cancelled.");
   });
+
+  /* БРАУЗЕР ПО УМОЛЧАНИЮ */
+  (function(){
+    var btn = document.getElementById("btn-set-default");
+    var statusEl = document.getElementById("def-status");
+    var apiDef = window.electronAPI;
+    function refresh(){
+      if(!apiDef || !apiDef.checkDefaultBrowser) return;
+      apiDef.checkDefaultBrowser().then(function(r){
+        if(!statusEl) return;
+        if(r && r.isDefault){
+          statusEl.textContent = "StartPOZI is already your default browser.";
+          if(btn) btn.style.display = "none";
+        } else {
+          statusEl.textContent = "StartPOZI is not your default browser yet.";
+        }
+      }).catch(function(){});
+    }
+    if(btn){
+      btn.addEventListener("click", function(){
+        if(!apiDef || !apiDef.setDefaultBrowser) return;
+        btn.disabled = true;
+        if(statusEl) statusEl.textContent = "Applying…";
+        apiDef.setDefaultBrowser().then(function(r){
+          btn.disabled = false;
+          if(statusEl) statusEl.textContent = (r && r.note) ? r.note : "Done.";
+          if(r && r.isDefault && btn) btn.style.display = "none";
+        }).catch(function(){
+          btn.disabled = false;
+          if(statusEl) statusEl.textContent = "Could not change the default browser.";
+        });
+      });
+    }
+    refresh();
+  })();
 
   /* ЗАВЕРШЕНИЕ */
   setTimeout(function(){
@@ -160,17 +250,23 @@ document.addEventListener('DOMContentLoaded', function(){
 
     var api = window.electronAPI;
     if(api && api.completeSetup){
-      // Apply the FilterHub preset: any protection enabled → "medium" (the
-      // recommended level); all off → disable the adblocker entirely.
+      // Apply the FilterHub preset: the level chosen on the "Protection
+      // level" screen wins; the legacy fallback (any toggle on → medium)
+      // only applies when no level was picked.
       var anyProtection = blockTrackers || blockWidgets || blockAds;
+      var level = pendingSettings.protectionLevel || (anyProtection ? 'medium' : 'light');
       var presetPromise;
       if (api.setFilterhubPreset) {
-        presetPromise = api.setFilterhubPreset(anyProtection ? 'medium' : 'light');
+        presetPromise = api.setFilterhubPreset(level);
       } else {
         presetPromise = Promise.resolve({ success: true });
       }
       if (api.adblockerToggle) {
         api.adblockerToggle(anyProtection);
+      }
+      // Persist the chosen language (complete-setup saves it in settings).
+      if (pendingSettings.language) {
+        pendingSettings.lang = pendingSettings.language;
       }
 
       presetPromise.then(function(){

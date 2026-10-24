@@ -147,10 +147,16 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         try {
-            const geoResp = await fetch('https://ip-api.com/json/?fields=lat,lon');
+            // ip-api.com's free tier is HTTP-only, so the old URL failed
+            // 100% of the time from an https-capable page ("Detect via IP"
+            // was dead and silently fell back to Moscow). ipwho.is serves
+            // free HTTPS.
+            const geoResp = await fetch('https://ipwho.is/?fields=latitude,longitude');
             const geoData = await geoResp.json();
-            if (geoData.lat && geoData.lon) {
-                userCoords = { lat: geoData.lat, lon: geoData.lon };
+            const lat = geoData && (geoData.latitude || geoData.lat);
+            const lon = geoData && (geoData.longitude || geoData.lon);
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                userCoords = { lat: lat, lon: lon };
                 await fetchWeather(userCoords.lat, userCoords.lon);
             } else {
                 throw new Error('Could not determine coordinates');
@@ -528,9 +534,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="mp-artist"></div>
             </div>
             <div class="mp-controls">
-                <button class="mp-btn" data-act="prev" title="Back">⏮</button>
-                <button class="mp-btn mp-play" data-act="playpause" title="Play/Pause">▶</button>
-                <button class="mp-btn" data-act="next" title="Forward">⏭</button>
+                <button class="mp-btn" data-act="prev" title="-10 сек">⏮</button>
+                <button class="mp-btn mp-play" data-act="playpause" title="Играть/Пауза">▶</button>
+                <button class="mp-btn" data-act="next" title="+30 сек">⏭</button>
             </div>`;
         widgetsLayer.appendChild(widget);
         miniPlayerWidget = widget;
@@ -539,12 +545,34 @@ document.addEventListener('DOMContentLoaded', function() {
             const btn = e.target.closest('.mp-btn');
             if (!btn) return;
             const act = btn.dataset.act;
+            // Preferred: a control callback registered by the shell.
+            // Fallback: the console IPC transport — main.js applies the
+            // action to the tab that last started playing ('mediacontrol').
+            // Without this the buttons did nothing at all.
+            const send = (a) => {
+                // Preferred: the DIRECT electronAPI IPC (internal pages get
+                // the full bridge) — reliable in every case. Fallbacks:
+                // shell-registered callback, then the console transport.
+                try {
+                    if (window.electronAPI && typeof window.electronAPI.mediaControl === 'function') {
+                        window.electronAPI.mediaControl(a);
+                        return;
+                    }
+                } catch (err0) {}
+                if (mediaControlCb) mediaControlCb(a);
+                else if (typeof window.__spzSend === 'function') {
+                    try { window.__spzSend('mediacontrol', { act: a }); } catch (err) {}
+                } else {
+                    try { console.log('__SPZIPC__' + JSON.stringify({ kind: 'mediacontrol', payload: { act: a } })); } catch (err) {}
+                }
+            };
             if (act === 'playpause') {
+                // Optimistic toggle; the bridge pushes the real state right after.
                 const playing = widget.classList.toggle('playing');
                 widget.querySelector('.mp-play').textContent = playing ? '⏸' : '▶';
-                if (mediaControlCb) mediaControlCb(playing ? 'play' : 'pause');
-            } else if (mediaControlCb) {
-                mediaControlCb(act);
+                send('playpause');
+            } else {
+                send(act);
             }
         });
 
@@ -580,6 +608,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (info && typeof info.playing === 'boolean') {
             miniPlayerWidget.classList.toggle('playing', info.playing);
             miniPlayerWidget.querySelector('.mp-play').textContent = info.playing ? '⏸' : '▶';
+        } else if (!info) {
+            // Cleared state (nothing playing anywhere) — reset the button.
+            miniPlayerWidget.classList.remove('playing');
+            miniPlayerWidget.querySelector('.mp-play').textContent = '▶';
         }
     }
     function setMiniPlayerVisible(visible) {
@@ -917,8 +949,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const meta = (w.type === 'file') ? WIDGET_FILES.find(f => f.id === w.fileId) : null;
         const size = w.size || (meta && meta.size) || DEFAULT_WIDGET_SIZE;
         const src = (w.type === 'url' || w.type === 'file') ? '' : buildSrcDoc(w);
+        // URL widgets: only http(s) may enter the src attribute — anything
+        // else (file:, a quote breaking out of the attribute, ...) is a
+        // sandbox escape / attribute-injection vector from stored data.
+        const widgetUrl = String(w.url || '');
+        const safeUrl = /^https?:\/\//i.test(widgetUrl) ? widgetUrl.replace(/"/g, '%22') : 'about:blank';
         const frameHtml = (w.type === 'url')
-            ? `<iframe class="cw-frame" sandbox="allow-scripts allow-same-origin allow-popups" src="${w.url}"></iframe>`
+            ? `<iframe class="cw-frame" sandbox="allow-scripts allow-same-origin allow-popups" src="${safeUrl}"></iframe>`
             : `<iframe class="cw-frame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals" srcdoc="${src.replace(/"/g, '&quot;')}"></iframe>`;
         item.innerHTML = `
             <div class="cw-head">
@@ -997,6 +1034,9 @@ document.addEventListener('DOMContentLoaded', function() {
             entry.type = 'url';
             entry.url = customWidgetUrl.value.trim();
             if (!entry.url) { await pageAlert('Enter a URL'); return; }
+            // Reject non-web schemes right in the form: the renderer also
+            // refuses them at draw time, but failing early is clearer.
+            if (!/^https?:\/\//i.test(entry.url)) { await pageAlert('Only http(s) URLs are allowed'); return; }
         } else if (src === 'file') {
             // Live file reference: the widget body is fetched fresh on every
             // render, so redesigns of Widgets/*.htm apply without re-adding.
@@ -1042,10 +1082,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // ========== Bing API ==========
     async function fetchBingImageOfTheDay() {
         try {
-            const response = await fetch('https://bing.biturl.top/?resolution=1920x1080&format=json&index=0&mkt=ru-RU');
+            // Privacy: query bing.com DIRECTLY (official HPImageArchive
+            // endpoint) instead of the third-party bing.biturl.top proxy,
+            // which saw a request (and the user's market/locale) on every
+            // wallpaper refresh. Opt-in feature: the request goes only to
+            // Bing, which the user explicitly chose by enabling Bing mode.
+            const response = await fetch('https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=ru-RU');
             if (!response.ok) throw new Error('Bing loading error');
             const data = await response.json();
-            if (data && data.url) return data.url;
+            const img = data && data.images && data.images[0] && data.images[0].url;
+            if (img) return img.startsWith('http') ? img : ('https://www.bing.com' + img);
             throw new Error('Invalid API response');
         } catch (error) {
             console.error('[Bing] Error getting wallpaper:', error);
@@ -1109,15 +1155,36 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ========== Favicons ==========
-    async function getFaviconUrl(domain) {
-        if (faviconCache.has(domain)) return faviconCache.get(domain);
-        const googleUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+    function tryLoadImage(url) {
         return new Promise(resolve => {
             const img = new Image();
-            img.onload = () => { faviconCache.set(domain, googleUrl); resolve(googleUrl); };
-            img.onerror = () => { faviconCache.set(domain, null); resolve(null); };
-            img.src = googleUrl;
+            img.onload = () => resolve(url);
+            img.onerror = () => resolve(null);
+            img.src = url;
         });
+    }
+    async function getFaviconUrl(domain) {
+        if (faviconCache.has(domain)) return faviconCache.get(domain);
+        // Privacy-preserving fallback chain. Asking the site itself first
+        // (no third party learns anything); many sites however keep their
+        // icon at a non-root path, so:
+        //   1. https://domain/favicon.ico       — the site itself
+        //   2. https://www.domain/favicon.ico   — common www variant
+        //   3. icons.duckduckgo.com/ip3/…       — DDG icon proxy (not Google),
+        //                                          resolves the REAL icon path
+        // Without the chain a missing /favicon.ico left shortcuts with the
+        // generic placeholder after every restart.
+        const candidates = [
+            `https://${domain}/favicon.ico`,
+            `https://www.${domain}/favicon.ico`,
+            `https://icons.duckduckgo.com/ip3/${domain}.ico`
+        ];
+        for (const candidate of candidates) {
+            const ok = await tryLoadImage(candidate);
+            if (ok) { faviconCache.set(domain, candidate); return candidate; }
+        }
+        faviconCache.set(domain, null);
+        return null;
     }
 
     // ========== Site cards ==========
@@ -1148,24 +1215,27 @@ document.addEventListener('DOMContentLoaded', function() {
         card.appendChild(nameEl);
         card.appendChild(urlEl);
 
-        if (site.icon && (site.icon.startsWith('http') || site.icon.startsWith('data:'))) {
-            faviconImg.src = site.icon;
-            faviconImg.onload = () => { faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; };
-            faviconImg.onerror = () => { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; };
-        } else {
-            getFaviconUrl(new URL(site.url).hostname).then(iconUrl => {
-                if (iconUrl) {
-                    faviconImg.src = iconUrl;
-                    faviconImg.onload = () => { faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; };
-                    faviconImg.onerror = () => { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; };
-                } else {
-                    faviconImg.style.display = 'none';
-                    svgFallback.style.display = 'flex';
-                }
-            }).catch(() => {
+        // Render an icon: saved custom/fetched icon first; if its URL died,
+        // re-run the favicon chain instead of falling back to placeholder.
+        const renderIcon = (iconUrl) => {
+            if (iconUrl) {
+                faviconImg.src = iconUrl;
+                faviconImg.onload = () => { faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; };
+                faviconImg.onerror = () => {
+                    getFaviconUrl(new URL(site.url).hostname).then(fresh => {
+                        if (fresh) { faviconImg.src = fresh; faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; }
+                        else { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; }
+                    }).catch(() => { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; });
+                };
+            } else {
                 faviconImg.style.display = 'none';
                 svgFallback.style.display = 'flex';
-            });
+            }
+        };
+        if (site.icon && (site.icon.startsWith('http') || site.icon.startsWith('data:'))) {
+            renderIcon(site.icon);
+        } else {
+            getFaviconUrl(new URL(site.url).hostname).then(renderIcon).catch(() => renderIcon(null));
         }
 
         card.addEventListener('click', (e) => {
@@ -1183,24 +1253,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const faviconImg = iconContainer.querySelector('img');
         const svgFallback = iconContainer.querySelector('.svg-fallback');
 
-        if (newIcon && (newIcon.startsWith('http') || newIcon.startsWith('data:'))) {
-            faviconImg.src = newIcon;
-            faviconImg.onload = () => { faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; };
-            faviconImg.onerror = () => { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; };
-        } else {
-            getFaviconUrl(new URL(newUrl).hostname).then(iconUrl => {
-                if (iconUrl) {
-                    faviconImg.src = iconUrl;
-                    faviconImg.onload = () => { faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; };
-                    faviconImg.onerror = () => { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; };
-                } else {
-                    faviconImg.style.display = 'none';
-                    svgFallback.style.display = 'flex';
-                }
-            }).catch(() => {
+        const renderIcon = (iconUrl) => {
+            if (iconUrl) {
+                faviconImg.src = iconUrl;
+                faviconImg.onload = () => { faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; };
+                faviconImg.onerror = () => {
+                    getFaviconUrl(new URL(newUrl).hostname).then(fresh => {
+                        if (fresh) { faviconImg.src = fresh; faviconImg.style.display = 'block'; svgFallback.style.display = 'none'; }
+                        else { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; }
+                    }).catch(() => { faviconImg.style.display = 'none'; svgFallback.style.display = 'flex'; });
+                };
+            } else {
                 faviconImg.style.display = 'none';
                 svgFallback.style.display = 'flex';
-            });
+            }
+        };
+        if (newIcon && (newIcon.startsWith('http') || newIcon.startsWith('data:'))) {
+            renderIcon(newIcon);
+        } else {
+            getFaviconUrl(new URL(newUrl).hostname).then(renderIcon).catch(() => renderIcon(null));
         }
         saveSites();
     }
@@ -1448,8 +1519,17 @@ document.addEventListener('DOMContentLoaded', function() {
         async function initSites() {
             sitesGrid.innerHTML = '';
             const saved = localStorage.getItem('startpozi_sites');
-            const sites = saved ? JSON.parse(saved) : defaultSites;
-            for (const site of sites) sitesGrid.appendChild(createSiteCard(site));
+            // One corrupted entry (bad save / old migration) used to throw
+            // here and kill the whole start page: no tiles, no Add button,
+            // no widget toggles restored.
+            let sites;
+            try {
+                sites = saved ? JSON.parse(saved) : defaultSites;
+                if (!Array.isArray(sites)) sites = defaultSites;
+            } catch (e) { sites = defaultSites; }
+            for (const site of sites) {
+                try { sitesGrid.appendChild(createSiteCard(site)); } catch (e) { /* skip broken tile */ }
+            }
             const addBtn = document.createElement('div');
             addBtn.className = 'site-card add-site';
             addBtn.id = 'addSiteBtn';
@@ -1494,8 +1574,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 setWeatherWidgetVisible(weatherEnabled);
             }
 
-            // Search bar — the only widget enabled by default
-            const searchEnabled = localStorage.getItem('startpozi_search_enabled') !== 'false';
+            // Search bar — OFF by default (opt-in via the widget settings)
+            const searchEnabled = localStorage.getItem('startpozi_search_enabled') === 'true';
             searchWidgetToggle.checked = searchEnabled;
             if (searchWidget) setSearchWidgetVisible(searchEnabled);
 

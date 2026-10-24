@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, clipboard, nativeImage, session, webContents } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, clipboard, nativeImage, session, webContents, Notification } = require('electron');
+const electron = require('electron');
 const { app: electronApp } = require('electron');
 const crypto = require('crypto');
 const path = require('path');
@@ -16,6 +17,30 @@ var _cookieBlockerPayload = null;
 try { _cookieBlockerPayload = require('./cookie-blocker-payload'); } catch (e) {}
 let AdmZip;
 try { AdmZip = require('adm-zip'); } catch(e) { AdmZip = null; }
+// Extracted pure modules (part of the ongoing modularization; unit-tested
+// in test/). skit-manifest validates .skit script.json permissions.
+const { SKIT_PERMISSIONS, validateSkitPermissions } = require('./lib/skit-manifest');
+// Central storage must be required BEFORE the first readStorage() call at
+// module top-level (e.g. _vimLoadMainCache below) — declaring it further down
+// caused a temporal-dead-zone ReferenceError that silently left the vim
+// chrome→webview forwarding cache empty on every startup.
+const storage = require('./storage');
+
+// Linux: give every window a stable application class / Wayland app_id
+// ("startpozi-browser") so KDE/GNOME taskbars can match it to the
+// startpozi-browser.desktop entry and show the StartPOZI icon. Without this
+// an unpackaged `electron .` run reports a generic "electron" class. On
+// Wayland this matters doubly: there is no per-window icon protocol at all,
+// so the .desktop match via app_id is the ONLY source of the taskbar icon.
+if (process.platform === 'linux') {
+  try { app.commandLine.appendSwitch('class', 'startpozi-browser'); } catch (e) {}
+}
+// Windows: a stable AppUserModelID makes the taskbar group our windows and
+// show the app name/icon instead of "Electron" (dev runs), and identifies
+// notifications. Matches the appId in package.json → build.win.appId.
+if (process.platform === 'win32') {
+  try { app.setAppUserModelId('com.startpozi.browser.desktop'); } catch (e) {}
+}
 
 var _lastRejectionLogAt = 0;
 process.on('unhandledRejection', function(reason) {
@@ -64,9 +89,6 @@ var _pendingPermRequests = {};
 // "Allow while on this site" button. Cleared on app quit. Not persisted to disk.
 // Shape: { [domain]: { [permissionCamel]: true } }
 var _sessionPermissions = {};
-// In-memory geo-override coordinates per domain (set via Site Info panel).
-// Shape: { [domain]: { lat:Number, lng:Number, accuracy:Number } }
-var _geoOverrides = {};
 
 // Cached per-site permission overrides from settings.json (kept in memory —
 // reading settings.json on every request would be far too slow). Used by the
@@ -132,6 +154,26 @@ ipcMain.handle('get-last-session-crashed', () => _lastSessionCrashed);
 // process for the app directory to gate the electronAPI exposure to pages
 // that ship with the browser (see preload-webview.js).
 ipcMain.on('spz-get-app-dir', (event) => { event.returnValue = __dirname; });
+
+// Global Privacy Control state for the webview preload (synchronous: the
+// navigator.globalPrivacyControl property must exist before page scripts).
+ipcMain.on('spz-get-gpc', (event) => {
+  try { event.returnValue = ((readStorage().security || {}).gpc) !== false; }
+  catch (e) { event.returnValue = true; }
+});
+
+// "Empty cache and hard reload" (toolbar reload button context menu): clears
+// the HTTP cache of the requesting shell's session; the renderer then
+// reloads the active webview with reloadIgnoringCache().
+ipcMain.handle('clear-cache-reload', (event) => {
+  try {
+    var wc = event.sender;
+    wc.session.clearCache();
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
 
 // ============== OFFLINE TTS (espeak-ng WASM worker) ==============
 // Speech synthesis without any system voices (fresh Linux, minimal Windows,
@@ -221,6 +263,22 @@ app.on('before-quit', function () {
 // "Clear cookies on exit" (Settings → Security): wipe cookies of the default
 // session and all container partitions when the browser closes. Incognito
 // partitions are in-memory and are destroyed automatically.
+function _clearCookiesOnExitSessions() {
+  var store = readStorage();
+  if (!(store.security && store.security.clearCookiesOnExit)) return false;
+  var sessionsToClear = [session.defaultSession];
+  try {
+    (store.containers || []).forEach(function (c) {
+      if (c && c.id) {
+        try { sessionsToClear.push(session.fromPartition('persist:container-' + c.id)); } catch (e0) {}
+      }
+    });
+  } catch (e1) {}
+  Promise.all(sessionsToClear.map(function (ses) {
+    try { return ses.clearStorageData({ storages: ['cookies'] }); } catch (e2) { return Promise.resolve(); }
+  })).catch(function () {});
+  return true;
+}
 app.on('will-quit', function (event) {
   try {
     var store = readStorage();
@@ -266,7 +324,6 @@ app.commandLine.appendSwitch('disable-hyperlink-auditing');
 // The flag can ONLY be set before app.whenReady().
 //
 // Strategy: proxy.json enabled AND type 'tor' → set the flag. Otherwise no.
-var _startupTorDetected = null; // { host, port } or null
 var _dnsThroughProxyActive = false; // host-resolver-rules ~NOTFOUND is active
 (function applyDnsThroughProxyFlag() {
   try {
@@ -297,52 +354,68 @@ var _dnsThroughProxyActive = false; // host-resolver-rules ~NOTFOUND is active
     }
 
     // === DNS-over-HTTPS (DoH) ===
-    // Only when NO proxy/Tor is active: with SOCKS5 all DNS must go through
-    // the proxy (see above); enabling DoH on top would leak queries to the
-    // DoH provider outside the tunnel. Can only be set before app ready.
-    if (!needsProxyDns) {
+    // ON by default (privacy: the ISP can no longer see DNS queries), with
+    // the Mozilla/Cloudflare resolver. Only when NO proxy/Tor is active:
+    // with SOCKS5 all DNS must go through the proxy (see above); enabling
+    // DoH on top would leak queries to the DoH provider outside the tunnel.
+    // Can only be set before app ready.
+    // (was `!needsProxyDns` — an undefined identifier throwing ReferenceError,
+    // silently swallowed by the outer catch, so DoH NEVER applied)
+    if (!needsTorHardening) {
       try {
         var settingsFile = path.join(app.getPath('userData'), 'settings.json');
-        if (fs3.existsSync(settingsFile)) {
-          var _early = JSON.parse(fs3.readFileSync(settingsFile, 'utf8'));
-          var doh = _early && _early.doh;
-          if (doh && doh.enabled && doh.server && /^https:\/\//.test(doh.server)) {
-            app.commandLine.appendSwitch('dns-over-https-mode', doh.mode === 'secure' ? 'secure' : 'automatic');
-            app.commandLine.appendSwitch('dns-over-https-templates', doh.server);
-          }
+        var _early = fs3.existsSync(settingsFile)
+          ? JSON.parse(fs3.readFileSync(settingsFile, 'utf-8')) : {};
+        var doh = (_early && _early.doh) || {};
+        // Defaults when the user has never configured DoH.
+        if (!doh.hasOwnProperty('enabled')) doh.enabled = true;
+        if (!doh.server) doh.server = 'https://mozilla.cloudflare-dns.com/dns-query';
+        if (!doh.mode) doh.mode = 'automatic';
+        if (doh.enabled && /^https:\/\//.test(doh.server)) {
+          app.commandLine.appendSwitch('dns-over-https-mode', doh.mode === 'secure' ? 'secure' : 'automatic');
+          app.commandLine.appendSwitch('dns-over-https-templates', doh.server);
         }
       } catch(e2) {}
     }
   } catch(e) {}
 })();
 
-// Chrome-compatible User-Agent.
+// Chrome-compatible User-Agent + StartPOZI branding.
 // IMPORTANT: the Chrome version in the UA must MATCH the real Chromium version
 // in this Electron build, otherwise Google sees a mismatch between the UA and the real
 // engine (feature detection, V8 fingerprint) and blocks login with the message
 // "This browser or app may not be secure".
 // So we take the version DYNAMICALLY from process.versions.chrome.
+// The trailing StartPOZI/1.0 token identifies the browser (like Firefox/Edge
+// append their own token) while the Chrome token keeps engine consistency.
 var _chromeFullVersion = (process.versions && process.versions.chrome) || '148.0.7778.96';
 var _chromeMajorVersion = _chromeFullVersion.split('.')[0];
 var _uaPlatform = process.platform === 'win32' ? 'Windows'
   : process.platform === 'darwin' ? 'macOS' : 'Linux';
+// The UA carries NO "Chrome/<version>" token — the browser identifies itself
+// as StartPOZI only (user's explicit branding choice). The engine version
+// stays available via sec-ch-ua brands (v="148") so version-based checks
+// still work. Login pages use the Firefox profile, so Google sign-in does
+// not depend on this UA.
 var _uaPlatformString = process.platform === 'win32'
-  ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVersion + ' Safari/537.36'
+  ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36'
   : process.platform === 'darwin'
-  ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVersion + ' Safari/537.36'
-  : 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVersion + ' Safari/537.36';
+  ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36'
+  : 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36';
 try { app.userAgentFallback = _uaPlatformString; } catch(e) {}
 
-// sec-ch-ua brands — we pretend to be Google Chrome, not Electron.
-// This is CRITICAL for Google login: by default Electron sends the brand "Electron",
-// and Google blocks login with the message "This browser or app may not be secure".
-// IMPORTANT: the version must match the real Chromium (_chromeFullVersion),
-// otherwise Google sees a mismatch with the engine.
-var _secChUaBrands = '"Chromium";v="' + _chromeMajorVersion + '", "Not:A-Brand";v="24", "Google Chrome";v="' + _chromeMajorVersion + '"';
+// sec-ch-ua brands — StartPOZI Browser branding (user's explicit choice).
+// TRADE-OFF (documented): a custom brand makes the browser uniquely
+// identifiable across sites (weaker anti-fingerprinting) and some anti-bot
+// systems flag a Chrome-engine UA without a Chromium brand. The engine
+// version still matches the real Chromium, and login pages keep the Firefox
+// profile (see _AUTH_STEALTH_HOSTS) so Google sign-in is unaffected.
+// The GREASE "Not:A-Brand" entry stays — every real Chromium build sends one.
+var _secChUaBrands = '"StartPOZI Browser";v="' + _chromeMajorVersion + '", "Not:A-Brand";v="24"';
 // Full brand versions for sec-ch-ua-full-version-list. Google sends Accept-CH
-// and expects this header from real Chrome. Previously it was removed, which in itself
-// is suspicious. Now the versions match the engine — we send it like Chrome.
-var _secChUaFullVersionList = '"Chromium";v="' + _chromeFullVersion + '", "Not:A-Brand";v="24.0.0.0", "Google Chrome";v="' + _chromeFullVersion + '"';
+// and expects this header from real Chromium builds. The versions match the
+// engine so version-based checks do not flag a mismatch.
+var _secChUaFullVersionList = '"StartPOZI Browser";v="' + _chromeFullVersion + '", "Not:A-Brand";v="24.0.0.0"';
 
 // === Engine-level User-Agent override via CDP (Emulation.setUserAgentOverride) ===
 // The JS-level spoof of navigator.userAgentData (in preload-webview.js) is applied
@@ -358,14 +431,12 @@ function _buildUAOverrideMetadata() {
     : _uaPlatform === 'macOS' ? '10.15.7' : '6.5.0';
   return {
     brands: [
-      { brand: 'Chromium', version: _chromeMajorVersion },
-      { brand: 'Not:A-Brand', version: '24' },
-      { brand: 'Google Chrome', version: _chromeMajorVersion }
+      { brand: 'StartPOZI Browser', version: _chromeMajorVersion },
+      { brand: 'Not:A-Brand', version: '24' }
     ],
     fullVersionList: [
-      { brand: 'Chromium', version: _chromeFullVersion },
-      { brand: 'Not:A-Brand', version: '24.0.0.0' },
-      { brand: 'Google Chrome', version: _chromeFullVersion }
+      { brand: 'StartPOZI Browser', version: _chromeFullVersion },
+      { brand: 'Not:A-Brand', version: '24.0.0.0' }
     ],
     fullVersion: _chromeFullVersion,
     platform: _uaPlatform,
@@ -377,12 +448,15 @@ function _buildUAOverrideMetadata() {
     wow64: false
   };
 }
-var _uaOverrideApplied = new WeakSet();
 // Login pages where even an ATTACHED DEBUGGER is a detection signal for
 // Google (BotGuard flags CDP-attached targets). There we use the
 // debugger-free path: wc.setUserAgent (navigator.userAgent + request UA),
 // the preload's userAgentData patch and per-request sec-ch-ua rewriting.
 // Must stay in sync with _isSensitiveAuthPage() in preload-webview.js.
+// _uaDestroyHooked: webContents instances that already have the 'destroyed'
+// cleanup hook installed — without this gate every main-frame navigation
+// piled up one more once-listener on long-lived tabs.
+var _uaDestroyHooked = new WeakSet();
 function _isAuthSensitiveUrl(url) {
   try {
     var h = new URL(url).hostname.toLowerCase();
@@ -409,11 +483,12 @@ function _applyUAOverrideViaDebugger(webContents, destUrl) {
     try {
       if (!webContents.debugger.isAttached()) webContents.debugger.attach('1.3');
     } catch (e) { /* devtools or already attached */ }
-    _uaOverrideApplied.add(webContents);
-    webContents.once('destroyed', function () {
-      try { _uaOverrideApplied.delete(webContents); } catch (e) {}
-      try { _uaProfileByWc.delete(webContents.id); } catch (e) {}
-    });
+    if (!_uaDestroyHooked.has(webContents)) {
+      _uaDestroyHooked.add(webContents);
+      webContents.once('destroyed', function () {
+        try { _uaProfileByWc.delete(webContents.id); } catch (e) {}
+      });
+    }
     var wcId = webContents.id;
     if (_isAuthSensitiveUrl(curUrl)) {
       // Firefox profile for login pages (see _firefoxUa). ALWAYS via CDP:
@@ -434,6 +509,67 @@ function _applyUAOverrideViaDebugger(webContents, destUrl) {
       platform: _uaPlatform,
       userAgentMetadata: _buildUAOverrideMetadata()
     }).catch(function () {});
+  } catch (e) {}
+}
+
+// ============================================================================
+// PAGE SECURITY DETAILS (Site Info panel)
+// ----------------------------------------------------------------------------
+// Captures TLS certificate info + main-document response metadata (MIME type,
+// size, Last-Modified header) through the Chrome DevTools protocol, so the
+// lock-icon panel can show REAL connection data — cipher, issuer, validity —
+// with no third-party API and no extra network requests: everything comes
+// from the page's own already-established connection.
+// Deliberately NOT attached on auth-sensitive pages (see _isAuthSensitiveUrl:
+// Google BotGuard flags CDP-attached targets) — there the panel shows the
+// generic HTTPS state without certificate details.
+var _secInfoByWc = new Map(); // wcId → { url, ts, mimeType, headers, encodedDataLength, securityDetails }
+var _secInfoTracked = new WeakSet();
+
+function _trackSecurityDetails(webContents) {
+  try {
+    if (!webContents || webContents.isDestroyed()) return;
+    if (_secInfoTracked.has(webContents)) return;
+    _secInfoTracked.add(webContents);
+    var wcId = webContents.id;
+    webContents.on('destroyed', function () {
+      try { _secInfoByWc.delete(wcId); } catch (e) {}
+    });
+    // Attach BEFORE the load starts so Network.responseReceived arrives for
+    // the main document. Re-run on every navigation: the debugger may have
+    // been detached (user opened DevTools).
+    // NOTE: on auth-sensitive pages we simply do NOT attach — but we also
+    // never detach: the UA-override path deliberately keeps a CDP session on
+    // those pages (Firefox-profile spoof), and a detach here would break the
+    // Google login flow.
+    webContents.on('did-start-navigation', function (_, navUrl) {
+      try {
+        if (_isAuthSensitiveUrl(navUrl)) {
+          _secInfoByWc.delete(wcId);
+          return;
+        }
+        if (!webContents.debugger.isAttached()) webContents.debugger.attach('1.3');
+        webContents.debugger.sendCommand('Network.enable').catch(function () {});
+      } catch (e) {}
+    });
+    webContents.debugger.on('message', function (_, method, params) {
+      try {
+        if (method !== 'Network.responseReceived') return;
+        if (!params || !params.response) return;
+        // Main document only (Document type = top-level/iframe documents;
+        // the LAST Document response of a chain is the committed page).
+        if (params.type !== 'Document') return;
+        var r = params.response;
+        _secInfoByWc.set(wcId, {
+          url: r.url,
+          ts: Date.now(),
+          mimeType: r.mimeType || null,
+          headers: r.headers || {},
+          encodedDataLength: (typeof r.encodedDataLength === 'number') ? r.encodedDataLength : null,
+          securityDetails: r.securityDetails || null
+        });
+      } catch (e) {}
+    });
   } catch (e) {}
 }
 
@@ -493,7 +629,8 @@ function _isInternalPage(url) {
       url.indexOf('MainPage/IncognitoPage.html') > -1 ||
       url.indexOf('TaskManager.html') > -1 ||
       url.indexOf('Library.html') > -1 ||
-      url.indexOf('CustomizeToolbar.html') > -1;
+      url.indexOf('CustomizeToolbar.html') > -1 ||
+      url.indexOf('ThemeEditor.html') > -1;
   } catch(e) { return false; }
 }
 
@@ -865,6 +1002,13 @@ app.on('session-created', function (session) {
             certstore.verifyAgainstBundle(hostname, request.certificate)) {
           callback(0); return;
         }
+        // SSL manager: system roots DISABLED — re-check even the chains
+        // Chromium itself accepted against the user trust anchors only.
+        if (certstore.userTrustOnly() && vres.indexOf('ERR_CERT_') === -1) {
+          if (request.certificate && certstore.verifyAgainstBundle(hostname, request.certificate)) callback(0);
+          else callback(-2);
+          return;
+        }
         if (vres.indexOf('ERR_CERT_') !== -1) {
           _handleSuspectCert(hostname, _certReasonFromResult(vres), callback);
           return;
@@ -978,18 +1122,38 @@ function _windowTransparencyEnabled() {
   } catch (e) { return true; }
 }
 
+// ============== APP ICON ==============
+// Every browser window must carry the StartPOZI icon. Without the `icon`
+// option Linux shows the generic Electron logo in the taskbar/dock and the
+// window list; Windows uses it for the taskbar (the embedded .exe icon only
+// applies to packaged builds). macOS ignores window icons — the .icns from
+// the app bundle is used there (see package.json → build.mac.icon).
+function _appIcon() {
+  try {
+    if (process.platform === 'darwin') return undefined;
+    var p = path.join(__dirname, 'assets', 'favicon',
+      process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+    if (fs.existsSync(p)) return p;
+    var fallback = path.join(__dirname, 'assets', 'favicon', 'icon.png');
+    return fs.existsSync(fallback) ? fallback : undefined;
+  } catch (e) { return undefined; }
+}
+
 // `opts`: { incognito: bool, tab: { url, title, partition } }
 function createShellWindow(opts) {
   opts = opts || {};
+  var _transpShell = _windowTransparencyEnabled();
   var win = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
     frame: false,
-    transparent: _windowTransparencyEnabled(),
-    backgroundColor: '#16161e',
+    transparent: _transpShell,
+    backgroundColor: _transpShell ? '#00000000' : '#16161e',
+    roundedCorners: true,
     titleBarStyle: 'hidden',
+    icon: _appIcon(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -1016,6 +1180,15 @@ function createShellWindow(opts) {
   });
   win.on('unmaximize', function() {
     if (!win.isDestroyed()) win.webContents.send('window-state-changed', { maximized: false });
+  });
+  // Native fullscreen (F11 / video controls): the renderer squares the
+  // window corners in this state — rounded corners over a full screen clip
+  // page content at the edges and look wrong.
+  win.on('enter-full-screen', function() {
+    if (!win.isDestroyed()) win.webContents.send('window-state-changed', { fullscreen: true });
+  });
+  win.on('leave-full-screen', function() {
+    if (!win.isDestroyed()) win.webContents.send('window-state-changed', { fullscreen: false });
   });
   win.on('focus', function() {
     if (!win.isDestroyed()) win.webContents.send('window-focus-changed', { focused: true });
@@ -1062,15 +1235,21 @@ function createWindow() {
     }
   } catch(e) {}
 
+  var _transp = _windowTransparencyEnabled();
   var windowOpts = {
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
     frame: false,
-    transparent: _windowTransparencyEnabled(),
-    backgroundColor: '#16161e',
+    transparent: _transp,
+    // With transparency enabled the window background must be FULLY
+    // transparent, otherwise the opaque fill paints square corners that hide
+    // the CSS border-radius of the shell.
+    backgroundColor: _transp ? '#00000000' : '#16161e',
+    roundedCorners: true,
     titleBarStyle: 'hidden',
+    icon: _appIcon(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -1117,6 +1296,15 @@ function createWindow() {
   mainWindow.on('unmaximize', function() {
     if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-state-changed', { maximized: false });
   });
+  // Native fullscreen (F11 / video controls): the renderer squares the
+  // window corners in this state — rounded corners over a full screen clip
+  // page content at the edges and look wrong.
+  mainWindow.on('enter-full-screen', function() {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-state-changed', { fullscreen: true });
+  });
+  mainWindow.on('leave-full-screen', function() {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-state-changed', { fullscreen: false });
+  });
   mainWindow.on('focus', function() {
     if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-focus-changed', { focused: true });
   });
@@ -1124,11 +1312,10 @@ function createWindow() {
     if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-focus-changed', { focused: false });
   });
 
-  // Disable KWallet password prompt by clearing storage
-  mainWindow.webContents.session.clearStorageData({
-    storages: ['serviceworkers', 'cachestorage']
-  });
-
+  // KWallet is disabled via the `password-store=basic` command-line switch
+  // (see top of file). The clearStorageData call that used to live here wiped
+  // EVERY site's Service Workers + Cache Storage on each launch for no
+  // benefit — breaking offline sites and forcing re-downloads.
   _attachDownloadHandler(mainWindow.webContents.session);
 
   // Unified permission handler — defined once, reused by applySecuritySettings
@@ -1168,6 +1355,14 @@ function createWindow() {
             certstore.verifyAgainstBundle(hostname, request.certificate)) {
           callback(0); return;
         }
+        // SSL manager: system roots DISABLED — re-check even the chains
+        // Chromium itself accepted against the user trust anchors only
+        // (fail closed: no user anchor → reject).
+        if (certstore.userTrustOnly() && vres.indexOf('ERR_CERT_') === -1) {
+          if (request.certificate && certstore.verifyAgainstBundle(hostname, request.certificate)) callback(0);
+          else callback(-2);
+          return;
+        }
         // Any other certificate problem: hold the request and let the shell
         // show ErrorPage/security.html BEFORE the page renders. Never answer
         // with a rejection here — the verdict is cached per session and
@@ -1196,7 +1391,7 @@ function createWindow() {
         const themesDir = getThemesDir();
         const themeDir = path.join(themesDir, store.activeTheme);
         if (fs.existsSync(themeDir)) {
-          const css = readThemeCss(themeDir);
+          const css = buildThemeCss(themeDir);
           if (css) {
             customThemeCSS = css;
             mainWindow.webContents.send('apply-custom-theme-event', css);
@@ -1244,8 +1439,14 @@ function createWindow() {
 app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler((details) => {
     // Open the new tab in the window the click came from (main vs incognito).
-    var win = _shellWindowOf(contents);
-    if (win) win.webContents.send('open-in-new-tab', details.url);
+    // Scheme guard: a page must not push arbitrary schemes into a tab via
+    // window.open / target=_blank — file:// would bypass Chromium's web→file
+    // navigation barrier, and custom OS-scheme URLs belong to the OS, not us.
+    var u = String(details.url || '');
+    if (/^(https?|about|startpozi):/i.test(u)) {
+      var win = _shellWindowOf(contents);
+      if (win) win.webContents.send('open-in-new-tab', u);
+    }
     return { action: 'deny' };
   });
 
@@ -1554,7 +1755,41 @@ app.on('open-url', function (event, url) {
   }
 });
 
+// Startup banner — printed to the terminal (npm start / console) on launch.
+console.log(`
+████ █████  ███  ████  █████ ████   ███  █████ ███    ████  ████   ███  █   █  ████ █████ ████
+█ ░░░░ ░█░░░█ ░░█ █░░░█  ░█░░░█░░░█ █ ░░█  ░░█░░ █░░   █░░░█ █░░░█ █ ░░█ █░  █░█ ░░░░█░░░░░█░░░█
+ ███░░░ █░░░█████░████░░  █░░░████░░█░ ░█░  █░░░░█░░░  ████░░████░░█░ ░█░█░█ █░░███░░████░░████░░
+  ░░█   █░░ █░░░█░█░░█░ ░ █░░ █░░░░ █░░ █░░█ ░ ░ █░░   █░░░█ █░░█░ █░░ █░██░██░░ ░░█ █░░░░ █░░█░ ░
+████░░  █░░ █░░░█░█░░░█░  █░░ █░░░░░ ███ ░█████ ███░   ████░░█░░░█░ ███ ░█░░ █░████░░█████░█░░░█░
+ ░░░░ ░  ░░  ░░  ░░░░  ░   ░░  ░░     ░░░ ░░░░░░ ░░░    ░░░░ ░░░  ░  ░░░ ░░░░ ░░░░░░ ░░░░░░ ░░  ░
+  ░░░░    ░   ░   ░ ░   ░   ░   ░      ░░░  ░░░░░ ░░░    ░░░░  ░   ░  ░░░  ░   ░ ░░░░  ░░░░░ ░   ░
+
+___________________________________________________________________________________________________________________
+ StartPOZI Browser V1.0 2026 - Privacy Browser Pro
+___________________________________________________________________________________________________________________
+`);
+
 app.whenReady().then(async () => {
+  // === Widevine DRM (castlabs Electron for Content Security) ===
+  // Stock Electron has no Widevine; the optional DRM runtime (.drm/) is the
+  // castlabs "wvcus" build (same Electron 42 branch). It exposes the
+  // `components` API and installs the Widevine CDM on first launch. Wait for
+  // it (bounded) so DRM sites work from the very first window; on stock
+  // Electron `components` is undefined and this is a no-op.
+  try {
+    if (electron.components && electron.components.whenReady) {
+      await Promise.race([
+        electron.components.whenReady(),
+        new Promise(function (res) { setTimeout(res, 20000); })
+      ]);
+      try {
+        var _cdmStatus = electron.components.status();
+        console.log('[drm] Widevine CDM:', JSON.stringify(_cdmStatus));
+      } catch (eS) {}
+    }
+  } catch (eCdm) {}
+
   // The userData dir may have been relocated by checkCustomDataPath() at
   // startup — (re)load the settings cache from the final location.
   storage.reload();
@@ -1564,7 +1799,14 @@ app.whenReady().then(async () => {
   if (_pendingLaunchUrl) {
     var launchUrl = _pendingLaunchUrl;
     _pendingLaunchUrl = null;
-    var deliver = function () { _openLaunchUrl(launchUrl); };
+    // Idempotent delivery: `did-finish-load` may fire long before the 3s
+    // fallback timer — without the flag the URL would open in TWO tabs.
+    var delivered = false;
+    var deliver = function () {
+      if (delivered) return;
+      delivered = true;
+      _openLaunchUrl(launchUrl);
+    };
     try {
       mainWindow.webContents.once('did-finish-load', deliver);
       setTimeout(deliver, 3000); // fallback if load already finished
@@ -1587,6 +1829,16 @@ app.whenReady().then(async () => {
   // choices — including turning them OFF with the password — are respected.
   _applySecureDefaultsIfNeeded();
   _migratePlaintextPasswords();
+  // One-time migration: the StartPOZI search engine used to be stored under
+  // the netlify.app deploy — rewrite it to the canonical startpozi.com.
+  try {
+    storage.update(function (s) {
+      if (s.searchEngine === LEGACY_NETLIFY_ENGINE) s.searchEngine = DEFAULT_SEARCH_ENGINE;
+    });
+  } catch (e) {}
+  // SSL certificate manager: push the stored trust anchors / system-roots
+  // switch into certstore before any network verification runs.
+  try { _applySslCerts(); } catch (e) {}
   // Downloads from a previous session can no longer be active (their
   // DownloadItems died with the process) — mark leftovers as interrupted so
   // the Library does not show phantom "downloading…" entries forever.
@@ -1607,7 +1859,15 @@ app.whenReady().then(async () => {
   if (initStore.windowOpacity !== undefined && initStore.windowOpacity < 1) {
     mainWindow.setOpacity(Math.max(0.1, Math.min(1, initStore.windowOpacity)));
   }
-  await adblocker.initBlocker(mainWindow.webContents.session);
+  // A failed blocker init (e.g. no network on a cold first run) must never
+  // abort the bootstrap chain below — otherwise permission handlers, the
+  // webview wiring, applySecuritySettings() and the macOS activate handler
+  // are never registered and the whole session runs unprotected.
+  try {
+    await adblocker.initBlocker(mainWindow.webContents.session);
+  } catch (eAdb) {
+    console.error('[adblocker] init failed, continuing without it:', eAdb && eAdb.message);
+  }
   applySecuritySettings();
 
   // CSP for internal (file://) pages + Tor hardening CSP are BOTH injected by
@@ -1634,6 +1894,36 @@ app.whenReady().then(async () => {
   app.on('web-contents-created', (_, webContents) => {
     if (webContents.getType() !== 'webview') return;
 
+    // Re-apply saved element-hiding (zapper) rules on every page load, in
+    // EVERY frame. The renderer's webview.insertCSS only reaches the main
+    // frame — rules picked inside iframes silently stopped working after a
+    // reload (see _applyElementHidingToWc below).
+    webContents.on('dom-ready', function () {
+      try { _applyElementHidingToWc(webContents); } catch (eE) {}
+    });
+    webContents.on('did-navigate-in-page', function () {
+      try { _applyElementHidingToWc(webContents); } catch (eE) {}
+    });
+
+    // Media bridge for the start-page mini-player: remember the tab that
+    // last started playing and refresh the mini-player state.
+    webContents.on('media-started-playing', function () {
+      _lastMediaWcId = webContents.id;
+      try { _pushMediaToStartPage(); } catch (eM) {}
+    });
+    webContents.on('media-paused', function () {
+      try { _pushMediaToStartPage(); } catch (eM) {}
+    });
+    // When the start page (re)loads, restore the current media state into
+    // the freshly created mini-player.
+    webContents.on('did-finish-load', function () {
+      try {
+        if (String(webContents.getURL()).indexOf('MainPage/index.html') !== -1) {
+          _pushMediaToStartPage();
+        }
+      } catch (eM2) {}
+    });
+
     // Lock down every <webview> at attach time: whatever attributes the
     // renderer (or a compromised renderer) sets, nodeIntegration stays off
     // and contextIsolation/webSecurity stay on.
@@ -1653,14 +1943,21 @@ app.whenReady().then(async () => {
     // responses are delivered back via executeJavaScript. This replaces the
     // cross-world postMessage bridges that died in Electron 42 (dialog
     // banners, hover-translate, Super Drag).
-    webContents.on('console-message', function(event, level, message) {
+    // New single-argument signature (Electron 42): a listener with more
+    // parameters makes Electron emit the legacy positional args AND print
+    // a deprecation warning on every page console line.
+    webContents.on('console-message', function(event) {
       try {
-        var msg = (typeof message === 'string' && message) ? message : (event && event.message) || '';
+        var msg = (event && typeof event.message === 'string') ? event.message : '';
         if (!msg || msg.indexOf('__SPZIPC__') !== 0) return;
         var req = JSON.parse(msg.slice(10));
         _handlePageIpc(webContents, req);
       } catch(e) {}
     });
+
+    // Site Info panel data source: capture TLS certificate details + main
+    // document metadata via CDP (see _trackSecurityDetails above).
+    try { _trackSecurityDetails(webContents); } catch(eSec) {}
 
     // Apply the sec-ch-ua substitution to the webview session — CRITICAL for incognito,
     // since each incognito tab creates its own partition-session, on which
@@ -1671,11 +1968,24 @@ app.whenReady().then(async () => {
     // otherwise incognito and new tabs go directly bypassing the proxy.
     try { _ensureProxyOnSession(webContents.session); } catch(e) {}
 
+    // Partition security guards (WebRTC policy + permission handlers) —
+    // previously these were only installed on the MAIN window session, so
+    // private/container tabs had no WebRTC leak protection and permissions
+    // were auto-approved by Electron's default.
+    try {
+      var _wcSec = (readStorage().security || {});
+      if (_wcSec.webrtcLeak) webContents.session.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+      webContents.session.setPermissionRequestHandler(_makePermissionHandler(_wcSec));
+      webContents.session.setPermissionCheckHandler(_makePermissionCheckHandler(_wcSec));
+    } catch (eG) {}
+
     // Adblocker: attach to the webview's session. Incognito tabs each run in
     // their own partition session — without this they had no ad/cookie-popup
-    // blocking at all. reEnable() is idempotent for the default session.
+    // blocking at all. reEnable() is idempotent for the default session and
+    // also installs the bare sec-hook (httpsOnly/mixed/urlClean) when the
+    // blocker itself is disabled.
     try {
-      if (adblocker && adblocker.isEnabled && adblocker.isEnabled()) {
+      if (adblocker && adblocker.reEnable) {
         adblocker.reEnable(webContents.session, _secBeforeRequest);
       }
     } catch(e) {}
@@ -1756,6 +2066,11 @@ app.on('window-all-closed', () => {
   _clearSessionMarker();
   if (process.platform !== 'darwin') {
     app.quit();
+  } else {
+    // macOS keeps the app running after the last window closes — for the
+    // user that IS "exit", so "clear cookies on exit" must run here too
+    // (will-quit only fires on an explicit Cmd+Q).
+    try { _clearCookiesOnExitSessions(); } catch (eCl) {}
   }
 });
 
@@ -1794,8 +2109,16 @@ ipcMain.on('window-close', (event) => {
 // Central storage: cached reads + atomic writes (see storage.js). The
 // wrappers keep the 200+ legacy call sites untouched; new code should prefer
 // updateStorage(fn) for race-free read-modify-write.
-const storage = require('./storage');
+// NOTE: the module itself is required at the top of this file (see the TDZ
+// comment there); only the path helper and wrappers live here.
 const storagePath = storage.storagePath();
+// First-run wizard eligibility, captured at process start BEFORE anything
+// can write settings.json: only a genuinely fresh profile (no settings
+// file at all) ever sees the wizard. Existing installs — even ones that
+// never finished a wizard — must not be interrupted by it.
+const _wizardFreshProfile = (function() {
+  try { return !fs.existsSync(storagePath); } catch (e0) { return false; }
+})();
 function readStorage() {
   return storage.read();
 }
@@ -1976,8 +2299,8 @@ var _TRACKING_PREFIXES = [
 var _TRACKING_PARAMS = [
   // --- Click IDs (advertising) ---
   'fbclid','gclid','gclsrc','dclid','gbraid','wbraid','msclkid','yclid',
-  'twclid','ttclid','li_fat_id','ocid','oicd','dclid','gbraid','wbraid',
-  'li_fat_id','rb_clickid','obCli','obOrigin','ob_click_id','obTopic',
+  'twclid','ttclid','li_fat_id','ocid','oicd',
+  'rb_clickid','obCli','obOrigin','ob_click_id','obTopic',
   'obUrl','obOrig','click_id','clickid','tblci','tblci_id',
   '_branch_match_id','branch_match_id','adjust_tracker',
   'afftrack','affsub','affsub1','affsub2','aff_id','deep_link',
@@ -2314,6 +2637,7 @@ function cleanTrackingUrl(rawUrl) {
 }
 
 var _dntEnabled = true;
+var _gpcEnabled = true;
 function applySecuritySettings() {
   if (!_mainWindow) return;
   var ses = _mainWindow.webContents.session;
@@ -2352,19 +2676,33 @@ function applySecuritySettings() {
     _secBeforeRequest = null;
   }
 
-  if (sec.webrtcLeak) {
-    try { ses.setWebRTCIPHandlingPolicy('disable_non_proxied_udp'); } catch(e) {}
-  } else {
-    try { ses.setWebRTCIPHandlingPolicy('default'); } catch(e) {}
+  // WebRTC/permission guards must cover EVERY session (default + incognito/
+  // container partitions), not just the main window: without this, WebRTC in
+  // a private tab leaked the real IP even with the leak toggle ON, and the
+  // permission toggles were never enforced in partitions (Electron approves
+  // by default when no handler is installed).
+  function _applySessionGuards(s2) {
+    try {
+      if (sec.webrtcLeak) s2.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+      else s2.setWebRTCIPHandlingPolicy('default');
+    } catch(e) {}
+    try {
+      s2.setPermissionRequestHandler(_makePermissionHandler(sec));
+      s2.setPermissionCheckHandler(_makePermissionCheckHandler(sec));
+    } catch(e) {}
   }
-
-  // Permission handler is now owned by _makePermissionHandler (single source
-  // of truth). Security toggles are evaluated inside it, so we just refresh
-  // the bound config — never overwrite with a stripped-down handler again.
+  _applySessionGuards(ses);
   try {
-    ses.setPermissionRequestHandler(_makePermissionHandler(sec));
-    ses.setPermissionCheckHandler(_makePermissionCheckHandler(sec));
-  } catch(e) {}
+    var _gSeen = new Set([ses]);
+    webContents.getAllWebContents().forEach(function (wc) {
+      try {
+        var s2 = wc.session;
+        if (!s2 || _gSeen.has(s2)) return;
+        _gSeen.add(s2);
+        _applySessionGuards(s2);
+      } catch (e2) {}
+    });
+  } catch (e3) {}
 
   if (sec.blockThirdPartyCookies) {
     _secBeforeSendHeaders = function(details, callback) {
@@ -2412,19 +2750,40 @@ function applySecuritySettings() {
 
   try { _mainWindow.webContents.send('security-settings-changed', sec); } catch(e) {}
 
-  if (adblocker && adblocker.isEnabled && adblocker.isEnabled()) {
+  // The security onBeforeRequest hook (httpsOnly / blockMixedContent /
+  // urlClean) must survive an adblocker toggle: reEnable() installs it even
+  // when blocking is disabled (the !enabled branch in adblocker.js wires the
+  // sec-hook alone). Previously an isEnabled() gate here left those toggles
+  // silently dead with the blocker off.
+  if (adblocker && adblocker.reEnable) {
     try { adblocker.reEnable(ses, _secBeforeRequest); } catch(e) {}
+    // Re-apply to every EXISTING webview partition (incognito/container):
+    // sessions created before the engine finished building got no hook at
+    // all — restored tabs loaded with httpsOnly/mixed-content offline.
+    try {
+      var _seenSes = new Set([ses]);
+      webContents.getAllWebContents().forEach(function (wc) {
+        try {
+          var s2 = wc.session;
+          if (!s2 || _seenSes.has(s2)) return;
+          _seenSes.add(s2);
+          adblocker.reEnable(s2, _secBeforeRequest);
+        } catch (e2) {}
+      });
+    } catch (e3) {}
   }
 
   // Always wrap the listener so the security logic runs BEFORE
   // the sec-ch-ua substitution (substitution must be at the very end — it is critical for
   // Google login and must not be dropped by any privacy settings).
   _dntEnabled = sec.dnt !== false;
+  _gpcEnabled = sec.gpc !== false;
   var securityHandler = _secBeforeSendHeaders;
   _secBeforeSendHeaders = function(details, callback) {
     if (!securityHandler) {
       var h0 = details.requestHeaders || {};
-      if (_dntEnabled) { h0['DNT'] = '1'; h0['Sec-GPC'] = '1'; }
+      if (_dntEnabled) h0['DNT'] = '1';
+      if (_gpcEnabled) h0['Sec-GPC'] = '1';
       _stripSiteCookies(details, h0);
       _applyChromeHeadersToObject(h0, details.url, _wcProfile(details));
       callback({ requestHeaders: h0 });
@@ -2432,7 +2791,8 @@ function applySecuritySettings() {
     }
     securityHandler(details, function(res) {
       var h1 = (res && res.requestHeaders) || details.requestHeaders || {};
-      if (_dntEnabled) { h1['DNT'] = '1'; h1['Sec-GPC'] = '1'; }
+      if (_dntEnabled) h1['DNT'] = '1';
+      if (_gpcEnabled) h1['Sec-GPC'] = '1';
       _stripSiteCookies(details, h1);
       _applyChromeHeadersToObject(h1, details.url, _wcProfile(details));
       callback({ requestHeaders: h1 });
@@ -2671,7 +3031,8 @@ function _ensureChromeHeadersOnSession(ses) {
   try {
     ses.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, function(details, callback) {
       var h = details.requestHeaders || {};
-      if (_dntEnabled) { h['DNT'] = '1'; h['Sec-GPC'] = '1'; }
+      if (_dntEnabled) h['DNT'] = '1';
+      if (_gpcEnabled) h['Sec-GPC'] = '1';
       _stripSiteCookies(details, h);
       _applyChromeHeadersToObject(h, details.url, _wcProfile(details));
       callback({ requestHeaders: h });
@@ -2837,13 +3198,208 @@ function _handlePageIpc(wc, req) {
       _translateText(String(tp.text || ''), tp.from, tp.to).then(respond);
     } else if (kind === 'superdrag') {
       var sp = req.payload || {};
-      _superDragAction(wc, String(sp.kind || ''), sp.payload || '');
+      // Scheme gate: the drag payload comes from the page world — a hostile
+      // page could forge a `superdrag` console message to make the shell
+      // open file:// or other non-web URLs in a tab. Only http(s) may pass
+      // (mirrors the setWindowOpenHandler policy).
+      var spPayload = String(sp.payload || '');
+      if (sp.kind === 'image' || sp.kind === 'link') {
+        if (!/^https?:\/\//i.test(spPayload)) { respond({ ok: false }); return; }
+      }
+      _superDragAction(wc, String(sp.kind || ''), spPayload);
+      respond({ ok: true });
+    } else if (kind === 'mediacontrol') {
+      // Start-page mini-player buttons: control the tab that last started
+      // playing media (see the media bridge below).
+      _miniPlayerControl(String((req.payload && req.payload.act) || ''));
+      respond({ ok: true });
+    } else if (kind === 'micstate') {
+      // Microphone-use indicator: the page-world getUserMedia wrapper (see
+      // renderer's _injectMicTracker) reports capture on/off; forward to the
+      // shell so the TAB element can show a gently pulsing mic badge. Click
+      // toggle goes back via executeJavaScript — see renderer.
+      try {
+        if (_mainWindow && !_mainWindow.isDestroyed()) {
+          _mainWindow.webContents.send('tab-mic-state', {
+            wcId: wc.id,
+            on: !!(req.payload && req.payload.on)
+          });
+        }
+      } catch (eM) {}
       respond({ ok: true });
     }
   } catch(e) {
     try { respond(null); } catch(e2) {}
   }
 }
+
+// ============== START-PAGE MINI-PLAYER MEDIA BRIDGE ==============
+// The mini-player on the new-tab page used to be a dead UI: nothing ever
+// called StartPOZI.setMedia and nobody subscribed onControl, so it showed
+// "Nothing is playing" while music was playing and its buttons did nothing.
+// The bridge: main tracks which webview last started playing
+// (media-started-playing events) and pushes title/artist/artwork/playing
+// state into the start page; mini-player buttons come back through the
+// console IPC transport ('mediacontrol').
+var _lastMediaWcId = null;
+function _findStartPageWc() {
+  try {
+    var all = webContents.getAllWebContents();
+    for (var i = 0; i < all.length; i++) {
+      try {
+        if (all[i].getType() === 'webview' &&
+            String(all[i].getURL()).indexOf('MainPage/index.html') !== -1) {
+          return all[i];
+        }
+      } catch (e0) {}
+    }
+  } catch (e) {}
+  return null;
+}
+function _pushMediaToStartPage() {
+  try {
+    var sp = _findStartPageWc();
+    if (!sp || sp.isDestroyed()) return;
+    var mw = (_lastMediaWcId !== null) ? webContents.fromId(_lastMediaWcId) : null;
+    var clear = function () {
+      try {
+        sp.executeJavaScript('window.StartPOZI && window.StartPOZI.setMedia && window.StartPOZI.setMedia(null)', false).catch(function () {});
+      } catch (e1) {}
+    };
+    if (!mw || mw.isDestroyed() || mw.getType() !== 'webview') { clear(); return; }
+    // Probe: media elements AND MediaSession.playbackState. Sites like
+    // Yandex Music play through Web Audio with ZERO <audio>/<video>
+    // elements — mediaSession.playbackState is the only reliable signal.
+    var js = '(function(){try{' +
+      'var ms=navigator.mediaSession;' +
+      'var m=ms&&ms.metadata;' +
+      'var els=document.querySelectorAll("video,audio");var el=null;' +
+      'for(var i=0;i<els.length;i++){if(!els[i].paused&&els[i].currentSrc){el=els[i];break}}' +
+      'var playing=!!el||(ms&&ms.playbackState==="playing");' +
+      'return JSON.stringify({title:(m&&m.title)||"",artist:(m&&m.artist)||"",artwork:(m&&m.artwork&&m.artwork[0]&&m.artwork[0].src)||"",playing:playing})' +
+      '}catch(e){return "{}"}})()';
+    mw.executeJavaScript(js, false).then(function (jsonStr) {
+      var d = {};
+      try { d = JSON.parse(jsonStr) || {}; } catch (e2) {}
+      var title = d.title || mw.getTitle() || '';
+      try {
+        sp.executeJavaScript(
+          'window.StartPOZI && window.StartPOZI.setMedia && window.StartPOZI.setMedia(' +
+          JSON.stringify({ title: title, artist: d.artist || '', artwork: d.artwork || '', playing: !!d.playing }) +
+          ')', false
+        ).catch(function () {});
+      } catch (e3) {}
+    }).catch(function () {});
+  } catch (e) {}
+}
+
+// Fallback play/pause for WebAudio players (no <audio>/<video> to control):
+// click the SITE'S own play/pause button. userGesture=true so the click
+// carries user activation (autoplay policy).
+var _SITE_PLAYPAUSE_JS = '(function(){' +
+  'var sels=[".player-controls__btn_play",' +
+  '  "button[aria-label*=\\\"Пауз\\\" i]","button[aria-label*=\\\"Плей\\\" i]","button[aria-label*=\\\"Играть\\\" i]",' +
+  '  "button[aria-label*=\\\"Pause\\\" i]","button[aria-label*=\\\"Play\\\" i]","button[aria-label*=\\\"Слушать\\\" i]",' +
+  '  "[data-testid=\\"play-pause-button\\"]",".ytmusic-play-button",".shaka-play-button",' +
+  '  ".vjs-play-control",".play-btn",".playButton",' +
+  '  "button[class*=\\\"play\\\" i]:not([class*=\\\"next\\\" i]):not([class*=\\\"prev\\\" i]):not([class*=\\\"playlist\\\" i])"];' +
+  'for(var i=0;i<sels.length;i++){try{' +
+  '  var list=document.querySelectorAll(sels[i]);' +
+  '  for(var j=0;j<list.length;j++){var b=list[j];' +
+  '    if(b.offsetWidth<5&&b.offsetHeight<5)continue;' +
+  '    b.click();return "clicked:"+sels[i].slice(0,30);}}catch(e){}}' +
+  'return "none";})()';
+
+function _miniPlayerControl(act) {
+  try {
+    var mw = (_lastMediaWcId !== null) ? webContents.fromId(_lastMediaWcId) : null;
+    if (!mw || mw.isDestroyed() || mw.getType() !== 'webview') return;
+    var js = '';
+    if (act === 'playpause' || act === 'toggle') {
+      js = '(function(){var els=document.querySelectorAll("video,audio");for(var i=0;i<els.length;i++){var el=els[i];if(el.currentSrc){if(el.paused){el.play().catch(function(){})}else{el.pause()}return "el-done"}}return "no-el"})()';
+    } else if (act === 'prev') {
+      js = '(function(){var els=document.querySelectorAll("video,audio");for(var i=0;i<els.length;i++){var el=els[i];if(el.currentSrc){el.currentTime=Math.max(0,el.currentTime-10);return "el-done"}}return "no-el"})()';
+    } else if (act === 'next') {
+      js = '(function(){var els=document.querySelectorAll("video,audio");for(var i=0;i<els.length;i++){var el=els[i];if(el.currentSrc){el.currentTime=Math.min((el.duration||1e9),el.currentTime+30);return "el-done"}}return "no-el"})()';
+    }
+    if (js) {
+      mw.executeJavaScript(js, false).then(function (r) {
+        if (r === 'no-el' && (act === 'playpause' || act === 'toggle')) {
+          // WebAudio player (Yandex Music etc.): drive the site's own button.
+          try {
+            mw.executeJavaScript(_SITE_PLAYPAUSE_JS, true).then(function () {
+              setTimeout(_pushMediaToStartPage, 300);
+            }).catch(function () {});
+          } catch (eF) {}
+        } else {
+          setTimeout(_pushMediaToStartPage, 250);
+        }
+      }).catch(function () {});
+    }
+  } catch (e) {}
+}
+
+// Scanner for WebAudio players: they never fire media-started-playing and
+// own no media elements, so poll every webview's MediaSession.playbackState
+// every 3 s. The first playing tab becomes _lastMediaWcId. The playing set
+// is also broadcast to the browser renderer so NO sleep path may freeze a
+// tab that is currently making sound ("tab must not sleep while playing").
+var _lastPlayingSet = '';
+// Media scanner: finds playing tabs (mediaSession / video+audio elements) in
+// EVERY webview via executeJavaScript. Runs every 10 s — at the old 3 s this
+// was a constant background JS-injection into every open page (perceptible
+// jank while pages load). Sleep still double-checks media itself at sleep
+// time, so a slower scan cannot cause a playing tab to be frozen.
+setInterval(function () {
+  try {
+    var playingIds = [];
+    var checked = 0;
+    var all = webContents.getAllWebContents();
+    all.forEach(function (wc) {
+      try {
+        if (wc.isDestroyed() || wc.getType() !== 'webview') return;
+        var u = wc.getURL();
+        if (!u || u.indexOf('http') !== 0) return;
+        checked++;
+        wc.executeJavaScript(
+          '(function(){try{' +
+          'var ms=navigator.mediaSession;' +
+          'if(ms&&ms.playbackState==="playing")return 1;' +
+          'var els=document.querySelectorAll("video,audio");' +
+          'for(var i=0;i<els.length;i++){if(!els[i].paused&&els[i].currentSrc)return 2}' +
+          '}catch(e){}return 0})()',
+          false
+        ).then(function (r) {
+          if (r) {
+            playingIds.push({ id: wc.id, kind: r });
+            if (_lastMediaWcId !== wc.id) _lastMediaWcId = wc.id;
+            if (r === 1) _pushMediaToStartPage();
+          }
+        }).catch(function () {});
+      } catch (e1) {}
+    });
+    // Broadcast the playing set to the shell renderer when it changes.
+    setTimeout(function () {
+      try {
+        var key = playingIds.map(function (p) { return p.id; }).sort().join(',');
+        if (key !== _lastPlayingSet) {
+          _lastPlayingSet = key;
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('media-playing-wcids', playingIds.map(function (p) { return p.id; }));
+          }
+        }
+      } catch (e2) {}
+    }, 900);
+  } catch (e3) {}
+}, 10000);
+
+// Direct IPC control channel for the start-page mini-player (internal
+// pages get the full electronAPI bridge). More robust than the console
+// transport — a real ipcRenderer.invoke, no parsing, no CSP/world tricks.
+ipcMain.handle('spz-media-control', (_, act) => {
+  try { _miniPlayerControl(String(act || '')); } catch (e) {}
+  return { ok: true };
+});
 
 // ============== THEME ==============
 ipcMain.handle('get-theme', () => {
@@ -2911,14 +3467,24 @@ ipcMain.handle('set-translucent-mode', (_, val) => {
   } catch(e) { return { success: false, error: e.message }; }
 });
 
+// Legacy normalize: the StartPOZI engine used to live under the netlify.app
+// deploy. Any stored (or incoming) value pointing there is transparently
+// rewritten to the canonical startpozi.com domain.
+const LEGACY_NETLIFY_ENGINE = 'https://startpozi.netlify.app/search.html?q=';
+const DEFAULT_SEARCH_ENGINE = 'https://startpozi.com/search.html?q=';
+function _normalizeSearchEngine(url) {
+  if (url === LEGACY_NETLIFY_ENGINE) return DEFAULT_SEARCH_ENGINE;
+  return url;
+}
+
 ipcMain.handle('get-search-engine', () => {
   const store = readStorage();
-  return store.searchEngine || 'https://startpozi.com/search.html?q=';
+  return _normalizeSearchEngine(store.searchEngine) || DEFAULT_SEARCH_ENGINE;
 });
 
 ipcMain.handle('set-search-engine', (_, url) => {
   const store = readStorage();
-  store.searchEngine = url;
+  store.searchEngine = _normalizeSearchEngine(url);
   writeStorage(store);
   try {
     _allShells().forEach(function (sh) {
@@ -3100,7 +3666,7 @@ function _torActiveNow() {
 // reachable (some daemons cannot reach specific onions — e.g. DuckDuckGo's);
 // switching to a dead mirror makes every search ERR_SOCKS_CONNECTION_FAILED.
 function _effectiveSearchEngine() {
-  var url = readStorage().searchEngine || 'https://startpozi.com/search.html?q=';
+  var url = _normalizeSearchEngine(readStorage().searchEngine) || DEFAULT_SEARCH_ENGINE;
   if (readStorage().searchOnionMaps === false) return url;
   var m = _onionEngineFor(url);
   if (!m) return url;
@@ -3161,7 +3727,8 @@ const EXTERNAL_SERVICES = {
   suggest: {
     google: 'https://suggestqueries.google.com/complete/search?client=firefox&q=',
     yandex: 'https://suggest.yandex.com/suggest-ff.cgi?part=',
-    duckduckgo: 'https://duckduckgo.com/ac/?q='
+    duckduckgo: 'https://duckduckgo.com/ac/?q=',
+    bing: 'https://api.bing.com/osjson.aspx?query='
   },
   translate: 'https://translate.googleapis.com/translate_a/single',
   hibp: 'https://api.pwnedpasswords.com/range/',
@@ -3183,34 +3750,27 @@ ipcMain.handle('get-external-services', () => {
   return {
     success: true,
     services: [
-      { key: 'suggestEnabled',      url: 'suggestqueries.google.com / suggest.yandex.com / duckduckgo.com' },
+      { key: 'suggestEnabled',      url: 'suggestqueries.google.com / suggest.yandex.com / duckduckgo.com / api.bing.com' },
       { key: 'translateEnabled',    url: 'translate.googleapis.com' },
       { key: 'hibpEnabled',         url: 'api.pwnedpasswords.com' },
-      { key: 'diagnosticsEnabled',  url: 'check.torproject.org / ipapi.co / ipinfo.io / speed.cloudflare.com' }
+      { key: 'diagnosticsEnabled',  url: 'check.torproject.org / ipapi.co / ipinfo.io / speed.cloudflare.com' },
+      { key: 'faviconsEnabled',     url: 'www.google.com (favicon lookup for tabs / bookmarks / history)' }
     ],
     enabled: {
       suggestEnabled: _svcEnabled('suggestEnabled'),
       translateEnabled: _svcEnabled('translateEnabled'),
       hibpEnabled: _svcEnabled('hibpEnabled'),
-      diagnosticsEnabled: _svcEnabled('diagnosticsEnabled')
+      diagnosticsEnabled: _svcEnabled('diagnosticsEnabled'),
+      faviconsEnabled: _svcEnabled('faviconsEnabled')
     }
   };
 });
 
 
-ipcMain.handle('search-suggest', async (_, query) => {
-  if (!_svcEnabled('suggestEnabled')) return [];
-  if (!query || query.length < 2) return [];
-  const store = readStorage();
-  const se = store.searchEngine || '';
-  let suggestUrl;
-  if (se.indexOf('google') !== -1) {
-    suggestUrl = EXTERNAL_SERVICES.suggest.google + encodeURIComponent(query);
-  } else if (se.indexOf('yandex') !== -1) {
-    suggestUrl = EXTERNAL_SERVICES.suggest.yandex + encodeURIComponent(query) + '&uil=ru&v=3&sn=5&lr=213';
-  } else {
-    suggestUrl = EXTERNAL_SERVICES.suggest.duckduckgo + encodeURIComponent(query);
-  }
+// Fetch suggestions from ONE endpoint and normalize the response.
+// All four engines answer with either [query,[items]] (google/bing/yandex,
+// "osuggest" format) or a bare array of {phrase} objects (duckduckgo).
+async function _fetchSuggestOnce(suggestUrl) {
   try {
     const resp = await require('electron').net.fetch(suggestUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' },
@@ -3228,8 +3788,36 @@ ipcMain.handle('search-suggest', async (_, query) => {
     } else if (json && Array.isArray(json.suggestions)) {
       suggestions = json.suggestions.map(s => typeof s === 'string' ? s : (s.value || s.text || '')).filter(Boolean);
     }
-    return suggestions.slice(0, 6);
-  } catch(e) { return []; }
+    return suggestions;
+  } catch (e) { return []; }
+}
+
+ipcMain.handle('search-suggest', async (_, query) => {
+  if (!_svcEnabled('suggestEnabled')) return [];
+  if (!query || query.length < 2) return [];
+  const store = readStorage();
+  const se = store.searchEngine || '';
+  // The primary suggester follows the CONFIGURED engine; the other engines
+  // act as fallbacks — suggestions keep working when one endpoint is down,
+  // blocked or returns nothing (e.g. DDG rate-limiting).
+  var order = [];
+  if (se.indexOf('google') !== -1) order.push('google');
+  else if (se.indexOf('yandex') !== -1) order.push('yandex');
+  else if (se.indexOf('bing') !== -1) order.push('bing');
+  else order.push('duckduckgo');
+  ['google', 'duckduckgo', 'bing', 'yandex'].forEach(function(k) {
+    if (order.indexOf(k) === -1) order.push(k);
+  });
+  for (const src of order) {
+    let suggestUrl;
+    if (src === 'google') suggestUrl = EXTERNAL_SERVICES.suggest.google + encodeURIComponent(query);
+    else if (src === 'yandex') suggestUrl = EXTERNAL_SERVICES.suggest.yandex + encodeURIComponent(query) + '&uil=ru&v=3&sn=5&lr=213';
+    else if (src === 'bing') suggestUrl = EXTERNAL_SERVICES.suggest.bing + encodeURIComponent(query);
+    else suggestUrl = EXTERNAL_SERVICES.suggest.duckduckgo + encodeURIComponent(query);
+    const suggestions = await _fetchSuggestOnce(suggestUrl);
+    if (suggestions && suggestions.length) return suggestions.slice(0, 6);
+  }
+  return [];
 });
 
 // ============== STARTUP ==============
@@ -3461,13 +4049,26 @@ ipcMain.handle('remove-filter-list', (_, url) => {
   }
   return { success: true };
 });
-ipcMain.handle('update-filter-lists', () => {
-  if (adblocker && adblocker.updateAllLists) {
-    adblocker.updateAllLists();
-  } else if (adblocker && adblocker.reloadFromLists) {
-    adblocker.reloadFromLists();
-  }
+ipcMain.handle('update-filter-lists', async () => {
+  try {
+    if (adblocker && adblocker.updateAllLists) {
+      await adblocker.updateAllLists();
+    } else if (adblocker && adblocker.reloadFromLists) {
+      await adblocker.reloadFromLists();
+    }
+  } catch (e) {}
   return { success: true };
+});
+
+// Engine diagnostics for the adblock panel: how many lists built the engine
+// and where from (catalog / cache / offline fallback). When the user says
+// "not everything is blocked", this shows whether the full catalog actually
+// loaded or the weak prebuilt fallback is running.
+ipcMain.handle('adblocker-engine-info', () => {
+  try {
+    if (adblocker && adblocker.getEngineInfo) return { success: true, info: adblocker.getEngineInfo() };
+  } catch (e) {}
+  return { success: false };
 });
 
 // ============== CUSTOM HIDE STYLES ==============
@@ -3537,8 +4138,9 @@ ipcMain.on('get-geo-override-sync', (event, domain) => {
 
 ipcMain.handle('get-security-setting', (_, key) => {
   const store = readStorage();
-  // Opt-out settings: absent means ENABLED (DNT signal, external services).
-  var optOutKeys = ['dnt', 'suggestEnabled', 'translateEnabled', 'hibpEnabled', 'diagnosticsEnabled'];
+  // Opt-out settings: absent means ENABLED (DNT/GPC signals, external services).
+  var optOutKeys = ['dnt', 'gpc', 'suggestEnabled', 'translateEnabled', 'hibpEnabled', 'diagnosticsEnabled', 'updateChecks',
+    'omniboxFrequentSuggestions', 'omniboxBookmarkSuggestions'];
   if (optOutKeys.indexOf(key) !== -1) {
     if (!store.security || store.security[key] === undefined) return true;
     return !!store.security[key];
@@ -3559,12 +4161,242 @@ ipcMain.handle('get-all-security-settings', () => {
   return store.security || {};
 });
 
+// Site Info panel: connection + certificate data for a specific tab's
+// webContents (captured by _trackSecurityDetails). wcId comes from the
+// renderer (tab.webview.getWebContentsId()); the response is resolved from
+// the in-memory CDP cache — no new network requests are made.
+ipcMain.handle('get-page-security-info', (event, wcId) => {
+  try {
+    var wc = null;
+    try { wc = webContents.fromId(Number(wcId)); } catch (eW) {}
+    if (!wc || wc.isDestroyed()) return { available: false, secure: false, url: '' };
+    var url = wc.getURL() || '';
+    var fresh = null;
+    var info = _secInfoByWc.get(wc.id);
+    if (info && info.url === url) fresh = info;
+    // Same-origin refreshes (e.g. ?query change) keep the previous capture —
+    // the certificate/metadata are identical for the origin in practice.
+    if (!fresh && info) {
+      try {
+        if (new URL(info.url).origin === new URL(url).origin) fresh = info;
+      } catch (eO) {}
+    }
+    var isHttps = /^https:/i.test(url);
+    return {
+      available: !!(fresh && fresh.securityDetails),
+      secure: isHttps,
+      url: url,
+      cert: (fresh && fresh.securityDetails) || null,
+      mimeType: (fresh && fresh.mimeType) || null,
+      encodedDataLength: (fresh && fresh.encodedDataLength) || null,
+      lastModified: (fresh && fresh.headers && (fresh.headers['Last-Modified'] || fresh.headers['last-modified'])) || null
+    };
+  } catch (e) {
+    return { available: false, secure: false, url: '' };
+  }
+});
+
+// Site Info panel: "Delete cookies and site data" — wipes cookies (incl.
+// domain-wide ones clearStorageData misses), localStorage, IndexedDB, service
+// workers, cache storage, filesystem and shader caches FOR THIS ORIGIN in the
+// tab's own session (so container/incognito partitions are handled too).
+ipcMain.handle('clear-site-data', async (event, wcId, pageUrl) => {
+  try {
+    var wc = null;
+    try { wc = webContents.fromId(Number(wcId)); } catch (eW) {}
+    if (!wc || wc.isDestroyed() || !wc.session) return { success: false, error: 'no-session' };
+    var ses = wc.session;
+    var u = null;
+    try { u = new URL(String(pageUrl || '')); } catch (eU) {}
+    if (!u || (u.protocol !== 'https:' && u.protocol !== 'http:')) {
+      return { success: false, error: 'bad-origin' };
+    }
+    var origin = u.origin;
+    var host = u.hostname.toLowerCase();
+    var removedCookies = 0;
+    // Domain cookies: getAll({url}) misses cookies scoped to parent domains,
+    // so list everything and match domain suffixes manually.
+    try {
+      var all = await ses.cookies.getAll({});
+      for (var i = 0; i < all.length; i++) {
+        var c = all[i];
+        var cd = String(c.domain || '').toLowerCase().replace(/^\./, '');
+        if (cd === host || host.endsWith('.' + cd)) {
+          try {
+            await ses.cookies.remove('https://' + cd + (c.path || '/'), c.name);
+            removedCookies++;
+          } catch (eR) {}
+        }
+      }
+    } catch (eC) {}
+    try {
+      await ses.clearStorageData({
+        origin: origin,
+        storages: ['cachestorage', 'serviceworkers', 'indexdb', 'localstorage', 'websql', 'filesystem', 'shadercache']
+      });
+    } catch (eS) {}
+    return { success: true, removedCookies: removedCookies };
+  } catch (e) {
+    return { success: false, error: 'failed' };
+  }
+});
+
+
 // ===== DoH (DNS-over-HTTPS) settings =====
 // Applied via command-line switches at startup (see applyDnsThroughProxyFlag),
 // so a change needs a browser restart — the setter reports that back.
+// Default: enabled with the Mozilla resolver (privacy by default).
+var DOH_DEFAULTS = {
+  enabled: true,
+  server: 'https://mozilla.cloudflare-dns.com/dns-query',
+  mode: 'automatic'
+};
+// ===== SSL CERTIFICATE MANAGER =====
+// Settings → Security → "Manage SSL certificates": user-added trust anchors
+// plus a switch for the bundled (Mozilla) system roots.
+//  • Node-side TLS (downloads / save-image): certstore.pem() merges the
+//    enabled user certs and drops the system bundle when it is disabled.
+//  • Chromium verify procs: certstore.verifyAgainstBundle anchors at the
+//    user certs too; with the system roots disabled, chains Chromium itself
+//    accepted are re-checked against the user trust anchors only (fail closed).
+function _sslCertsStore() {
+  var s = readStorage();
+  if (!s.sslCerts || typeof s.sslCerts !== 'object') s.sslCerts = { systemEnabled: true, userCerts: [] };
+  if (!Array.isArray(s.sslCerts.userCerts)) s.sslCerts.userCerts = [];
+  if (s.sslCerts.systemEnabled === undefined) s.sslCerts.systemEnabled = true;
+  return s;
+}
+// The bundled StartPOZI SSL-Service root bundle: trusted by default, can be
+// switched off in the manager (never removed — it ships with the browser).
+// Single copy in the project root (same file Start.sh exports as
+// NODE_EXTRA_CA_CERTS and certstore.js picks up as a candidate).
+function _sslServicePems() {
+  try {
+    var p = path.join(__dirname, 'cacert.pem');
+    if (!fs.existsSync(p)) return [];
+    var raw = fs.readFileSync(p, 'utf-8');
+    var out = [], re = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g, m;
+    while ((m = re.exec(raw)) !== null) out.push(m[0]);
+    return out;
+  } catch (e) { return []; }
+}
+function _applySslCerts() {
+  try {
+    var s = _sslCertsStore();
+    var pems = [];
+    if (s.sslCerts.sslServiceEnabled !== false) pems = pems.concat(_sslServicePems());
+    pems = pems.concat(s.sslCerts.userCerts
+      .filter(function (c) { return c && c.enabled !== false && typeof c.pem === 'string'; })
+      .map(function (c) { return c.pem; }));
+    certstore.setTrustConfig(pems, s.sslCerts.systemEnabled);
+  } catch (e) {}
+}
+function _sslCertsList() {
+  var s = _sslCertsStore();
+  return {
+    success: true,
+    systemEnabled: s.sslCerts.systemEnabled !== false,
+    systemRoots: certstore.rootCount(),
+    sslService: { enabled: s.sslCerts.sslServiceEnabled !== false, count: _sslServicePems().length },
+    userCerts: s.sslCerts.userCerts.map(function (c) {
+      return {
+        id: c.id,
+        name: c.name || 'certificate',
+        subject: c.subject || '',
+        issuer: c.issuer || '',
+        validTo: c.validTo || '',
+        enabled: c.enabled !== false
+      };
+    })
+  };
+}
+function _saveSslCerts(s) { writeStorage(s); _applySslCerts(); }
+
+ipcMain.handle('ssl-certs-get', () => _sslCertsList());
+
+ipcMain.handle('ssl-certs-add', async () => {
+  try {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select a certificate (PEM / CRT / CER)',
+      filters: [{ name: 'Certificates', extensions: ['pem', 'crt', 'cer'] }],
+      properties: ['openFile']
+    });
+    if (r.canceled || !r.filePaths.length) return { success: false, message: 'Cancelled' };
+    const raw = fs.readFileSync(r.filePaths[0], 'utf-8');
+    const re = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
+    const s = _sslCertsStore();
+    const existingFps = {};
+    s.sslCerts.userCerts.forEach(function (c) { if (c.fp) existingFps[c.fp] = true; });
+    let added = 0, lastErr = '';
+    let m;
+    const baseName = path.basename(r.filePaths[0]).replace(/\.(pem|crt|cer)$/i, '');
+    while ((m = re.exec(raw)) !== null) {
+      try {
+        const x509 = new crypto.X509Certificate(m[0]);
+        const fp = crypto.createHash('sha256').update(x509.raw).digest('hex');
+        if (existingFps[fp]) continue; // dedupe
+        existingFps[fp] = true;
+        let name = baseName;
+        try {
+          const cn = /(^|,\s*)CN=([^,]+)/.exec(x509.subject || '');
+          if (cn && cn[2]) name = cn[2];
+        } catch (e0) {}
+        s.sslCerts.userCerts.push({
+          id: 'cert-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+          name: name,
+          subject: x509.subject || '',
+          issuer: x509.issuer || '',
+          validTo: x509.validTo || '',
+          fp: fp,
+          pem: m[0],
+          enabled: true
+        });
+        added++;
+      } catch (e1) { lastErr = e1.message; }
+    }
+    if (!added) return { success: false, message: lastErr ? ('Invalid certificate: ' + lastErr) : 'No certificates found in the file' };
+    _saveSslCerts(s);
+    var out = _sslCertsList();
+    out.added = added;
+    return out;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('ssl-certs-toggle', (_, id, enabled) => {
+  const s = _sslCertsStore();
+  const c = s.sslCerts.userCerts.find(function (c0) { return c0.id === id; });
+  if (!c) return { success: false, message: 'Certificate not found' };
+  c.enabled = enabled !== false;
+  _saveSslCerts(s);
+  return _sslCertsList();
+});
+
+ipcMain.handle('ssl-certs-remove', (_, id) => {
+  const s = _sslCertsStore();
+  s.sslCerts.userCerts = s.sslCerts.userCerts.filter(function (c) { return c.id !== id; });
+  _saveSslCerts(s);
+  return _sslCertsList();
+});
+
+ipcMain.handle('ssl-certs-set-system', (_, enabled) => {
+  const s = _sslCertsStore();
+  s.sslCerts.systemEnabled = enabled !== false;
+  _saveSslCerts(s);
+  return _sslCertsList();
+});
+
+ipcMain.handle('ssl-certs-set-service', (_, enabled) => {
+  const s = _sslCertsStore();
+  s.sslCerts.sslServiceEnabled = enabled !== false;
+  _saveSslCerts(s);
+  return _sslCertsList();
+});
+
 ipcMain.handle('doh-get-settings', () => {
   const store = readStorage();
-  return store.doh || { enabled: false, server: '', mode: 'automatic' };
+  return Object.assign({}, DOH_DEFAULTS, store.doh || {});
 });
 ipcMain.handle('doh-set-settings', (_, cfg) => {
   const store = readStorage();
@@ -3574,7 +4406,7 @@ ipcMain.handle('doh-set-settings', (_, cfg) => {
     mode: (cfg && cfg.mode === 'secure') ? 'secure' : 'automatic'
   };
   if (next.enabled && !/^https:\/\/[^\s]+/.test(next.server)) next.enabled = false;
-  var prev = store.doh || { enabled: false, server: '', mode: 'automatic' };
+  var prev = Object.assign({}, DOH_DEFAULTS, store.doh || {});
   var changed = !prev || prev.enabled !== next.enabled || prev.server !== next.server || prev.mode !== next.mode;
   store.doh = next;
   writeStorage(store);
@@ -3601,6 +4433,8 @@ ipcMain.handle('open-site-as-app', (_, url) => {
       title: u.hostname,
       backgroundColor: '#16161e',
       autoHideMenuBar: true,
+      roundedCorners: true,
+      icon: _appIcon(),
       webPreferences: {
         session: session.defaultSession,
         contextIsolation: true,
@@ -3686,15 +4520,49 @@ ipcMain.handle('viewer-read-file', (event, filePath, encoding) => {
 // ===== OCR (tesseract.js) =====
 // Takes a PNG (base64) captured by the OCR tool, recognizes text offline
 // (language data is downloaded once into userData/tessdata and cached).
-// Language: rus+eng when the UI language is Russian, eng otherwise.
+// Language: rus+eng when the UI language is Russian, ukr+eng for Ukrainian,
+// eng otherwise.
 var _ocrWorker = null;
 var _ocrWorkerLang = '';
 var _ocrBusy = false;
+var _OCR_LANG_MAP = { ru: 'rus+eng', uk: 'ukr+eng' };
 function _ocrLangs() {
   try {
     const store = readStorage();
-    return store.language === 'ru' ? 'rus+eng' : 'eng';
+    return _OCR_LANG_MAP[store.language] || 'eng';
   } catch (e) { return 'eng'; }
+}
+// Pre-fetch tesseract language data through the Chromium network stack
+// (electron.net.fetch) so the download follows the session proxy/Tor. The
+// tesseract worker itself downloads missing languages with plain Node fetch,
+// which BYPASSES the proxy and would leak the real IP on first OCR use.
+// We gunzip and drop the files into the tesseract cache — the worker then
+// finds them there and never touches the network.
+async function _ocrEnsureLangs(langSpec) {
+  var allPresent = true;
+  try {
+    var langs = String(langSpec).split('+');
+    var cachePath = path.join(electronApp.getPath('userData'), 'tessdata');
+    try { fs.mkdirSync(cachePath, { recursive: true }); } catch (e0) {}
+    for (var i = 0; i < langs.length; i++) {
+      var l = langs[i];
+      if (!/^[a-z]{2,3}$/.test(l)) continue;
+      var cacheFile = path.join(cachePath, l + '.traineddata');
+      try { if (fs.existsSync(cacheFile) && fs.statSync(cacheFile).size > 1000) continue; } catch (e1) {}
+      try {
+        var zlib = require('zlib');
+        var url = 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/' + l + '/4.0.0/' + l + '.traineddata.gz';
+        const net = require('electron').net;
+        const resp = await net.fetch(url, { redirect: 'follow' });
+        if (!resp.ok) { allPresent = false; continue; }
+        var gz = Buffer.from(await resp.arrayBuffer());
+        var raw = zlib.gunzipSync(gz);
+        if (raw && raw.length > 1000) fs.writeFileSync(cacheFile, raw);
+        else allPresent = false;
+      } catch (e2) { allPresent = false; }
+    }
+  } catch (e3) { allPresent = false; }
+  return allPresent;
 }
 ipcMain.handle('ocr-recognize', async (_, pngBase64) => {
   try {
@@ -3705,6 +4573,13 @@ ipcMain.handle('ocr-recognize', async (_, pngBase64) => {
     _ocrBusy = true;
     var lang = _ocrLangs();
     try {
+      var langsReady = await _ocrEnsureLangs(lang);
+      if (!langsReady) {
+        // Never fall through to createWorker(): tesseract's own downloader
+        // uses plain Node fetch (undici) which BYPASSES the session proxy —
+        // under Tor that would leak the real IP to a CDN.
+        return { ok: false, error: 'OCR language data unavailable (download failed — check connection/proxy)' };
+      }
       if (!_ocrWorker || _ocrWorkerLang !== lang) {
         if (_ocrWorker) { try { await _ocrWorker.terminate(); } catch (e2) {} _ocrWorker = null; }
         _ocrWorker = await T.createWorker(lang, 1, {
@@ -3937,13 +4812,21 @@ ipcMain.handle('complete-setup', (_, settings) => {
   if (settings.blockTrackers !== undefined) store.security.blockTrackers = settings.blockTrackers;
   if (settings.blockSocialWidgets !== undefined) store.security.blockSocialWidgets = settings.blockSocialWidgets;
   if (settings.blockAds !== undefined) store.security.blockAds = settings.blockAds;
-  // Tab restore
-  if (settings.restoreTabs !== undefined) {
-    store.saveTabs = settings.restoreTabs;
-    saveTabsSetting = settings.restoreTabs;
-  }
-  // Mark as done
-  store.welcomed = true;
+   // Tab restore
+   if (settings.restoreTabs !== undefined) {
+     store.saveTabs = settings.restoreTabs;
+     saveTabsSetting = settings.restoreTabs;
+   }
+    // Language chosen on the setup wizard's language screen
+    var _setupLang = settings.language || settings.lang;
+    if (_isKnownLanguage(_setupLang)) {
+      store.language = _setupLang;
+      try { if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('language-changed', _setupLang);
+      } } catch(e) {}
+    }
+   // Mark as done
+   store.welcomed = true;
   writeStorage(store);
   // Apply security + theme
   try { applySecuritySettings(); } catch(e) {}
@@ -3966,31 +4849,62 @@ ipcMain.handle('complete-setup', (_, settings) => {
 });
 
 // ============== I18N / LANGUAGE ==============
-// English is the source language in code; Russian is provided via locales/ru.json.
-// t(str) returns the localized string for the current language (used by main-process
-// dialogs, menus, notifications).
-let _i18nRu = null;
-let _i18nLang = null;
-function _loadLocaleRu() {
-  if (_i18nRu !== null) return _i18nRu;
-  try { _i18nRu = JSON.parse(fs.readFileSync(path.join(__dirname, 'locales', 'ru.json'), 'utf8')); }
-  catch(e) { _i18nRu = {}; }
-  return _i18nRu;
+// English is the source language in code; every other language is a
+// locales/<code>.json file (EN -> X string map). Languages are AUTO-DETECTED
+// from the locales/ directory — dropping a new JSON there is all it takes to
+// add a language, no code changes needed. Partial dictionaries are allowed:
+// keys missing from a dictionary simply stay English (lookup miss fallback).
+// t(str) returns the localized string for the current language (used by
+// main-process dialogs, menus, notifications).
+const I18N_LANGUAGE_NAMES = {
+  en: 'English', ru: 'Русский', uk: 'Українська', de: 'Deutsch',
+  fr: 'Français', es: 'Español', pl: 'Polski', be: 'Беларуская',
+  kk: 'Қазақша', pt: 'Português',
+};
+var _i18nCache = {};   // lang -> dict
+var _i18nAvailable = null;
+function _availableLanguages() {
+  if (_i18nAvailable) return _i18nAvailable;
+  var codes = ['en'];
+  try {
+    fs.readdirSync(path.join(__dirname, 'locales')).forEach(function(f) {
+      var m = f.match(/^([a-z]{2,3}(?:-[A-Za-z]{2,4})?)\.json$/);
+      if (m && codes.indexOf(m[1]) === -1) codes.push(m[1]);
+    });
+  } catch(e) {}
+  _i18nAvailable = codes.map(function(c) {
+    return { code: c, name: I18N_LANGUAGE_NAMES[c] || c };
+  });
+  return _i18nAvailable;
 }
+function _isKnownLanguage(l) {
+  return _availableLanguages().some(function(x) { return x.code === l; });
+}
+function _loadLocale(lang) {
+  if (!lang || lang === 'en') return {};
+  if (_i18nCache[lang] !== undefined) return _i18nCache[lang];
+  var d = {};
+  try { d = JSON.parse(fs.readFileSync(path.join(__dirname, 'locales', lang + '.json'), 'utf8')) || {}; } catch(e) { d = {}; }
+  _i18nCache[lang] = d;
+  return d;
+}
+let _i18nLang = null;
 function getCurrentLanguage() {
   if (_i18nLang) return _i18nLang;
-  try { _i18nLang = (readStorage().language === 'ru') ? 'ru' : 'en'; } catch(e) { _i18nLang = 'en'; }
+  try { var st = readStorage().language; _i18nLang = _isKnownLanguage(st) ? st : 'en'; } catch(e) { _i18nLang = 'en'; }
   return _i18nLang;
 }
 function t(str) {
   if (!str) return str;
-  if (getCurrentLanguage() === 'en') return str;
-  const d = _loadLocaleRu();
+  var lang = getCurrentLanguage();
+  if (lang === 'en') return str;
+  const d = _loadLocale(lang);
   return (d && Object.prototype.hasOwnProperty.call(d, str)) ? d[str] : str;
 }
 ipcMain.handle('get-language', () => getCurrentLanguage());
+ipcMain.handle('get-available-languages', () => _availableLanguages().slice());
 ipcMain.handle('set-language', (e, l) => {
-  _i18nLang = (l === 'ru') ? 'ru' : 'en';
+  _i18nLang = _isKnownLanguage(l) ? l : 'en';
   const s = readStorage(); s.language = _i18nLang; writeStorage(s);
   try {
     const { webContents } = require('electron');
@@ -4001,9 +4915,10 @@ ipcMain.handle('set-language', (e, l) => {
   return _i18nLang;
 });
 ipcMain.handle('get-locale', (e, l) => {
-  _i18nRu = null;
   const lang = l || getCurrentLanguage();
-  return lang === 'ru' ? _loadLocaleRu() : {};
+  // Never interpolate an arbitrary renderer string into a filesystem path:
+  // restrict to languages actually shipped in locales/.
+  return _isKnownLanguage(lang) ? _loadLocale(lang) : {};
 });
 
 // ============== VIM-LIKE CONTROL ==============
@@ -4120,9 +5035,12 @@ ipcMain.handle('reset-vim-settings', () => {
 // Relay vim-action from webview → renderer (browser commands:
 // new tab, tab switching, etc.). Send to the main window
 // via the 'vim-action' channel — renderer.js listens to it.
-ipcMain.on('vim-action', (_, action, arg) => {
+ipcMain.on('vim-action', (event, action, arg) => {
   try {
-    var w = _mainWindow || mainWindow;
+    // Route to the window that owns the sending webview (secondary/incognito
+    // windows), NOT blindly to the main one — otherwise vim actions from an
+    // incognito window would control tabs of the main window.
+    var w = _shellWindowOf(event.sender) || _mainWindow || mainWindow;
     if (w && !w.isDestroyed()) {
       w.webContents.send('vim-action', { action: action, arg: arg });
     }
@@ -4252,11 +5170,87 @@ ipcMain.handle('add-history', (_, entry) => {
   return { success: true };
 });
 
+// ===== Frequent sites (omnibox "top sites") =====
+// Visits are counted per-origin over a rolling 48-hour window. Origins
+// visited >=5 times inside the window are offered as top suggestions in the
+// omnibox (before bookmarks/history). Fully local — kept in settings.json,
+// never uploaded; incognito navigations are never recorded (the renderer
+// guards the call). Recording also stops when the feature is turned off in
+// Settings → Search.
+var FREQUENT_WINDOW_MS = 48 * 60 * 60 * 1000;
+function _pruneFrequentVisits(map, now) {
+  var cutoff = now - FREQUENT_WINDOW_MS;
+  var keys = Object.keys(map || {});
+  for (var i = 0; i < keys.length; i++) {
+    var arr = (map[keys[i]] || []).filter(function (t) { return t >= cutoff; });
+    if (!arr.length) delete map[keys[i]];
+    else map[keys[i]] = arr.slice(-20);
+  }
+  // Hard cap so settings.json cannot grow unbounded across years of use.
+  keys = Object.keys(map);
+  if (keys.length > 300) {
+    keys.sort(function (a, b) {
+      return ((map[a][map[a].length - 1]) || 0) - ((map[b][map[b].length - 1]) || 0);
+    });
+    while (keys.length > 300) delete map[keys.shift()];
+  }
+  return map;
+}
+ipcMain.handle('record-frequent-visit', (_, url) => {
+  try {
+    var u = new URL(String(url || ''));
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return { success: false };
+    const store = readStorage();
+    var sec = store.security || {};
+    if (sec.omniboxFrequentSuggestions === false) return { success: true, skipped: true };
+    if (!store.frequentSites) store.frequentSites = {};
+    var now = Date.now();
+    _pruneFrequentVisits(store.frequentSites, now);
+    var arr = store.frequentSites[u.origin] || (store.frequentSites[u.origin] = []);
+    arr.push(now);
+    if (arr.length > 20) store.frequentSites[u.origin] = arr.slice(-20);
+    writeStorage(store);
+    return { success: true };
+  } catch (e) {
+    return { success: false };
+  }
+});
+ipcMain.handle('get-frequent-sites', () => {
+  const store = readStorage();
+  var map = _pruneFrequentVisits(store.frequentSites || {}, Date.now());
+  var out = {};
+  Object.keys(map).forEach(function (o) { out[o] = map[o].length; });
+  return out;
+});
+ipcMain.handle('clear-frequent-sites', () => {
+  const store = readStorage();
+  delete store.frequentSites;
+  writeStorage(store);
+  return { success: true };
+});
+
+
 ipcMain.handle('clear-history', () => {
   const store = readStorage();
   store.history = [];
   writeStorage(store);
   if (mainWindow) mainWindow.webContents.send('history-updated');
+  return { success: true };
+});
+
+// Remove ONE history entry by URL (Library "×" button). Previously the
+// renderer worked around the missing channel by calling clear-history —
+// wiping the ENTIRE history on a single-item delete.
+ipcMain.handle('remove-history-entry', (event, url) => {
+  if (_senderIsIncognito(event)) return { success: false };
+  if (typeof url !== 'string' || !url) return { success: false };
+  const store = readStorage();
+  const before = (store.history || []).length;
+  store.history = (store.history || []).filter(h => h.url !== url);
+  if (store.history.length !== before) {
+    writeStorage(store);
+    if (mainWindow) mainWindow.webContents.send('history-updated');
+  }
   return { success: true };
 });
 
@@ -4324,9 +5318,21 @@ ipcMain.handle('remove-site-permissions', (_, domain) => {
 // sitePermissions to make it easy to audit/clear security exceptions.
 ipcMain.handle('set-cert-exception', (_, domain, allow) => {
   const store = readStorage();
+  var d = String(domain || '');
+  // Hostname sanity: no scheme, no path, no injection into settings.json.
+  if (!/^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/i.test(d) || d.length > 253) {
+    return { success: false, error: 'bad-hostname' };
+  }
+  // ADDING an exception is only allowed for a host that actually produced a
+  // certificate warning right now (the interstitial "Proceed" flow). This
+  // blocks silent permanent MITM-ization of arbitrary domains (bank, google)
+  // from a compromised renderer/internal page. Revoking stays free.
+  if (allow && !Object.prototype.hasOwnProperty.call(_suspectCertHosts, d)) {
+    return { success: false, error: 'no-suspect-cert' };
+  }
   if (!store.certExceptions) store.certExceptions = {};
-  if (allow) store.certExceptions[domain] = true;
-  else delete store.certExceptions[domain];
+  if (allow) store.certExceptions[d] = true;
+  else delete store.certExceptions[d];
   writeStorage(store);
   // Refresh the shared in-memory cache so the verify procs of ALL sessions
   // (default + incognito/container partitions) pick up the change without
@@ -4338,13 +5344,13 @@ ipcMain.handle('set-cert-exception', (_, domain, allow) => {
   // held requests silently — never answer them with a rejection: the
   // session-wide verdict cache would make the host unloadable until restart.
   if (allow) {
-    if (Object.prototype.hasOwnProperty.call(_suspectCertHosts, domain)) {
-      delete _suspectCertHosts[domain];
+    if (Object.prototype.hasOwnProperty.call(_suspectCertHosts, d)) {
+      delete _suspectCertHosts[d];
       _broadcastSuspectCerts();
     }
-    _releaseHeldCerts(domain, true);
+    _releaseHeldCerts(d, true);
   } else {
-    _releaseHeldCerts(domain, false);
+    _releaseHeldCerts(d, false);
   }
   return { success: true };
 });
@@ -4385,17 +5391,28 @@ ipcMain.handle('get-http-consent', (_, domain) => {
   return !!(store.httpConsents && store.httpConsents[domain]);
 });
 
-ipcMain.handle('get-all-http-consents', () => {
-  const store = readStorage();
-  return store.httpConsents || {};
-});
-
 // ============== COOKIES ==============
+// Electron cookie objects have no `url` — build one (needed by
+// session.cookies.remove) and compute the cookie's approximate disk size.
+function _cookieUrl(c) {
+  try {
+    var proto = c.secure ? 'https' : 'http';
+    var host = String(c.domain || '').replace(/^\./, '') || 'localhost';
+    return proto + '://' + host + (c.path || '/');
+  } catch (e) { return ''; }
+}
 ipcMain.handle('get-cookies', async () => {
   try {
     if (!mainWindow) return [];
     const cookies = await mainWindow.webContents.session.cookies.get({});
-    return cookies;
+    return cookies.map(function (c) {
+      c.url = _cookieUrl(c);
+      // Approximate stored size: name + value + domain + path + ~60 bytes of
+      // Chromium cookie-metadata per entry.
+      c.size = (c.name || '').length + (c.value || '').length +
+               (c.domain || '').length + (c.path || '').length + 60;
+      return c;
+    });
   } catch(e) {
     return [];
   }
@@ -4412,6 +5429,10 @@ ipcMain.handle('get-cookies-for-domain', async (_, domain) => {
 
 ipcMain.handle('remove-cookie', async (_, url, name) => {
   try {
+    // The UI passes the url computed by get-cookies. If it is missing (old
+    // callers) the removal is impossible — report instead of silently
+    // throwing on `undefined`.
+    if (!url || !name) return { success: false, message: 'Cookie url or name missing' };
     await mainWindow.webContents.session.cookies.remove(url, name);
     return { success: true };
   } catch(e) {
@@ -4425,12 +5446,23 @@ ipcMain.handle('clear-cookies', async (event) => {
     var shell = (event && _shellWindowOf(event.sender)) || mainWindow;
     var ses = shell && !shell.isDestroyed() ? shell.webContents.session : mainWindow.webContents.session;
     const cookies = await ses.cookies.get({});
+    let removed = 0, failed = 0;
     for (const c of cookies) {
-      const proto = c.secure ? 'https' : 'http';
-      const url = proto + '://' + c.domain.replace(/^\./, '') + c.path;
-      await ses.cookies.remove(url, c.name);
+      // Removing needs the exact scheme://host/path URL the cookie belongs
+      // to; a cookie set via https with Secure may still be listed as
+      // non-secure (session restore), so try BOTH schemes.
+      const host = c.domain.replace(/^\./, '') + c.path;
+      let ok = false;
+      for (const proto of ['https', 'http']) {
+        try {
+          await ses.cookies.remove(proto + '://' + host, c.name);
+          ok = true; break;
+        } catch (e0) {}
+      }
+      if (ok) removed++; else failed++;
     }
-    return { success: true };
+    return failed ? { success: false, removed: removed, failed: failed, message: failed + ' cookies could not be removed' }
+                  : { success: true, removed: removed };
   } catch(e) {
     return { success: false, message: e.message };
   }
@@ -4473,7 +5505,8 @@ ipcMain.handle('get-downloads', (event) => {
   return store.downloads || [];
 });
 
-ipcMain.handle('get-session-downloads', () => {
+ipcMain.handle('get-session-downloads', (event) => {
+  if (_senderIsIncognito(event)) return [];
   const store = readStorage();
   const sessionStart = store._sessionStartTime || Date.now();
   return (store.downloads || []).filter(d => d.startTime >= sessionStart);
@@ -4514,9 +5547,15 @@ ipcMain.handle('open-download-file', (_, filePath) => {
 });
 
 ipcMain.handle('check-files-exist', (_, paths) => {
+  // Filesystem oracle guard: without the root restriction any internal page
+  // (e.g. an XSS'd start-page widget) could probe for arbitrary user files
+  // (~/.ssh, wallet dirs, ...). Only plausible download locations may be
+  // probed — that is the sole legitimate use (downloads list rendering).
   const result = {};
-  for (const p of paths) {
-    try { result[p] = fs.existsSync(p); } catch(e) { result[p] = false; }
+  if (Array.isArray(paths)) {
+    for (const p of paths.slice(0, 500)) {
+      try { result[p] = _pathWithinAllowedDownloadDir(p) ? fs.existsSync(p) : false; } catch(e) { result[p] = false; }
+    }
   }
   return result;
 });
@@ -4686,13 +5725,17 @@ ipcMain.handle('get-scripts', () => {
 
 ipcMain.handle('save-script', (_, script) => {
   const store = readStorage();
+  // Same permission whitelist as .skit imports applies to manually created
+  // scripts, so the two paths cannot drift apart.
+  var perms = validateSkitPermissions(script.permissions);
+  if (perms === null) return { success: false, message: 'Invalid permissions — allowed: ' + SKIT_PERMISSIONS.join(', ') };
   if (!store.scripts) store.scripts = [];
   if (script.id) {
     const idx = store.scripts.findIndex(s => s.id === script.id);
     if (idx !== -1) {
-      store.scripts[idx] = { ...store.scripts[idx], ...script, updatedAt: Date.now() };
+      store.scripts[idx] = { ...store.scripts[idx], ...script, permissions: perms, updatedAt: Date.now() };
     } else {
-      store.scripts.push({ ...script, updatedAt: Date.now() });
+      store.scripts.push({ ...script, permissions: perms, updatedAt: Date.now() });
     }
   } else {
     store.scripts.push({
@@ -4703,6 +5746,7 @@ ipcMain.handle('save-script', (_, script) => {
       match: script.match || '*://*/*',
       runAt: script.runAt || 'document-idle',
       runInFrames: !!script.runInFrames,
+      permissions: perms,
       enabled: true,
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -4741,7 +5785,7 @@ function _globPatternToRegExp(pat) {
 ipcMain.handle('get-scripts-for-page', (event, url) => {
   const store = readStorage();
   const scripts = (store.scripts || []).filter(s => s.enabled);
-  if (!url) return scripts.map(s => ({ id: s.id, code: s.code, runAt: s.runAt || 'document-idle', runInFrames: !!s.runInFrames }));
+  if (!url) return scripts.map(s => ({ id: s.id, code: s.code, runAt: s.runAt || 'document-idle', runInFrames: !!s.runInFrames, permissions: Array.isArray(s.permissions) ? s.permissions : [] }));
   const matched = scripts.filter(s => {
     if (!s.match || s.match === '*://*/*') return true;
     try {
@@ -4751,7 +5795,7 @@ ipcMain.handle('get-scripts-for-page', (event, url) => {
       });
     } catch(e) { return false; } // invalid pattern → never match (fail closed)
   });
-  return matched.map(s => ({ id: s.id, code: s.code, runAt: s.runAt || 'document-idle', runInFrames: !!s.runInFrames }));
+  return matched.map(s => ({ id: s.id, code: s.code, runAt: s.runAt || 'document-idle', runInFrames: !!s.runInFrames, permissions: Array.isArray(s.permissions) ? s.permissions : [] }));
 });
 
 // ============== CUSTOMIZATION ==============
@@ -4823,13 +5867,6 @@ ipcMain.on('get-mainpage-data-sync', (event) => {
     const store = readStorage();
     event.returnValue = store.mainPage || {};
   } catch(e) { event.returnValue = {}; }
-});
-
-ipcMain.handle('get-mainpage-data-sync', () => {
-  try {
-    const store = readStorage();
-    return store.mainPage || {};
-  } catch(e) { return {}; }
 });
 
 ipcMain.on('set-mainpage-data', (_, snapshot) => {
@@ -5280,7 +6317,28 @@ ipcMain.handle('import-from-browser', async (_, opts) => {
         result.warnings.push('History: ' + msg);
       }
     }
-    writeStorage(store);
+    // The import helpers above awaited (sqlite/json parsing can take a
+    // while) — the pre-await snapshot must NOT be written back wholesale or
+    // it would erase whatever other handlers saved to settings.json in the
+    // meantime. Merge only the imported collections into the CURRENT store.
+    var importedBookmarks = store.bookmarks || null;
+    var importedHistory = store.history || null;
+    storage.update(function (s) {
+      if (importedBookmarks) {
+        var seen = {};
+        (s.bookmarks || []).forEach(function (b) { if (b && b.url) seen[b.url] = true; });
+        importedBookmarks.forEach(function (b) {
+          if (b && b.url && !seen[b.url]) { (s.bookmarks = s.bookmarks || []).push(b); seen[b.url] = true; }
+        });
+      }
+      if (importedHistory) {
+        var seenH = {};
+        (s.history || []).forEach(function (h) { if (h && h.url) seenH[h.url] = true; });
+        importedHistory.forEach(function (h) {
+          if (h && h.url && !seenH[h.url]) { (s.history = s.history || []).push(h); seenH[h.url] = true; }
+        });
+      }
+    });
     if (mainWindow && !mainWindow.isDestroyed()) {
       try { mainWindow.webContents.send('history-updated'); } catch (e) {}
     }
@@ -5325,16 +6383,6 @@ function writeProfiles(data) {
 function getProfileStoragePath(profileId) {
   return path.join(electronApp.getPath('userData'), 'profile-' + profileId + '.json');
 }
-function readProfileStorage(profileId) {
-  try {
-    const p = getProfileStoragePath(profileId);
-    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch(e) {}
-  return {};
-}
-function writeProfileStorage(profileId, data) {
-  try { fs.writeFileSync(getProfileStoragePath(profileId), JSON.stringify(data, null, 2), 'utf-8'); } catch(e) {}
-}
 
 ipcMain.handle('get-profiles', () => {
   const data = readProfiles();
@@ -5372,17 +6420,6 @@ ipcMain.handle('get-active-profile', () => {
   return data.profiles.find(p => p.id === data.activeProfile) || data.profiles[0];
 });
 
-ipcMain.handle('get-profile-storage', (_) => {
-  const data = readProfiles();
-  return readProfileStorage(data.activeProfile);
-});
-
-ipcMain.handle('write-profile-storage', (_, d) => {
-  const data = readProfiles();
-  writeProfileStorage(data.activeProfile, d);
-  return { success: true };
-});
-
 ipcMain.handle('rename-profile', (_, profileId, newName) => {
   const data = readProfiles();
   var p = data.profiles.find(x => x.id === profileId);
@@ -5391,7 +6428,6 @@ ipcMain.handle('rename-profile', (_, profileId, newName) => {
 });
 
 // ============== INCOGNITO ==============
-var _incognitoPartitions = {};
 ipcMain.handle('create-incognito-tab', (event, url) => {
   var win = _shellWindowOf(event.sender);
   if (win && !win.isDestroyed()) {
@@ -5427,8 +6463,7 @@ ipcMain.handle('clear-incognito-partition', async (_, partition) => {
       await ses.clearAuthCache();
       await ses.clearHostResolverCache();
     } catch(e) {}
-    // 3. Drop the in-memory tracking entry so the partition is forgotten.
-    delete _incognitoPartitions[partition];
+    // 3. Done — the partition was in-memory only and is gone with the session.
     return { success: true };
   } catch(e) {
     return { success: false, error: e.message };
@@ -5529,14 +6564,60 @@ function _notifyPasswordsUpdated() {
   } catch(e) {}
 }
 
-ipcMain.handle('get-passwords', () => {
+// ============== SECRETS IPC SENDER VALIDATION (defense in depth) ==============
+// The preload capability filter (preload-webview.js) already hides every
+// password/vault/backup channel from pages other than Settings.html and
+// Library.html — but that gate lives in the RENDERER. The main process
+// re-validates the sender here (same pattern as viewer-read-file /
+// theme-editor-export): an XSS or a bridge regression in any other page
+// must not be able to read, mutate or unlock the password vault.
+function _senderPageName(event) {
+  try {
+    var url = '';
+    try { url = String((event && event.senderFrame && event.senderFrame.url) || ''); } catch (e0) {}
+    if (!url || url.indexOf('file://') !== 0) return '';
+    var p = '';
+    try { p = decodeURIComponent(new URL(url).pathname); } catch (e1) { p = url; }
+    p = p.replace(/\\/g, '/').toLowerCase().replace(/^\/(?=[a-z]:)/, '');
+    // Resolve dot segments lexically so /app-dir/../evil/x.html cannot pass.
+    var isDrivePath = /^[a-z]:/.test(p);
+    var segs = p.split('/');
+    var norm = [];
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      if (s === '.' || s === '') continue;
+      if (s === '..') { if (norm.length) norm.pop(); continue; }
+      norm.push(s);
+    }
+    p = (isDrivePath ? '' : '/') + norm.join('/');
+    var appDir = __dirname.replace(/\\/g, '/').toLowerCase().replace(/\/+$/, '');
+    if (!(p === appDir || p.indexOf(appDir + '/') === 0)) return '';
+    return p.slice(p.lastIndexOf('/') + 1);
+  } catch (e) { return ''; }
+}
+
+function _isSecretsSender(event, extraPages) {
+  var page = _senderPageName(event);
+  if (!page) return false;
+  if (extraPages && extraPages.indexOf(page) !== -1) return true;
+  return page === 'settings.html' || page === 'library.html';
+}
+
+function _denySecrets(event) {
+  try { console.error('[vault] secrets IPC denied for sender:', _senderPageName(event) || 'unknown'); } catch (e0) {}
+  return { success: false, message: 'Not allowed' };
+}
+
+ipcMain.handle('get-passwords', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { locked: true };
   return passwords;
 });
 
-ipcMain.handle('add-password', (_, pw) => {
+ipcMain.handle('add-password', (event, pw) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
@@ -5549,7 +6630,8 @@ ipcMain.handle('add-password', (_, pw) => {
   return { success: true };
 });
 
-ipcMain.handle('update-password', (_, id, pwData) => {
+ipcMain.handle('update-password', (event, id, pwData) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
@@ -5564,7 +6646,8 @@ ipcMain.handle('update-password', (_, id, pwData) => {
   return { success: false };
 });
 
-ipcMain.handle('delete-password', (_, id) => {
+ipcMain.handle('delete-password', (event, id) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
@@ -5575,7 +6658,8 @@ ipcMain.handle('delete-password', (_, id) => {
   return { success: true };
 });
 
-ipcMain.handle('clear-passwords', () => {
+ipcMain.handle('clear-passwords', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!_writePasswords(store, [])) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
@@ -5584,7 +6668,8 @@ ipcMain.handle('clear-passwords', () => {
 });
 
 // Alias for clear-passwords (Settings.html calls clearAllPasswords)
-ipcMain.handle('clear-all-passwords', () => {
+ipcMain.handle('clear-all-passwords', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!_writePasswords(store, [])) return { success: false, locked: true, message: 'Vault is locked' };
   writeStorage(store);
@@ -5592,7 +6677,8 @@ ipcMain.handle('clear-all-passwords', () => {
   return { success: true };
 });
 
-ipcMain.handle('toggle-password-favorite', (_, id, favorite) => {
+ipcMain.handle('toggle-password-favorite', (event, id, favorite) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
@@ -5607,7 +6693,8 @@ ipcMain.handle('toggle-password-favorite', (_, id, favorite) => {
   return { success: false };
 });
 
-ipcMain.handle('update-password-last-used', (_, id) => {
+ipcMain.handle('update-password-last-used', (event, id) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { success: false, locked: true, message: 'Vault is locked' };
@@ -5621,7 +6708,8 @@ ipcMain.handle('update-password-last-used', (_, id) => {
   return { success: false };
 });
 
-ipcMain.handle('export-passwords', async () => {
+ipcMain.handle('export-passwords', async (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     const store = readStorage();
     const decrypted = _readPasswordsDecrypted(store);
@@ -5637,8 +6725,16 @@ ipcMain.handle('export-passwords', async () => {
     if (result.canceled) return { success: false, message: 'Cancelled' };
     if (result.filePath.endsWith('.csv')) {
       const header = 'site,username,password,notes,totpSecret\n';
+      const csvCell = (v) => {
+        var s = String(v || '');
+        // Neutralize spreadsheet formula injection: a cell starting with
+        // = + - @ (or a tab/CR smuggled to the cell start) would execute as
+        // a formula when the export is opened in Excel/LibreOffice.
+        if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+        return '"' + s.replace(/"/g, '""') + '"';
+      };
       const rows = passwords.map(p =>
-        [p.site, p.username, p.password, p.notes, p.totpSecret].map(v => '"' + (v || '').replace(/"/g, '""') + '"').join(',')
+        [p.site, p.username, p.password, p.notes, p.totpSecret].map(csvCell).join(',')
       ).join('\n');
       fs.writeFileSync(result.filePath, header + rows, 'utf-8');
     } else {
@@ -5650,7 +6746,8 @@ ipcMain.handle('export-passwords', async () => {
   }
 });
 
-ipcMain.handle('import-passwords', async () => {
+ipcMain.handle('import-passwords', async (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Import passwords',
@@ -5672,9 +6769,18 @@ ipcMain.handle('import-passwords', async () => {
         let current = '';
         let inQuotes = false;
         for (let i = 0; i < line.length; i++) {
-          if (line[i] === '"') { inQuotes = !inQuotes; continue; }
-          if (line[i] === ',' && !inQuotes) { parts.push(current); current = ''; continue; }
-          current += line[i];
+          const ch = line[i];
+          if (ch === '"') {
+            // RFC 4180: a literal quote inside a quoted field is escaped by
+            // doubling (""). The old code toggled inQuotes and dropped the
+            // char entirely, corrupting passwords that contain quotes on
+            // export→import round-trip (our own exporter writes "").
+            if (inQuotes && line[i + 1] === '"') { current += '"'; i++; continue; }
+            inQuotes = !inQuotes;
+            continue;
+          }
+          if (ch === ',' && !inQuotes) { parts.push(current); current = ''; continue; }
+          current += ch;
         }
         parts.push(current);
         if (parts.length >= 3 && parts[0]) {
@@ -5709,7 +6815,8 @@ ipcMain.handle('import-passwords', async () => {
   }
 });
 
-ipcMain.handle('check-breached', async () => {
+ipcMain.handle('check-breached', async (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     if (!_svcEnabled('hibpEnabled')) {
       return { success: false, message: 'Breach check is disabled in Settings' };
@@ -5728,7 +6835,8 @@ ipcMain.handle('check-breached', async () => {
   }
 });
 
-ipcMain.handle('security-analysis', () => {
+ipcMain.handle('security-analysis', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
@@ -5772,7 +6880,8 @@ ipcMain.handle('security-analysis', () => {
   return { success: true, score: totalScore, weak, duplicates, old };
 });
 
-ipcMain.handle('import-from-ga', (_, content) => {
+ipcMain.handle('import-from-ga', (event, content) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     const store = readStorage();
     const passwords = _readPasswordsDecrypted(store);
@@ -5802,7 +6911,8 @@ ipcMain.handle('import-from-ga', (_, content) => {
   }
 });
 
-ipcMain.handle('import-txt-passwords', (_, content) => {
+ipcMain.handle('import-txt-passwords', (event, content) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     const store = readStorage();
     const passwords = _readPasswordsDecrypted(store);
@@ -5854,9 +6964,10 @@ ipcMain.handle('generate-password', (_, opts) => {
   const length = (opts && opts.length) || 16;
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
   let pw = '';
-  const buf = crypto.randomBytes(length);
+  // randomInt = rejection sampling: buf[i] % 85 has a (tiny) modulo bias
+  // (256 = 3*85+1); for a password generator biaslessness is cheap here.
   for (let i = 0; i < length; i++) {
-    pw += chars[buf[i] % chars.length];
+    pw += chars[crypto.randomInt(0, chars.length)];
   }
   return { success: true, password: pw };
 });
@@ -5869,7 +6980,25 @@ ipcMain.handle('scan-qr', async () => {
       properties: ['openFile']
     });
     if (result.canceled || result.filePaths.length === 0) return { success: false, message: 'Cancelled' };
-    const dataUrl = 'data:image/png;base64,' + fs.readFileSync(result.filePaths[0]).toString('base64');
+    // Build the data URL with the real MIME type — a hardcoded image/png for
+    // a picked .jpg/.webp could fail to render downstream.
+    var fp = result.filePaths[0];
+    var mimeByExt = { '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg',
+      '.bmp':'image/bmp', '.gif':'image/gif', '.webp':'image/webp' };
+    var ext = path.extname(fp || '').toLowerCase();
+    var mime = mimeByExt[ext];
+    if (!mime) {
+      // Fall back to magic-byte sniffing for unknown extensions.
+      try {
+        var head = fs.readFileSync(fp).slice(0, 12);
+        if (head[0] === 0x89 && head[1] === 0x50) mime = 'image/png';
+        else if (head[0] === 0xFF && head[1] === 0xD8) mime = 'image/jpeg';
+        else if (head[0] === 0x47 && head[1] === 0x49) mime = 'image/gif';
+        else if (head[8] === 0x57 && head[9] === 0x45) mime = 'image/webp';
+        else mime = 'image/png';
+      } catch (eM) { mime = 'image/png'; }
+    }
+    const dataUrl = 'data:' + mime + ';base64,' + fs.readFileSync(fp).toString('base64');
     return { success: true, message: 'File uploaded. QR decoding is supported via the settings page.', imageData: dataUrl };
   } catch(e) {
     return { success: false, message: 'Error: ' + e.message };
@@ -6041,12 +7170,15 @@ function _writePasswords(store, passwords) {
   return true;
 }
 
-ipcMain.handle('has-master-password', () => {
+ipcMain.handle('has-master-password', (event) => {
+  // index.html — the shell's first-run wizard checks this too.
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
   const store = readStorage();
   return { success: true, has: !!(store.passwordVault && store.masterAuth) };
 });
 
-ipcMain.handle('is-vault-unlocked', () => {
+ipcMain.handle('is-vault-unlocked', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   // No vault configured — there is nothing to lock, treat as accessible.
   if (!(store.passwordVault && store.masterAuth)) {
@@ -6055,46 +7187,77 @@ ipcMain.handle('is-vault-unlocked', () => {
   return { success: true, unlocked: !!_vaultKey, configured: true };
 });
 
-ipcMain.handle('unlock-vault', (_, pw) => {
+// Brute-force throttle for master-password attempts. Each derivation is a
+// synchronous scryptSync in the main process: without a backoff an IPC caller
+// could both freeze the UI (DoS) and try ~20 guesses/sec indefinitely.
+// 5 misses → exponential backoff (1s, 2s, 4s, ... capped at 60s); success resets.
+var _pwFailStreak = 0;
+var _pwNextAllowedAt = 0;
+function _pwAttemptBlocked() {
+  return Date.now() < _pwNextAllowedAt;
+}
+function _pwAttemptFailed() {
+  _pwFailStreak++;
+  if (_pwFailStreak >= 5) {
+    var delay = Math.min(60000, 1000 * Math.pow(2, _pwFailStreak - 5));
+    _pwNextAllowedAt = Date.now() + delay;
+  }
+}
+function _pwAttemptOk() { _pwFailStreak = 0; _pwNextAllowedAt = 0; }
+
+ipcMain.handle('unlock-vault', (event, pw) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!store.masterAuth || !store.passwordVault) {
     return { success: false, message: 'No master password is set' };
+  }
+  if (_pwAttemptBlocked()) {
+    return { success: false, message: 'Too many attempts. Try again later.' };
   }
   try {
     const salt = Buffer.from(store.masterAuth.salt, 'base64');
     const key = _deriveKey(pw, salt);
     const verifier = _verifierOf(key);
     if (!_constEqBase64(verifier, store.masterAuth.verifier)) {
+      _pwAttemptFailed();
       return { success: false, message: 'Wrong master password' };
     }
     // Confirm the key actually decrypts the vault (defense in depth).
     _decryptVault(store.passwordVault, key);
     _vaultKey = key;
+    _pwAttemptOk();
     return { success: true };
   } catch(e) {
+    _pwAttemptFailed();
     return { success: false, message: 'Wrong master password' };
   }
 });
 
-ipcMain.handle('lock-vault', () => {
+ipcMain.handle('lock-vault', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   _vaultKey = null;
   _notifyPasswordsUpdated();
   return { success: true };
 });
 
-ipcMain.handle('verify-master-password', (_, pw) => {
+ipcMain.handle('verify-master-password', (event, pw) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   // Backwards-compatible verification. Also caches the key on success so
   // existing UIs that verify before operating keep working.
   const store = readStorage();
   if (!store.masterAuth) return { success: true, valid: false };
+  if (_pwAttemptBlocked()) {
+    return { success: false, message: 'Too many attempts. Try again later.' };
+  }
   try {
     const salt = Buffer.from(store.masterAuth.salt, 'base64');
     const key = _deriveKey(pw, salt);
     const verifier = _verifierOf(key);
     const valid = _constEqBase64(verifier, store.masterAuth.verifier);
-    if (valid) _vaultKey = key;
+    if (valid) { _vaultKey = key; _pwAttemptOk(); } else { _pwAttemptFailed(); }
     return { success: true, valid };
   } catch(e) {
+    _pwAttemptFailed();
     return { success: true, valid: false };
   }
 });
@@ -6121,7 +7284,9 @@ function _doSetMasterPassword(store, pw) {
   return { success: true, message: 'Master password set. ' + existing.length + ' passwords encrypted.' };
 }
 
-ipcMain.handle('set-master-password', (_, pw) => {
+ipcMain.handle('set-master-password', (event, pw) => {
+  // index.html — the shell's first-run wizard sets the initial password.
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
   if (!pw || pw.length < 8) {
     return { success: false, message: 'Password must be at least 8 characters' };
   }
@@ -6136,7 +7301,8 @@ ipcMain.handle('set-master-password', (_, pw) => {
   }
 });
 
-ipcMain.handle('change-master-password', (_, oldPw, newPw) => {
+ipcMain.handle('change-master-password', (event, oldPw, newPw) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!store.masterAuth || !store.passwordVault) {
     // No vault configured yet — treat as an initial set.
@@ -6152,11 +7318,15 @@ ipcMain.handle('change-master-password', (_, oldPw, newPw) => {
   if (!newPw || newPw.length < 8) {
     return { success: false, message: 'New password must be at least 8 characters' };
   }
+  if (_pwAttemptBlocked()) {
+    return { success: false, message: 'Too many attempts. Try again later.' };
+  }
   try {
     const oldSalt = Buffer.from(store.masterAuth.salt, 'base64');
     const oldKey = _deriveKey(oldPw, oldSalt);
     const oldVerifier = _verifierOf(oldKey);
     if (!_constEqBase64(oldVerifier, store.masterAuth.verifier)) {
+      _pwAttemptFailed();
       return { success: false, message: 'Wrong old password' };
     }
     const plaintext = _decryptVault(store.passwordVault, oldKey);
@@ -6167,26 +7337,34 @@ ipcMain.handle('change-master-password', (_, oldPw, newPw) => {
     store.masterAuth = { v: 1, kdf: 'scrypt', salt: newSalt.toString('base64'), verifier: newVerifier };
     writeStorage(store);
     _vaultKey = newKey;
+    _pwAttemptOk();
     _notifyPasswordsUpdated();
     return { success: true, message: 'Master password changed' };
   } catch(e) {
+    _pwAttemptFailed();
     return { success: false, message: 'Failed to change master password' };
   }
 });
 
-ipcMain.handle('remove-master-password', (_, pw) => {
+ipcMain.handle('remove-master-password', (event, pw) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   // Removes the master password and re-seals passwords with the OS backend.
   const store = readStorage();
   if (!store.masterAuth || !store.passwordVault) {
     return { success: false, message: 'No master password is set' };
+  }
+  if (_pwAttemptBlocked()) {
+    return { success: false, message: 'Too many attempts. Try again later.' };
   }
   try {
     const salt = Buffer.from(store.masterAuth.salt, 'base64');
     const key = _deriveKey(pw, salt);
     const verifier = _verifierOf(key);
     if (!_constEqBase64(verifier, store.masterAuth.verifier)) {
+      _pwAttemptFailed();
       return { success: false, message: 'Wrong master password' };
     }
+    _pwAttemptOk();
     const plaintext = _decryptVault(store.passwordVault, key);
     delete store.passwordVault;
     delete store.masterAuth;
@@ -6217,7 +7395,6 @@ ipcMain.handle('remove-master-password', (_, pw) => {
 let _libraryUnlocked = false;   // Library entry
 let _appUnlocked = false;       // browser startup lock
 let _settingsUnlocked = false;  // Settings entry
-let _backupUnlocked = false;    // Backup section (unused for gating — always asks)
 
 function _defaultLibraryProtection() {
   return {
@@ -6295,17 +7472,25 @@ function _applySecureDefaultsIfNeeded() {
   } catch(e) {}
 }
 
+// NOTE: this helper is the single verification point for ALL verify-*-access
+// gates (library/settings/backup/protection/app-lock). The brute-force
+// throttle (see _pwAttempt* above) is enforced HERE so no gate can be
+// hammered without going through the same backoff as unlock-vault.
 function _verifyMasterPw(store, pw) {
   if (!store.masterAuth) return false;
+  if (_pwAttemptBlocked()) return false;
   try {
     const salt = Buffer.from(store.masterAuth.salt, 'base64');
     const key = _deriveKey(pw, salt);
     const verifier = _verifierOf(key);
-    return _constEqBase64(verifier, store.masterAuth.verifier);
-  } catch(e) { return false; }
+    const ok = _constEqBase64(verifier, store.masterAuth.verifier);
+    if (ok) _pwAttemptOk(); else _pwAttemptFailed();
+    return ok;
+  } catch(e) { _pwAttemptFailed(); return false; }
 }
 
-ipcMain.handle('get-library-protection', () => {
+ipcMain.handle('get-library-protection', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const lp = store.libraryProtection || _defaultLibraryProtection();
   return Object.assign({}, _defaultLibraryProtection(), lp, {
@@ -6315,7 +7500,8 @@ ipcMain.handle('get-library-protection', () => {
 });
 
 // ===== Library =====
-ipcMain.handle('check-library-protection', () => {
+ipcMain.handle('check-library-protection', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const lp = store.libraryProtection || _defaultLibraryProtection();
   const hasMaster = !!(store.masterAuth && store.passwordVault);
@@ -6328,7 +7514,8 @@ ipcMain.handle('check-library-protection', () => {
     alreadyUnlocked: _libraryUnlocked
   };
 });
-ipcMain.handle('verify-library-access', (_, password) => {
+ipcMain.handle('verify-library-access', (event, password) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!store.masterAuth || !store.passwordVault) {
     return { success: false, message: 'No master password is set. Set one in the password manager first.' };
@@ -6336,15 +7523,20 @@ ipcMain.handle('verify-library-access', (_, password) => {
   if (_verifyMasterPw(store, password)) { _libraryUnlocked = true; return { success: true }; }
   return { success: false, message: 'Wrong password' };
 });
-ipcMain.handle('library-biometric-auth', async () => {
+ipcMain.handle('library-biometric-auth', async (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const res = await _biometricAuth('Unlock StartPOZI Library');
   if (res && res.success) _libraryUnlocked = true;
   return res;
 });
-ipcMain.handle('lock-library', () => { _libraryUnlocked = false; return { success: true }; });
+ipcMain.handle('lock-library', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
+  _libraryUnlocked = false; return { success: true };
+});
 
 // ===== Settings (require auth to open Settings) =====
-ipcMain.handle('check-settings-protection', () => {
+ipcMain.handle('check-settings-protection', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const lp = store.libraryProtection || _defaultLibraryProtection();
   const hasMaster = !!(store.masterAuth && store.passwordVault);
@@ -6356,20 +7548,23 @@ ipcMain.handle('check-settings-protection', () => {
     alreadyUnlocked: _settingsUnlocked
   };
 });
-ipcMain.handle('verify-settings-access', (_, password) => {
+ipcMain.handle('verify-settings-access', (event, password) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!store.masterAuth) return { success: false, message: 'No master password is set' };
   if (_verifyMasterPw(store, password)) { _settingsUnlocked = true; return { success: true }; }
   return { success: false, message: 'Wrong password' };
 });
-ipcMain.handle('settings-biometric-auth', async () => {
+ipcMain.handle('settings-biometric-auth', async (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const res = await _biometricAuth('Unlock StartPOZI Settings');
   if (res && res.success) _settingsUnlocked = true;
   return res;
 });
 
 // ===== Backup section (re-auth every time it is opened) =====
-ipcMain.handle('check-backup-protection', () => {
+ipcMain.handle('check-backup-protection', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const lp = store.libraryProtection || _defaultLibraryProtection();
   const hasMaster = !!(store.masterAuth && store.passwordVault);
@@ -6381,18 +7576,23 @@ ipcMain.handle('check-backup-protection', () => {
     hasMasterPassword: hasMaster
   };
 });
-ipcMain.handle('verify-backup-access', (_, password) => {
+ipcMain.handle('verify-backup-access', (event, password) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!store.masterAuth) return { success: false, message: 'No master password is set' };
-  if (_verifyMasterPw(store, password)) { _backupUnlocked = true; return { success: true }; }
+  if (_verifyMasterPw(store, password)) { return { success: true }; }
   return { success: false, message: 'Wrong password' };
 });
-ipcMain.handle('lock-backup', () => { _backupUnlocked = false; return { success: true }; });
+ipcMain.handle('lock-backup', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
+  return { success: true };
+});
 
 // ===== Protection section gate (require master password to even SEE the
 // panel where the protection toggles / master-password controls live —
 // otherwise anyone who reaches Settings could just turn protection off) =====
-ipcMain.handle('check-protection-access', () => {
+ipcMain.handle('check-protection-access', (event) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const hasMaster = !!(store.masterAuth && store.passwordVault);
   // Always ask when a master password exists (first-run setup stays open).
@@ -6403,7 +7603,8 @@ ipcMain.handle('check-protection-access', () => {
     hasMasterPassword: hasMaster
   };
 });
-ipcMain.handle('verify-protection-access', (_, password) => {
+ipcMain.handle('verify-protection-access', (event, password) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   if (!store.masterAuth) return { success: false, message: 'No master password is set' };
   if (_verifyMasterPw(store, password)) return { success: true };
@@ -6411,7 +7612,8 @@ ipcMain.handle('verify-protection-access', (_, password) => {
 });
 
 // ===== Browser startup lock (appLock) =====
-ipcMain.handle('check-app-lock', () => {
+ipcMain.handle('check-app-lock', (event) => {
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
   const store = readStorage();
   const lp = store.libraryProtection || _defaultLibraryProtection();
   const hasMaster = !!(store.masterAuth && store.passwordVault);
@@ -6423,13 +7625,15 @@ ipcMain.handle('check-app-lock', () => {
     alreadyUnlocked: _appUnlocked
   };
 });
-ipcMain.handle('verify-app-lock', (_, password) => {
+ipcMain.handle('verify-app-lock', (event, password) => {
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
   const store = readStorage();
   if (!store.masterAuth) return { success: false, message: 'No master password is set' };
   if (_verifyMasterPw(store, password)) { _appUnlocked = true; return { success: true }; }
   return { success: false, message: 'Wrong password' };
 });
-ipcMain.handle('app-biometric-auth', async () => {
+ipcMain.handle('app-biometric-auth', async (event) => {
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
   const res = await _biometricAuth('Unlock StartPOZI Browser');
   if (res && res.success) _appUnlocked = true;
   return res;
@@ -6470,7 +7674,8 @@ function _startIdleLockPoller() {
   } catch(e) {}
 }
 
-ipcMain.handle('set-library-protection', (_, settings, password) => {
+ipcMain.handle('set-library-protection', (event, settings, password) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   const store = readStorage();
   const current = store.libraryProtection || _defaultLibraryProtection();
   settings = settings || {};
@@ -6635,6 +7840,115 @@ function getAllInstalledThemes() {
 
 let customThemeCSS = null;
 
+// ===== Dark Reader settings =====
+// Stored in settings.json (darkReader): enabled, time schedule, per-site
+// mode (all / only listed / except listed), brightness/contrast/grayscale/
+// sepia/text-stroke. Broadcast to every shell so all windows re-apply.
+function _sanitizeDarkReader(d) {
+  d = d && typeof d === 'object' ? d : {};
+  var num = function (v, min, max, def) {
+    v = parseFloat(v);
+    if (isNaN(v)) return def;
+    return Math.max(min, Math.min(max, Math.round(v)));
+  };
+  var time = function (v, def) { return /^\d{2}:\d{2}$/.test(String(v)) ? String(v) : def; };
+  var sites = [];
+  if (Array.isArray(d.sites)) {
+    d.sites.slice(0, 200).forEach(function (s) {
+      s = String(s || '').toLowerCase().replace(/^www\./, '').trim().slice(0, 100);
+      if (s && sites.indexOf(s) === -1) sites.push(s);
+    });
+  }
+  return {
+    enabled: !!d.enabled,
+    scheduleEnabled: !!d.scheduleEnabled,
+    scheduleOn: time(d.scheduleOn, '20:00'),
+    scheduleOff: time(d.scheduleOff, '07:00'),
+    siteMode: (['all', 'include', 'exclude'].indexOf(d.siteMode) !== -1) ? d.siteMode : 'all',
+    sites: sites,
+    brightness: num(d.brightness, 50, 150, 100),
+    contrast: num(d.contrast, 50, 150, 100),
+    grayscale: num(d.grayscale, 0, 100, 0),
+    sepia: num(d.sepia, 0, 100, 0),
+    textStroke: num(d.textStroke, 0, 30, 0)
+  };
+}
+
+ipcMain.handle('get-darkreader', () => {
+  const store = readStorage();
+  return _sanitizeDarkReader(store.darkReader);
+});
+
+ipcMain.handle('set-darkreader', (_, settings) => {
+  const store = readStorage();
+  store.darkReader = _sanitizeDarkReader(settings);
+  writeStorage(store);
+  try {
+    const { webContents } = require('electron');
+    webContents.getAllWebContents().forEach(function (wc) {
+      try { wc.send('darkreader-changed', store.darkReader); } catch (e) {}
+    });
+  } catch (e) {}
+  return { success: true, settings: store.darkReader };
+});
+
+// ===== Theme icons =====
+// A .thmz may carry an icons/ folder: <slot>.svg files that replace the
+// built-in toolbar button glyphs. Slot name (file name without extension)
+// maps onto the chrome button selector.
+const THEME_ICON_SLOTS = {
+  back: '#backBtn', forward: '#forwardBtn', reload: '#reloadBtn', home: '#homeBtn',
+  library: '#libraryBtn', downloads: '#downloadsBtn', autofill: '#autofillBtn',
+  adblock: '#adblockBtn', scripts: '#scriptsBtn', darkMode: '#darkModeBtn',
+  media: '#mediaBtn', equalizer: '#eqBtn', qrScan: '#qrScanBtn', split: '#splitBtn',
+  newTab: '#newTabBarBtn', bookmarks: '#bookmarksBtn', history: '#historyBtn',
+  reader: '#readerBtn', tts: '#ttsBtn', screenshot: '#screenshotBtn',
+  incognito: '#incognitoBtn', translate: '#translateBtn', findAll: '#findAllBtn',
+  autoscroll: '#autoscrollBtn', breakLoupe: '#breakLoupeBtn', settings: '#settingsBtn',
+  workspace: '#workspaceBtn', hamburger: '#hamburgerBtn'
+};
+
+function sanitizeSvgIcon(text) {
+  var s = String(text || '');
+  if (!s || s.length > 65536) return null;
+  if (!/^(<\?xml|<svg)|^[\s\r\n]*<svg/i.test(s)) return null; // must be SVG
+  if (/<script|javascript:|\son[a-z]+\s*=/i.test(s)) return null; // no scripts/handlers
+  return s;
+}
+
+// Build the CSS that substitutes theme icons for the built-in button SVGs.
+// Icons are embedded as data URLs — the .thmz zip contents are not
+// web-accessible, so a plain url(icons/x.svg) would never resolve.
+function buildThemeIconCss(themeDir) {
+  var iconsDir = path.join(themeDir, 'icons');
+  if (!fs.existsSync(iconsDir)) return '';
+  var out = '';
+  try {
+    fs.readdirSync(iconsDir).forEach(function (f) {
+      var m = f.toLowerCase().match(/^([a-z0-9_-]+)\.svg$/);
+      if (!m) return;
+      var sel = THEME_ICON_SLOTS[m[1]];
+      if (!sel) return;
+      var svg = sanitizeSvgIcon(fs.readFileSync(path.join(iconsDir, f), 'utf-8'));
+      if (!svg) return;
+      var b64 = Buffer.from(svg, 'utf-8').toString('base64');
+      out += sel + '{background-image:url("data:image/svg+xml;base64,' + b64 + '")!important;' +
+        'background-repeat:no-repeat!important;background-position:center!important;' +
+        'background-size:18px 18px!important}' +
+        sel + ' svg{display:none!important}';
+    });
+  } catch (e) {}
+  return out;
+}
+
+// Full effective CSS for a theme = theme.css + generated icon rules.
+function buildThemeCss(themeDir) {
+  var css = readThemeCss(themeDir);
+  var iconCss = buildThemeIconCss(themeDir);
+  if (iconCss) css += '\n\n/* theme icons */\n' + iconCss;
+  return css;
+}
+
 function broadcastCustomTheme(css) {
   customThemeCSS = css || null;
   if (mainWindow) {
@@ -6672,6 +7986,26 @@ ipcMain.handle('theme-import', async (_, filePath) => {
     fs.writeFileSync(path.join(themeDir, 'theme.json'), JSON.stringify(meta, null, 2), 'utf-8');
     fs.writeFileSync(path.join(themeDir, 'theme.css'), css, 'utf-8');
 
+    // Theme icons: icons/<slot>.svg entries are extracted into the theme dir
+    // (sanitized; unknown slots and non-SVG files are skipped silently).
+    try {
+      var iconEntries = zip.getEntries().filter(function (en) {
+        return en.entryName && en.entryName.indexOf('icons/') === 0 && /\.svg$/i.test(en.entryName);
+      });
+      if (iconEntries.length) {
+        var iconsDir = path.join(themeDir, 'icons');
+        fs.mkdirSync(iconsDir, { recursive: true });
+        iconEntries.slice(0, 30).forEach(function (en) {
+          var base = path.basename(en.entryName).toLowerCase();
+          var slotM = base.match(/^([a-z0-9_-]+)\.svg$/);
+          if (!slotM || !THEME_ICON_SLOTS[slotM[1]]) return;
+          var svg = sanitizeSvgIcon(en.getData().toString('utf-8'));
+          if (!svg) return;
+          fs.writeFileSync(path.join(iconsDir, base), svg, 'utf-8');
+        });
+      }
+    } catch (eIcons) {}
+
     return { success: true, theme: { id: themeId, name: meta.name || themeId, type: meta.type || 'auto', author: meta.author || '', version: meta.version || '1.0', description: meta.description || '' } };
   } catch(e) {
     return { success: false, error: String(e.message || e) };
@@ -6691,7 +8025,7 @@ ipcMain.handle('theme-apply', (_, themeId) => {
     const themeDir = path.join(themesDir, themeId);
     if (!fs.existsSync(themeDir)) return { success: false, error: 'Theme not found' };
 
-    const css = readThemeCss(themeDir);
+    const css = buildThemeCss(themeDir);
     const meta = readThemeMeta(themeDir);
 
     const store = readStorage();
@@ -6726,6 +8060,104 @@ ipcMain.handle('theme-get-css', (_, themeId) => {
   const themesDir = getThemesDir();
   const themeDir = path.join(themesDir, themeId);
   return readThemeCss(themeDir);
+});
+
+// Export the current editor state as a .thmz (from ThemeEditor.html).
+// The sender is verified like viewer-read-file: an internal page inside the
+// app directory; everything is sanitized before it touches the disk.
+ipcMain.handle('theme-editor-export', async (event, payload) => {
+  if (!AdmZip) return { success: false, error: 'adm-zip not available' };
+  try {
+    // Sender must be ThemeEditor.html inside the app dir.
+    var senderOk = false;
+    try {
+      var surl = String(event.senderFrame.url || '');
+      var spath = decodeURIComponent(surl.replace(/^file:\/\//, ''));
+      // Compare WITH a trailing separator: a plain indexOf === 0 prefix check
+      // would also pass a sibling dir like <appDir>-evil/ThemeEditor.html.
+      var appDirPrefix = path.dirname(__filename).toLowerCase().replace(/\\/g, '/');
+      if (appDirPrefix.charAt(appDirPrefix.length - 1) !== '/') appDirPrefix += '/';
+      var senderDir = path.dirname(spath).toLowerCase().replace(/\\/g, '/') + '/';
+      senderOk = surl.indexOf('file://') === 0 &&
+        senderDir.indexOf(appDirPrefix) === 0 &&
+        path.basename(spath).toLowerCase() === 'themeeditor.html';
+    } catch (eS) {}
+    if (!senderOk) return { success: false, error: 'Not allowed' };
+
+    var p = payload || {};
+    var css = String(p.css || '');
+    if (!css.trim()) return { success: false, error: 'CSS is empty' };
+    if (css.includes('javascript:') || css.includes('expression(')) {
+      return { success: false, error: 'Potentially dangerous CSS detected' };
+    }
+    var name = String(p.name || 'My theme').trim().slice(0, 60) || 'My theme';
+    var meta = {
+      name: name,
+      author: String(p.author || '').slice(0, 60),
+      version: String(p.version || '1.0').slice(0, 12),
+      description: String(p.description || '').slice(0, 300),
+      type: (p.type === 'light' || p.type === 'auto') ? p.type : 'dark'
+    };
+
+    // Icons: { slot: svgText } — sanitized, only known slots.
+    var icons = {};
+    var iconKeys = Object.keys(p.icons || {});
+    iconKeys.slice(0, 30).forEach(function (slot) {
+      if (!THEME_ICON_SLOTS[slot]) return;
+      var svg = sanitizeSvgIcon(p.icons[slot]);
+      if (svg) icons[slot] = svg;
+    });
+
+    var result = await dialog.showSaveDialog({
+      defaultPath: sanitizeThemeId(name) + '.thmz',
+      filters: [{ name: 'Theme Archive', extensions: ['thmz'] }]
+    });
+    if (result.canceled || !result.filePath) return { success: false, error: 'Cancelled' };
+
+    var zip = new AdmZip();
+    zip.addFile('theme.json', Buffer.from(JSON.stringify(meta, null, 2), 'utf-8'));
+    zip.addFile('theme.css', Buffer.from(css, 'utf-8'));
+    Object.keys(icons).forEach(function (slot) {
+      zip.addFile('icons/' + slot + '.svg', Buffer.from(icons[slot], 'utf-8'));
+    });
+    zip.writeZip(result.filePath);
+
+    // Auto-import the saved theme so it appears in Settings right away.
+    try {
+      var zip2 = new AdmZip(result.filePath);
+      var jsonE = zip2.getEntry('theme.json');
+      var cssE = zip2.getEntry('theme.css');
+      if (jsonE && cssE) {
+        var meta2 = JSON.parse(jsonE.getData().toString('utf-8'));
+        var themeId2 = sanitizeThemeId(meta2.name || 'editor-theme');
+        var tDir = path.join(getThemesDir(), themeId2);
+        try { if (fs.existsSync(tDir)) fs.rmSync(tDir, { recursive: true, force: true }); } catch (eRm) {}
+        fs.mkdirSync(tDir, { recursive: true });
+        meta2.id = themeId2;
+        fs.writeFileSync(path.join(tDir, 'theme.json'), JSON.stringify(meta2, null, 2), 'utf-8');
+        fs.writeFileSync(path.join(tDir, 'theme.css'), cssE.getData().toString('utf-8'), 'utf-8');
+        var iconEs = zip2.getEntries().filter(function (en) {
+          return en.entryName && en.entryName.indexOf('icons/') === 0 && /\.svg$/i.test(en.entryName);
+        });
+        if (iconEs.length) {
+          var iDir = path.join(tDir, 'icons');
+          fs.mkdirSync(iDir, { recursive: true });
+          iconEs.slice(0, 30).forEach(function (en) {
+            var b2 = path.basename(en.entryName).toLowerCase();
+            var s2 = b2.match(/^([a-z0-9_-]+)\.svg$/);
+            if (!s2 || !THEME_ICON_SLOTS[s2[1]]) return;
+            var svg2 = sanitizeSvgIcon(en.getData().toString('utf-8'));
+            if (svg2) fs.writeFileSync(path.join(iDir, b2), svg2, 'utf-8');
+          });
+        }
+        return { success: true, path: result.filePath, themeId: themeId2 };
+      }
+    } catch (eAuto) {}
+
+    return { success: true, path: result.filePath };
+  } catch (e) {
+    return { success: false, error: String(e.message || e) };
+  }
 });
 
 // Delete a theme
@@ -6766,6 +8198,15 @@ ipcMain.handle('theme-export', async (_, themeId) => {
     const zip = new AdmZip();
     zip.addLocalFile(path.join(themeDir, 'theme.json'));
     zip.addLocalFile(path.join(themeDir, 'theme.css'));
+    // Re-pack the theme's icons/ folder so exported .thmz keeps them.
+    try {
+      var expIconsDir = path.join(themeDir, 'icons');
+      if (fs.existsSync(expIconsDir)) {
+        fs.readdirSync(expIconsDir).forEach(function (f) {
+          if (/^([a-z0-9_-]+)\.svg$/i.test(f)) zip.addLocalFile(path.join(expIconsDir, f), 'icons');
+        });
+      }
+    } catch (eIcons) {}
     zip.writeZip(result.filePath);
     return { success: true, path: result.filePath };
   } catch(e) {
@@ -6830,6 +8271,12 @@ function readSkitMeta(skitDir) {
   catch(e) { return null; }
 }
 
+// ============== .skit permissions ==============
+// Validation logic lives in lib/skit-manifest.js (SKIT_PERMISSIONS whitelist
+// + validateSkitPermissions). The renderer injects a per-script SKit shim
+// whose API objects (storage / clipboard / notifications) exist ONLY for
+// packages that declared the matching permission; undeclared ones get null.
+
 // Import a .skit archive from a file path
 ipcMain.handle('skit-import', async (_, filePath) => {
   if (!AdmZip) return { success: false, error: 'adm-zip not available' };
@@ -6838,6 +8285,28 @@ ipcMain.handle('skit-import', async (_, filePath) => {
     var jsonEntry = zip.getEntry('script.json');
     if (!jsonEntry) return { success: false, error: 'script.json not found in archive' };
     var meta = JSON.parse(jsonEntry.getData().toString('utf-8'));
+
+    // TypeScript / Python mains are NOT supported by the runtime — say so at
+    // import time instead of storing them and later injecting broken code
+    // into pages (a .ts file executed as JS just throws SyntaxError).
+    var declaredMain = String(meta.main || 'script.js');
+    if (/\.(ts|py)$/i.test(declaredMain)) {
+      return { success: false, error: 'TypeScript/Python main scripts are not supported yet — ship JavaScript (script.js)' };
+    }
+
+    // Path safety for the MAIN file write (same rules as the extra-files
+    // loop below): a crafted meta.main like ../../autostart/pwn.js would
+    // otherwise write OUTSIDE the skits directory.
+    if (declaredMain.indexOf('..') !== -1 || declaredMain.indexOf('\0') !== -1 ||
+        declaredMain.charAt(0) === '/' || declaredMain.charAt(0) === '\\' || /^[a-zA-Z]:/.test(declaredMain)) {
+      return { success: false, error: 'Invalid "main" path in script.json' };
+    }
+
+    // Validate the permissions manifest against the known whitelist.
+    var permissions = validateSkitPermissions(meta.permissions);
+    if (permissions === null) {
+      return { success: false, error: 'Invalid "permissions" in script.json — allowed: ' + SKIT_PERMISSIONS.join(', ') };
+    }
 
     // Determine the main script file
     var mainFile = meta.main || 'script.js';
@@ -6888,6 +8357,7 @@ ipcMain.handle('skit-import', async (_, filePath) => {
       match: meta.match || '*://*/*',
       runAt: meta.runAt || 'document-idle',
       runInFrames: !!meta.runInFrames,
+      permissions: permissions,
       enabled: true,
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -6925,6 +8395,7 @@ ipcMain.handle('skit-list', () => {
             version: meta.version || '1.0',
             author: meta.author || '',
             type: meta.type || 'js',
+            permissions: Array.isArray(meta.permissions) ? meta.permissions : [],
             enabled: scriptEntry ? scriptEntry.enabled : false
           });
         }
@@ -6995,6 +8466,78 @@ ipcMain.handle('skit-pick-file', async () => {
   return result.filePaths[0];
 });
 
+// ============== FIRST-RUN WIZARD ==============
+// 4-step onboarding for new profiles: privacy preset → master password →
+// import pointer → done. Runs once (firstRunDone flag in settings.json).
+// All three channels write security config, so they are gated to the
+// shell (index.html) exactly like the autofill/appLock channels.
+ipcMain.handle('get-first-run', (event) => {
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
+  const store = readStorage();
+  // Fresh profile only (no settings.json existed at process start) AND
+  // the wizard was never finished. Upgrades of existing installs never
+  // see the wizard.
+  return { success: true, firstRun: _wizardFreshProfile && store.firstRunDone !== true };
+});
+
+ipcMain.handle('finish-first-run', (event) => {
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
+  const store = readStorage();
+  store.firstRunDone = true;
+  writeStorage(store);
+  return { success: true };
+});
+
+// Privacy presets (wizard step 1). Baseline — always on, matches the
+// project philosophy: URL cleaning, punycode warnings, DNT + Sec-GPC.
+//   standard — baseline only + light blocker lists (sites never break).
+//   private  — + anti-fingerprint, WebRTC-leak block, 3rd-party cookie
+//              block, HTTPS-only, referrer trimming, mixed-content block,
+//              medium blocker preset (project default).
+//   maximum  — + autoplay block, notifications/geolocation/clipboard
+//              block, WebGL block, site isolation, maximum blocker preset.
+ipcMain.handle('apply-privacy-preset', (event, preset) => {
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
+  if (['standard', 'private', 'maximum'].indexOf(preset) === -1) {
+    return { success: false, message: 'Unknown preset' };
+  }
+  const store = readStorage();
+  if (!store.security) store.security = {};
+  const s = store.security;
+  s.urlClean = true;
+  s.sanitizeUrl = true;
+  s.dnt = true;
+  s.gpc = true;
+  if (preset !== 'standard') {
+    s.webrtcLeak = true;
+    s.fingerprint = true;
+    s.blockThirdPartyCookies = true;
+    s.httpsOnly = true;
+    s.referrerPolicy = true;
+    s.blockMixedContent = true;
+  }
+  if (preset === 'maximum') {
+    s.autoplayBlock = true;
+    s.blockNotifications = true;
+    s.blockGeolocation = true;
+    s.blockClipboard = true;
+    s.blockWebGL = true;
+    s.siteIsolation = true;
+  }
+  writeStorage(store);
+  try { applySecuritySettings(); } catch (e1) {}
+  // Blocker preset mirrors the security preset (same levels the Settings
+  // page offers: light / medium / maximum).
+  var blockerLevel = preset === 'maximum' ? 'maximum' : (preset === 'private' ? 'medium' : 'light');
+  var blockerRes = null;
+  try {
+    if (adblocker && adblocker.setFilterhubPreset) {
+      blockerRes = adblocker.setFilterhubPreset(blockerLevel);
+    }
+  } catch (e2) {}
+  return { success: true, preset: preset, blockerPreset: blockerLevel, blocker: !!(blockerRes && blockerRes.success) };
+});
+
 // ============== HIBP k-anonymity helpers ==============
 // Cache of range responses keyed by 5-char SHA-1 prefix, so checking many
 // passwords that share a prefix (or repeated checks) cost no extra requests.
@@ -7018,7 +8561,14 @@ function _hibpLookupRange(prefix) {
     return map;
   }).catch(() => null).finally(() => {
     // Replace the in-flight promise with its resolved value on completion.
+    // NOTE: only SUCCESSFUL lookups are cached — a transient network error
+    // used to poison the prefix entry with `null` until LRU eviction, so a
+    // single offline moment disabled password checks for that prefix.
     promise.then(map => {
+      if (map === null || map === undefined) {
+        _hibpRangeCache.delete(prefix);
+        return;
+      }
       if (_hibpRangeCache.size >= _HIBP_CACHE_LIMIT) {
         const firstKey = _hibpRangeCache.keys().next().value;
         _hibpRangeCache.delete(firstKey);
@@ -7040,6 +8590,9 @@ async function _hibpCountForPassword(password) {
 
 // ============== SINGLE PASSWORD BREACH CHECK ==============
 ipcMain.handle('check-password-breached', async (_, password) => {
+  // Same kill-switch as the vault-wide check: the External-services
+  // hibpEnabled toggle must gate EVERY HIBP call.
+  if (!_svcEnabled('hibpEnabled')) return { breached: false, count: 0, error: 'disabled' };
   if (typeof password !== 'string' || !password) return { breached: false, count: 0, error: 'empty' };
   const count = await _hibpCountForPassword(password);
   if (count < 0) return { breached: false, count: 0, error: 'network' };
@@ -7048,6 +8601,7 @@ ipcMain.handle('check-password-breached', async (_, password) => {
 
 // ============== CHECK ALL PASSWORDS BREACHED ==============
 ipcMain.handle('check-all-passwords-breached', async () => {
+  if (!_svcEnabled('hibpEnabled')) return { success: false, message: 'Breach check is disabled in Settings' };
   const store = readStorage();
   const passwords = _readPasswordsDecrypted(store);
   if (passwords === null) return { success: false, message: 'Vault is locked. Unlock it first.' };
@@ -7072,7 +8626,8 @@ ipcMain.handle('check-all-passwords-breached', async () => {
 });
 
 // ============== TOTP ==============
-ipcMain.handle('generate-totp', (_, secret, opts) => {
+ipcMain.handle('generate-totp', (event, secret, opts) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     var digits = (opts && opts.digits) || 6;
     var period = (opts && opts.period) || 30;
@@ -7125,7 +8680,8 @@ ipcMain.handle('generate-totp', (_, secret, opts) => {
   }
 });
 
-ipcMain.handle('parse-totp-secret', (_, secret) => {
+ipcMain.handle('parse-totp-secret', (event, secret) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   if (!secret) return { success: false, error: 'Secret not specified' };
   // Detect algorithm from otpauth:// URL or accept raw base32
   let algorithm = 'sha1';
@@ -7152,18 +8708,25 @@ ipcMain.handle('scan-page-qr', () => {
       resolve({ success: false, message: 'No active window' });
       return;
     }
+    // Named listener + removal on timeout: a bare `once` leaked on every
+    // timeout, and a late result from a previous scan resolved the NEXT
+    // waiting caller (mixed-up results on concurrent scans).
+    const onResult = (_, result) => {
+      clearTimeout(timeout);
+      ipcMain.removeListener('page-qr-result', onResult);
+      resolve(result);
+    };
     const timeout = setTimeout(() => {
+      ipcMain.removeListener('page-qr-result', onResult);
       resolve({ success: false, message: 'Scan timeout' });
     }, 10000);
     mainWindow.webContents.send('request-page-qr-scan');
-    ipcMain.once('page-qr-result', (_, result) => {
-      clearTimeout(timeout);
-      resolve(result);
-    });
+    ipcMain.once('page-qr-result', onResult);
   });
 });
 
-ipcMain.handle('extract-totp-from-qr', (_, qrData) => {
+ipcMain.handle('extract-totp-from-qr', (event, qrData) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     let uri = qrData;
     if (typeof uri !== 'string') return { success: false, secret: null };
@@ -7189,7 +8752,9 @@ ipcMain.handle('extract-totp-from-qr', (_, qrData) => {
 });
 
 // ============== AUTOFILL ==============
-ipcMain.handle('autofill-password', (_, id) => {
+ipcMain.handle('autofill-password', (event, id) => {
+  // The shell (index.html) owns the autofill toolbar panel.
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
   try {
     const store = readStorage();
     const passwords = _readPasswordsDecrypted(store);
@@ -7206,7 +8771,9 @@ ipcMain.handle('autofill-password', (_, id) => {
   }
 });
 
-ipcMain.handle('get-matching-passwords', (_, url) => {
+ipcMain.handle('get-matching-passwords', (event, url) => {
+  // The shell (index.html) owns the autofill toolbar panel.
+  if (!_isSecretsSender(event, ['index.html'])) return _denySecrets(event);
   try {
     const store = readStorage();
     const passwords = _readPasswordsDecrypted(store);
@@ -7228,7 +8795,8 @@ ipcMain.handle('get-matching-passwords', (_, url) => {
 });
 
 // ============== IMPORT ==============
-ipcMain.handle('import-ga-export', (_, content) => {
+ipcMain.handle('import-ga-export', (event, content) => {
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     const store = readStorage();
     const passwords = _readPasswordsDecrypted(store);
@@ -7258,7 +8826,11 @@ ipcMain.handle('import-ga-export', (_, content) => {
   }
 });
 
-ipcMain.handle('import-txt-file', (_, content) => {
+ipcMain.handle('import-txt-file', (event, content) => {
+  // Writes into the password store — same trust level as the other import
+  // channels; must not be reachable from non-secrets pages (vault poisoning
+  // via the autofill matcher is otherwise possible).
+  if (!_isSecretsSender(event)) return _denySecrets(event);
   try {
     const store = readStorage();
     const passwords = _readPasswordsDecrypted(store);
@@ -7305,52 +8877,177 @@ ipcMain.handle('get-platform-info', () => {
   };
 });
 
-ipcMain.handle('register-system', async () => {
+// ===== System integration helpers (shared by register-system and the
+// set-default-browser flow used by the first-launch wizard and Settings).
+function _devAwareExecLine() {
+  const exePath = electronApp.getPath('exe');
+  // Unpackaged dev runs: the bare electron binary carries no app — without
+  // the project directory as the app-path argument the launcher would open
+  // an empty default Electron window instead of the browser.
+  return electronApp.isPackaged
+    ? `"${exePath}" %u`
+    : `"${exePath}" "${electronApp.getAppPath()}" %u`;
+}
+function _bundledIconAbsPath() {
   try {
     const exePath = electronApp.getPath('exe');
-    const iconPath = path.join(path.dirname(exePath), 'resources', 'icon.png');
-    // Register the startpozi:// protocol handler through Electron as well —
-    // the manual entries below only claim file associations.
-    try { electronApp.setAsDefaultProtocolClient('startpozi'); } catch {}
-    if (process.platform === 'linux') {
-      const desktopEntry = `[Desktop Entry]
+    let iconPath = path.join(path.dirname(exePath), 'resources', 'icon.png');
+    // Dev / portable runs: resources/icon.png does not exist next to the exe.
+    // Copy the bundled PNG into userData (always a real, non-asar absolute
+    // path that a .desktop Icon= entry can render) and point the entry at it.
+    if (!fs.existsSync(iconPath)) {
+      const userDataIcon = path.join(electronApp.getPath('userData'), 'icon.png');
+      if (!fs.existsSync(userDataIcon)) {
+        fs.copyFileSync(path.join(__dirname, 'assets', 'favicon', 'icon.png'), userDataIcon);
+      }
+      iconPath = userDataIcon;
+    }
+    return fs.existsSync(iconPath) ? iconPath : null;
+  } catch (e) { return null; }
+}
+async function _registerLinuxBrowser() {
+  const execLine = _devAwareExecLine();
+  const iconPath = _bundledIconAbsPath();
+  const desktopEntry = `[Desktop Entry]
 Type=Application
 Name=StartPOZI Browser
 Comment=StartPOZI Desktop Browser
-Exec="${exePath}" %u
-Icon=${fs.existsSync(iconPath) ? iconPath : 'internet-web-browser'}
+Exec=${execLine}
+Icon=${iconPath || 'internet-web-browser'}
 Terminal=false
 Categories=Network;WebBrowser;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/startpozi;text/html;
 StartupNotify=true
+StartupWMClass=startpozi-browser
 `;
-      const desktopDir = path.join(process.env.HOME || '/tmp', '.local', 'share', 'applications');
-      if (!fs.existsSync(desktopDir)) fs.mkdirSync(desktopDir, { recursive: true });
-      const desktopFile = path.join(desktopDir, 'startpozi-browser.desktop');
-      fs.writeFileSync(desktopFile, desktopEntry, 'utf-8');
-      // Argv arrays (no shell) so a HOME or path value containing shell
-      // metacharacters can never be interpreted.
-      await _execFileOk('chmod', ['+x', desktopFile]);
-      await _execFileOk('update-desktop-database', [desktopDir]);
+  const desktopDir = path.join(process.env.HOME || '/tmp', '.local', 'share', 'applications');
+  if (!fs.existsSync(desktopDir)) fs.mkdirSync(desktopDir, { recursive: true });
+  const desktopFile = path.join(desktopDir, 'startpozi-browser.desktop');
+  fs.writeFileSync(desktopFile, desktopEntry, 'utf-8');
+  // Argv arrays (no shell) so a HOME or path value containing shell
+  // metacharacters can never be interpreted.
+  await _execFileOk('chmod', ['+x', desktopFile]);
+  try { await _execFileOk('update-desktop-database', [desktopDir]); } catch (e) {}
+  return desktopFile;
+}
+async function _registerWindowsBrowser() {
+  const exePath = electronApp.getPath('exe');
+  // reg.exe invoked directly (no shell) with explicit argv. Besides the
+  // protocol handler this registers the full "Capabilities" set Windows 10/11
+  // needs for the browser to appear in Settings → Default apps.
+  const regArgs = [
+    // startpozi:// protocol
+    ['add', 'HKCU\\Software\\Classes\\StartPOZI', '/ve', '/d', 'URL:StartPOZI Protocol', '/f'],
+    ['add', 'HKCU\\Software\\Classes\\StartPOZI', '/v', 'URL Protocol', '/d', '', '/f'],
+    ['add', 'HKCU\\Software\\Classes\\StartPOZI\\DefaultIcon', '/ve', '/d', '"' + exePath + '",0', '/f'],
+    ['add', 'HKCU\\Software\\Classes\\StartPOZI\\shell\\open\\command', '/ve', '/d', '"' + exePath + '" "%1"', '/f'],
+    // StartPOZI.HTML ProgId for http/https/.html associations
+    ['add', 'HKCU\\Software\\Classes\\StartPOZI.HTML', '/ve', '/d', 'StartPOZI HTML Document', '/f'],
+    ['add', 'HKCU\\Software\\Classes\\StartPOZI.HTML\\DefaultIcon', '/ve', '/d', '"' + exePath + '",0', '/f'],
+    ['add', 'HKCU\\Software\\Classes\\StartPOZI.HTML\\shell\\open\\command', '/ve', '/d', '"' + exePath + '" "%1"', '/f'],
+    ['add', 'HKCU\\Software\\Classes\\.html\\OpenWithList\\StartPOZI', '/ve', '/d', '', '/f'],
+    ['add', 'HKCU\\Software\\Classes\\.htm\\OpenWithList\\StartPOZI', '/ve', '/d', '', '/f'],
+    // StartMenuInternet browser registration
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI', '/ve', '/d', 'StartPOZI Browser', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\DefaultIcon', '/ve', '/d', '"' + exePath + '",0', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\shell\\open\\command', '/ve', '/d', '"' + exePath + '"', '/f'],
+    // Capabilities (what Windows 10/11 Default apps actually lists)
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities', '/v', 'ApplicationName', '/d', 'StartPOZI Browser', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities', '/v', 'ApplicationDescription', '/d', 'StartPOZI Desktop Browser — the safe private browser', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities\\UrlAssociations', '/v', 'http', '/d', 'StartPOZI.HTML', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities\\UrlAssociations', '/v', 'https', '/d', 'StartPOZI.HTML', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities\\FileAssociations', '/v', '.html', '/d', 'StartPOZI.HTML', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities\\FileAssociations', '/v', '.htm', '/d', 'StartPOZI.HTML', '/f'],
+    ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities\\Startmenu', '/v', 'StartMenuInternet', '/d', 'StartPOZI', '/f'],
+    // Make the browser appear in "Default apps"
+    ['add', 'HKCU\\Software\\RegisteredApplications', '/v', 'StartPOZI Browser', '/d', 'Software\\Clients\\StartMenuInternet\\StartPOZI\\Capabilities', '/f']
+  ];
+  for (const a of regArgs) await _execFileOk('reg', a);
+}
+
+ipcMain.handle('register-system', async () => {
+  try {
+    // Register the startpozi:// protocol handler through Electron as well —
+    // the manual entries below only claim file associations.
+    try { electronApp.setAsDefaultProtocolClient('startpozi'); } catch {}
+    if (process.platform === 'linux') {
+      await _registerLinuxBrowser();
       await _execFileOk('xdg-settings', ['set', 'default-web-browser', 'startpozi-browser.desktop']);
       return { success: true, message: 'Browser registered in the system' };
     }
     if (process.platform === 'win32') {
-      // reg.exe invoked directly (no shell) with explicit argv.
-      const regArgs = [
-        ['add', 'HKCU\\Software\\Classes\\StartPOZI', '/ve', '/d', 'URL:StartPOZI Protocol', '/f'],
-        ['add', 'HKCU\\Software\\Classes\\StartPOZI', '/v', 'URL Protocol', '/d', '', '/f'],
-        ['add', 'HKCU\\Software\\Classes\\StartPOZI\\shell\\open\\command', '/ve', '/d', '"' + exePath + '" "%1"', '/f'],
-        ['add', 'HKCU\\Software\\Classes\\.html\\OpenWithList\\StartPOZI', '/ve', '/d', '', '/f'],
-        ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI', '/ve', '/d', 'StartPOZI Browser', '/f'],
-        ['add', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI\\shell\\open\\command', '/ve', '/d', '"' + exePath + '"', '/f']
-      ];
-      for (const a of regArgs) await _execFileOk('reg', a);
+      await _registerWindowsBrowser();
       return { success: true, message: 'Browser registered in the system' };
     }
     return { success: false, message: 'Platform not supported' };
   } catch(e) {
     return { success: false, message: 'Registration error: ' + e.message };
+  }
+});
+
+// ===== Default-browser status + one-action set (wizard "Make default" page
+// and Settings use these). Windows/macOS cannot flip the UserChoice silently:
+// after registration we open the OS settings page and guide the user.
+ipcMain.handle('check-default-browser', async () => {
+  try {
+    if (process.platform === 'linux') {
+      const { execFile } = require('child_process');
+      const out = await new Promise(function(resolve) {
+        execFile('xdg-settings', ['get', 'default-web-browser'], { timeout: 5000 },
+          function(err, stdout) { resolve(err ? '' : String(stdout || '').trim()); });
+      });
+      return { success: true, isDefault: /startpozi-browser\.desktop$/i.test(out) };
+    }
+    if (process.platform === 'win32') {
+      const { execFile } = require('child_process');
+      const out = await new Promise(function(resolve) {
+        execFile('reg', ['query',
+          'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice',
+          '/v', 'ProgId'], { timeout: 5000 },
+          function(err, stdout) { resolve(err ? '' : String(stdout || '')); });
+      });
+      return { success: true, isDefault: /StartPOZI/i.test(out) };
+    }
+    if (process.platform === 'darwin') {
+      const info = await electronApp.getApplicationInfoForProtocol('https://startpozi.com/');
+      return { success: true, isDefault: !!(info && info.bundleId &&
+        String(info.bundleId).toLowerCase() === 'com.startpozi.browser.desktop') };
+    }
+    return { success: false, isDefault: false, message: 'Platform not supported' };
+  } catch (e) {
+    return { success: false, isDefault: false, message: e.message };
+  }
+});
+
+ipcMain.handle('set-default-browser', async () => {
+  try {
+    if (process.platform === 'linux') {
+      await _registerLinuxBrowser();
+      await _execFileOk('xdg-settings', ['set', 'default-web-browser', 'startpozi-browser.desktop']);
+      const chk = await new Promise(function(resolve) {
+        const { execFile } = require('child_process');
+        execFile('xdg-settings', ['get', 'default-web-browser'], { timeout: 5000 },
+          function(err, stdout) { resolve(err ? '' : String(stdout || '').trim()); });
+      });
+      const ok = /startpozi-browser\.desktop$/i.test(chk);
+      return { success: ok, isDefault: ok,
+        note: ok ? 'StartPOZI is now your default browser.'
+                 : 'Registration written, but the desktop environment refused the switch.' };
+    }
+    if (process.platform === 'win32') {
+      await _registerWindowsBrowser();
+      try { await shell.openExternal('ms-settings:defaultapps'); } catch (e0) {}
+      return { success: true, isDefault: false, openedSettings: true,
+        note: 'Windows Settings opened. Choose StartPOZI Browser under Web browser → StartPOZI Browser.' };
+    }
+    if (process.platform === 'darwin') {
+      try { await shell.openExternal('x-apple.systempreferences:com.apple.Desktop-Settings.extension'); } catch (e0) {}
+      return { success: true, isDefault: false, openedSettings: true,
+        note: 'System Settings opened. Go to Desktop & Dock → Default web browser and pick StartPOZI.' };
+    }
+    return { success: false, message: 'Platform not supported' };
+  } catch (e) {
+    return { success: false, message: e.message };
   }
 });
 
@@ -7368,7 +9065,9 @@ ipcMain.handle('unregister-system', async () => {
     }
     if (process.platform === 'win32') {
       const delArgs = [
+        ['delete', 'HKCU\\Software\\RegisteredApplications', '/v', 'StartPOZI Browser', '/f'],
         ['delete', 'HKCU\\Software\\Classes\\StartPOZI', '/f'],
+        ['delete', 'HKCU\\Software\\Classes\\StartPOZI.HTML', '/f'],
         ['delete', 'HKCU\\Software\\Clients\\StartMenuInternet\\StartPOZI', '/f']
       ];
       for (const a of delArgs) await _execFileOk('reg', a);
@@ -7417,7 +9116,16 @@ ipcMain.handle('restart-browser', () => {
     if (store.customDataPath) {
       args.push('--user-data-path=' + store.customDataPath);
     }
-    electronApp.relaunch({ args: args.length > 0 ? [process.argv[0], ...args] : undefined });
+    // Unpackaged runs: process.argv is [electron, <app-dir>, ...]; relaunch
+    // must repeat BOTH, otherwise the restarted process opens an empty
+    // Electron window instead of the app. Packaged: argv[0] is the exe.
+    let relaunchArgs;
+    if (electronApp.isPackaged) {
+      relaunchArgs = args.length > 0 ? [process.argv[0], ...args] : undefined;
+    } else {
+      relaunchArgs = [...process.argv.slice(0, 2), ...args];
+    }
+    electronApp.relaunch({ args: relaunchArgs });
     electronApp.exit(0);
     return { success: true };
   } catch(e) {
@@ -7428,6 +9136,23 @@ ipcMain.handle('restart-browser', () => {
 ipcMain.handle('toggle-window-fullscreen', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setFullScreen(!mainWindow.isFullScreen());
+  }
+});
+
+// One-shot window state query. The maximize/fullscreen EVENTS can fire while
+// the renderer is still booting (e.g. the window is created already maximized
+// via startMaximized) — by the time the renderer subscribes to
+// window-state-changed they are gone, and rounded corners stayed painted over
+// a full screen. The renderer calls this once on startup to close that gap.
+// Resolves the window through event.sender so it works for every shell
+// window (main, incognito, torn-out tabs), not just mainWindow.
+ipcMain.handle('get-window-state', (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return { maximized: false, fullscreen: false, focused: false };
+    return { maximized: win.isMaximized(), fullscreen: win.isFullScreen(), focused: win.isFocused() };
+  } catch (e) {
+    return { maximized: false, fullscreen: false, focused: false };
   }
 });
 
@@ -7442,39 +9167,22 @@ ipcMain.handle('save-page-as', async (_, url) => {
       ]
     });
     if (result.canceled) return { success: false };
-    const https = require('https');
-    const http = require('http');
-    return new Promise((resolve) => {
-      const fs = require('fs');
-      const file = fs.createWriteStream(result.filePath);
-      var redirectCount = 0;
-      function doGet(u) {
-        // Pick the client per-request: a cross-protocol redirect
-        // (https → http or vice versa) must use the matching module,
-        // otherwise the request fails with a protocol error.
-        var client = String(u).indexOf('https') === 0 ? https : http;
-        // Verify against the embedded CA bundle (certstore.pem() is null if
-        // the bundle is missing — then Node's default roots apply).
-        var caBundle = certstore.pem();
-        var reqOpts = { headers: { 'User-Agent': 'Mozilla/5.0' } };
-        if (caBundle) reqOpts.ca = caBundle;
-        client.get(u, reqOpts, (response) => {
-          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && redirectCount < 5) {
-            redirectCount++;
-            var newUrl = response.headers.location;
-            if (newUrl.indexOf('http') !== 0) {
-              try { newUrl = new URL(newUrl, u).href; } catch(e) {}
-            }
-            response.resume();
-            doGet(newUrl);
-            return;
-          }
-          response.pipe(file);
-          file.on('finish', () => { file.close(); resolve({ success: true }); });
-        }).on('error', () => { resolve({ success: false }); });
-      }
-      doGet(url);
-    });
+    // Fetch through the Chromium network stack (electron.net.fetch) so the
+    // request follows the SESSION PROXY (Tor / HTTP / SOCKS). The previous
+    // Node https.get bypassed the proxy and exposed the real IP to the site.
+    try {
+      const net = require('electron').net;
+      const resp = await net.fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        redirect: 'follow'
+      });
+      if (!resp.ok) return { success: false, message: 'HTTP ' + resp.status };
+      const buf = Buffer.from(await resp.arrayBuffer());
+      fs.writeFileSync(result.filePath, buf);
+      return { success: true };
+    } catch (eFetch) {
+      return { success: false, message: eFetch.message };
+    }
   } catch(e) {
     return { success: false, message: e.message };
   }
@@ -7762,6 +9470,8 @@ ipcMain.on('show-context-menu', (event, params) => {
   // Menu actions must go to the window that opened the menu (main or
   // dedicated incognito shell) — not blindly to mainWindow.
   var shell = _shellWindowOf(event.sender) || mainWindow;
+  // popup({window: null}) throws when every shell is already destroyed.
+  if (!shell || shell.isDestroyed()) return;
   if (params.type === 'tabbar') {
     var template = [];
 
@@ -7851,7 +9561,7 @@ ipcMain.on('show-context-menu', (event, params) => {
     }
 
     var menu = Menu.buildFromTemplate(template);
-    menu.popup({ window: mainWindow });
+    menu.popup({ window: shell });
     return;
   }
 
@@ -7861,7 +9571,7 @@ ipcMain.on('show-context-menu', (event, params) => {
     template.push({ label: t('Paste and go'), click: function() { shell.webContents.send('context-menu-action', { type: 'pasteAndGo' }); } });
     template.push({ label: t('Select all'), accelerator: 'CmdOrCtrl+A', click: function() { shell.webContents.selectAll(); } });
     var menu = Menu.buildFromTemplate(template);
-    menu.popup({ window: mainWindow });
+    menu.popup({ window: shell });
     return;
   }
 
@@ -7891,7 +9601,11 @@ ipcMain.on('show-context-menu', (event, params) => {
 
   if (params.linkURL) {
     template.push({ label: t('Open link in new tab'), click: function() { shell.webContents.send('open-in-new-tab', params.linkURL); } });
-    template.push({ label: t('Open in system browser'), click: function() { shell.openExternal(params.linkURL); } });
+    template.push({ label: t('Open in system browser'), click: function() {
+      // Only hand Web links to the OS — a page-controlled URL like
+      // ms-msdt: or search-ms: would invoke arbitrary protocol handlers.
+      if (/^https?:/i.test(params.linkURL)) shell.openExternal(params.linkURL);
+    } });
     template.push({ type: 'separator' });
     template.push({ label: t('Copy link address'), click: function() { clipboard.writeText(params.linkURL); } });
     if (params.linkText) {
@@ -7908,17 +9622,17 @@ ipcMain.on('show-context-menu', (event, params) => {
     template.push({ label: t('Save image as...'), click: function() {
       var parsed = require('url').parse(params.srcURL);
       var filename = path.basename(parsed.pathname || 'image').split('?')[0] || 'image.png';
-      dialog.showSaveDialog(mainWindow, { defaultPath: filename }).then(function(result) {
+      dialog.showSaveDialog(mainWindow, { defaultPath: filename }).then(async function(result) {
         if (!result.canceled && result.filePath) {
-          var client = params.srcURL.startsWith('https') ? require('https') : require('http');
-          var imgOpts = {};
-          var imgCa = certstore.pem();
-          if (imgCa) imgOpts.ca = imgCa;
-          client.get(params.srcURL, imgOpts, function(response) {
-            var stream = require('fs').createWriteStream(result.filePath);
-            response.pipe(stream);
-            stream.on('finish', function() { stream.close(); });
-          });
+          // net.fetch: same session-proxy requirement as save-page-as — the
+          // old Node https.get leaked the real IP when Tor/a proxy was on.
+          try {
+            const net = require('electron').net;
+            const resp = await net.fetch(params.srcURL, { redirect: 'follow' });
+            if (!resp.ok) return;
+            const buf = Buffer.from(await resp.arrayBuffer());
+            fs.writeFileSync(result.filePath, buf);
+          } catch (e) {}
         }
       });
     }});
@@ -8018,7 +9732,7 @@ ipcMain.on('show-context-menu', (event, params) => {
   }
 
   var menu = Menu.buildFromTemplate(template);
-  menu.popup({ window: mainWindow });
+  menu.popup({ window: shell });
 });
 
 ipcMain.on('context-menu-copy', (_, text) => {
@@ -8033,6 +9747,37 @@ ipcMain.on('context-menu-copy-image', (_, dataUrl) => {
       clipboard.writeImage(img);
     }
   } catch(e) {}
+});
+
+// CSP of the chrome (index.html) forbids the renderer from fetching remote
+// origins, so context-menu "Copy image" asks MAIN to fetch the bytes. Goes
+// through electron.net → honours the configured proxy/Tor like every other
+// request, and caps the size so a page cannot make us buffer gigabytes.
+ipcMain.handle('fetch-as-data-url', async (event, url) => {
+  try {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return null;
+    var resp = await require('electron').net.fetch(url, {
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'StartPOZI-Browser' }
+    });
+    if (!resp.ok) return null;
+    var buf = Buffer.from(await resp.arrayBuffer());
+    if (buf.length > 32 * 1024 * 1024) return null; // 32 MB safety cap
+    var ctype = String(resp.headers.get('content-type') || 'image/png').split(',')[0].trim();
+    if (ctype.indexOf('image/') !== 0) ctype = 'image/png';
+    return 'data:' + ctype + ';base64,' + buf.toString('base64');
+  } catch (e) { return null; }
+});
+
+// Structured crash/diagnostic log channel for the renderer (see the
+// render-process-gone recovery path in renderer.js).
+ipcMain.handle('add-console-log', (event, line) => {
+  try {
+    var senderUrl = '';
+    try { senderUrl = event.sender.getURL(); } catch (eU) {}
+    console.log('[renderer' + (senderUrl ? ' ' + senderUrl : '') + '] ' + String(line).slice(0, 2000));
+  } catch (e) {}
+  return { success: true };
 });
 
 ipcMain.on('context-menu-open-tab', (event, url) => {
@@ -8164,7 +9909,7 @@ ipcMain.handle('remove-multi-search-custom-engine', (_, engineId) => {
   return { success: true };
 });
 
-ipcMain.handle('get-privacy-stats', () => {
+ipcMain.handle('get-privacy-stats', async () => {
   const store = readStorage();
   const sec = store.security || {};
   var enabledFeatures = 0;
@@ -8172,18 +9917,20 @@ ipcMain.handle('get-privacy-stats', () => {
   var featureKeys = ['urlClean','sanitizeUrl','webrtcLeak','fingerprint','autoplayBlock','siteIsolation','httpsOnly','referrerPolicy','blockThirdPartyCookies','blockMixedContent','blockNotifications','blockGeolocation','blockWebGL','blockClipboard'];
   featureKeys.forEach(function(k) { if (sec[k]) enabledFeatures++; });
 
+  // Real cookie COUNT (the old code reported the Cookies-db SIZE in KB,
+  // which said nothing about how many cookies are actually stored).
   var cookiesCount = 0;
-  try {
-    var cookiesDb = path.join(app.getPath('userData'), 'Cookies');
-    if (fs.existsSync(cookiesDb)) {
-      var stat = fs.statSync(cookiesDb);
-      cookiesCount = Math.round(stat.size / 1024);
-    }
-  } catch(e) {}
+  try { cookiesCount = (await session.defaultSession.cookies.get({})).length; } catch(e) {}
+
+  // Adblocker session stats with the category breakdown
+  // (ads/trackers/social/cdn/other) for the Security overview.
+  var abSession = null;
+  try { abSession = adblocker.getStats().session; } catch(e) {}
 
   return {
     blockedRequests: store.blockedLog ? store.blockedLog.length : 0,
     cookiesCount: cookiesCount,
+    adblockSession: abSession,
     enabledFeatures: enabledFeatures,
     totalFeatures: totalFeatures,
     adblockerEnabled: !!(adblocker && adblocker.isEnabled && adblocker.isEnabled()),
@@ -8193,6 +9940,28 @@ ipcMain.handle('get-privacy-stats', () => {
     webRTCProtection: !!sec.webrtcLeak,
     sponsorBlockStats: store.sponsorBlockStats || { segments: 0, timeSaved: 0 }
   };
+});
+
+// Cookie count for the adblock panel: number of cookies stored for the
+// ACTIVE page's session (respects incognito/container partitions via the
+// webContents id). With `url` — only that site's cookies; without — the
+// whole session.
+ipcMain.handle('get-cookie-count', async (_, wcId, url) => {
+  try {
+    var ses = null;
+    if (typeof wcId === 'number') {
+      try { var wc = webContents.fromId(wcId); if (wc && !wc.isDestroyed()) ses = wc.session; } catch (e0) {}
+    }
+    if (!ses) ses = session.defaultSession;
+    var opts = {};
+    if (typeof url === 'string' && url) {
+      try { opts.domain = new URL(url).hostname.replace(/^www\./, ''); } catch (e1) { opts.url = url; }
+    }
+    var list = await ses.cookies.get(opts);
+    return { count: list.length };
+  } catch (e) {
+    return { count: 0 };
+  }
 });
 
 // ============== BACKUP ==============
@@ -8293,6 +10062,62 @@ function _gatherBackupData(includeSecrets) {
 
 const BACKUP_LEGACY_SALT = 'startpozi-backup-salt';
 const BACKUP_MAGIC_V2 = Buffer.from('SPZ2', 'ascii');
+const BACKUP_MAGIC_V3 = Buffer.from('SPZ3', 'ascii');
+
+// ===== Cookies in backups =====
+// Collects cookies from the default session AND every container partition,
+// so a full backup can carry login sessions across machines. Only included
+// into ENCRYPTED archives — cookies are live credentials.
+async function _collectCookiesForBackup() {
+  var out = [];
+  async function grab(ses, partition) {
+    try {
+      var list = await ses.cookies.getAll({});
+      list.forEach(function (c) {
+        out.push({
+          p: partition, url: (c.secure ? 'https' : 'http') + '://' + String(c.domain || '').replace(/^\./, '') + (c.path || '/'),
+          name: c.name, value: c.value, domain: c.hostOnly ? undefined : c.domain,
+          path: c.path, secure: !!c.secure, httpOnly: !!c.httpOnly,
+          sameSite: c.sameSite || undefined,
+          expirationDate: c.expirationDate || undefined
+        });
+      });
+    } catch (e) {}
+  }
+  await grab(session.defaultSession, '');
+  try {
+    var store0 = readStorage();
+    (store0.containers || []).forEach(function (c) {
+      try { grab(session.fromPartition('persist:container-' + c.id), String(c.id)); } catch (e) {}
+    });
+  } catch (e) {}
+  return out;
+}
+
+// Restores previously collected cookies into their partitions.
+async function _restoreCookiesFromBackup(cookies) {
+  var restored = 0;
+  var byPart = {};
+  cookies.forEach(function (c) {
+    var p = String(c.p || '');
+    (byPart[p] = byPart[p] || []).push(c);
+  });
+  for (var p of Object.keys(byPart)) {
+    var ses = p ? session.fromPartition('persist:container-' + p) : session.defaultSession;
+    for (var c of byPart[p]) {
+      try {
+        await ses.cookies.set({
+          url: c.url, name: c.name, value: c.value,
+          domain: c.domain, path: c.path || '/',
+          secure: !!c.secure, httpOnly: !!c.httpOnly,
+          sameSite: c.sameSite, expirationDate: c.expirationDate
+        });
+        restored++;
+      } catch (e) {}
+    }
+  }
+  return restored;
+}
 
 function _encryptBuffer(buf, password) {
   var crypto2 = require('crypto');
@@ -8309,8 +10134,51 @@ function _encryptBuffer(buf, password) {
   return Buffer.concat([BACKUP_MAGIC_V2, salt, iv, tag, encrypted]);
 }
 
-function _decryptBuffer(buf, password, manifestSalt) {
+// Format v3 — password/passphrase + optional KEY FILE (two-factor):
+// 'SPZ3' + salt(16) + iv(12) + tag(16) + ciphertext, where the scrypt input
+// is the passphrase bytes concatenated with sha256(keyFile). Works with a
+// key file alone (empty passphrase) or with both factors combined.
+function _deriveBackupKeyV3(password, keyFileBuf, salt) {
   var crypto2 = require('crypto');
+  var material = Buffer.concat([
+    Buffer.from(String(password || ''), 'utf8'),
+    keyFileBuf ? crypto2.createHash('sha256').update(keyFileBuf).digest() : Buffer.alloc(0)
+  ]);
+  return crypto2.scryptSync(material, salt, 32);
+}
+
+function _encryptBufferV3(buf, password, keyFileBuf) {
+  var crypto2 = require('crypto');
+  var salt = crypto2.randomBytes(16);
+  var key = _deriveBackupKeyV3(password, keyFileBuf, salt);
+  var iv = crypto2.randomBytes(12);
+  var cipher = crypto2.createCipheriv('aes-256-gcm', key, iv);
+  var encrypted = Buffer.concat([cipher.update(buf), cipher.final()]);
+  var tag = cipher.getAuthTag();
+  return Buffer.concat([BACKUP_MAGIC_V3, salt, iv, tag, encrypted]);
+}
+
+function _readBackupKeyFile(keyFilePath) {
+  if (!keyFilePath) return null;
+  var st = fs.statSync(keyFilePath);
+  if (!st.isFile()) throw new Error('Key path is not a file');
+  if (st.size > 1048576) throw new Error('Key file is too large (max 1 MB)');
+  return fs.readFileSync(keyFilePath);
+}
+
+function _decryptBuffer(buf, password, manifestSalt, keyFileBuf) {
+  var crypto2 = require('crypto');
+  // v3 (passphrase + key file): 'SPZ3' + salt(16) + iv(12) + tag(16) + data.
+  if (buf.length > 4 + 16 + 12 + 16 && buf.slice(0, 4).equals(BACKUP_MAGIC_V3)) {
+    var s3 = buf.slice(4, 20);
+    var i3 = buf.slice(20, 32);
+    var t3 = buf.slice(32, 48);
+    var d3 = buf.slice(48);
+    var k3 = _deriveBackupKeyV3(password, keyFileBuf, s3);
+    var dec3 = crypto2.createDecipheriv('aes-256-gcm', k3, i3);
+    dec3.setAuthTag(t3);
+    return Buffer.concat([dec3.update(d3), dec3.final()]);
+  }
   // v2 (GCM): 'SPZ2' + salt(16) + iv(12) + tag(16) + ciphertext.
   if (buf.length > 4 + 16 + 12 + 16 && buf.slice(0, 4).equals(BACKUP_MAGIC_V2)) {
     var salt2 = buf.slice(4, 20);
@@ -8351,7 +10219,7 @@ function _decryptBuffer(buf, password, manifestSalt) {
   return Buffer.concat([ldecipher.update(ldata), ldecipher.final()]);
 }
 
-ipcMain.handle('backup-export', async (_, usePassword, password) => {
+ipcMain.handle('backup-export', async (_, usePassword, password, keyFilePath) => {
   try {
     var result = await dialog.showSaveDialog(mainWindow, {
       title: 'Export backup',
@@ -8360,28 +10228,60 @@ ipcMain.handle('backup-export', async (_, usePassword, password) => {
     });
     if (result.canceled) return { success: false, message: 'Cancelled' };
 
-    var data = _gatherBackupData(!!usePassword);
+    // A key file counts as encryption on its own; a passphrase alone too.
+    var keyFileBuf = null;
+    if (keyFilePath) keyFileBuf = _readBackupKeyFile(keyFilePath);
+    var encrypted = !!usePassword || !!keyFileBuf;
+
+    var data = _gatherBackupData(encrypted);
+    // Cookies are live session credentials: they travel ONLY inside an
+    // encrypted archive, collected from every partition (default +
+    // containers) so a full restore really restores EVERYTHING.
+    if (encrypted) {
+      data.cookies = await _collectCookiesForBackup();
+      data.metadata.cookiesIncluded = true;
+    }
     var jsonBuf = Buffer.from(JSON.stringify(data, null, 2), 'utf8');
 
-    var tmpDir = path.join(electronApp.getPath('temp'), 'spzi-export-' + Date.now());
-    fs.mkdirSync(tmpDir, { recursive: true });
-
-    var manifest = { encrypted: !!usePassword, version: data.metadata.version, date: data.metadata.date };
-    var dataToWrite = usePassword ? _encryptBuffer(jsonBuf, password) : jsonBuf;
+    var manifest = {
+      encrypted: encrypted,
+      version: data.metadata.version,
+      date: data.metadata.date,
+      keyFile: !!keyFileBuf,
+      cookies: !!data.metadata.cookiesIncluded
+    };
+    var dataToWrite = encrypted
+      ? (keyFileBuf ? _encryptBufferV3(jsonBuf, String(password || ''), keyFileBuf) : _encryptBuffer(jsonBuf, String(password || '')))
+      : jsonBuf;
     writeBackupZip(result.filePath, manifest, dataToWrite);
-
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
 
     return {
       success: true, path: result.filePath, size: fs.statSync(result.filePath).size,
-      secretsExcluded: !usePassword
+      secretsExcluded: !encrypted,
+      cookiesIncluded: !!encrypted
     };
   } catch(e) {
     return { success: false, message: e.message };
   }
 });
 
-ipcMain.handle('backup-import', async (_, filePath, password, options) => {
+// Key-file picker for the export/import dialogs (the backup page lives in a
+// webview and cannot open native dialogs on its own).
+ipcMain.handle('backup-pick-keyfile', async () => {
+  try {
+    var r = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select key file',
+      properties: ['openFile'],
+      filters: [{ name: 'Any key file', extensions: ['*'] }]
+    });
+    if (r.canceled || !r.filePaths || !r.filePaths.length) return { success: false };
+    return { success: true, path: r.filePaths[0], name: path.basename(r.filePaths[0]) };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('backup-import', async (_, filePath, password, options, keyFilePath) => {
   try {
     var tmpDir = path.join(electronApp.getPath('temp'), 'spzi-import-' + Date.now());
     fs.mkdirSync(tmpDir, { recursive: true });
@@ -8393,55 +10293,79 @@ ipcMain.handle('backup-import', async (_, filePath, password, options) => {
 
     var jsonStr;
     if (manifest.encrypted) {
-      if (!password) {
+      if (manifest.keyFile && !keyFilePath && !password) {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
+        return { success: false, needPassword: true, needKeyFile: true };
+      }
+      var keyFileBuf = null;
+      try {
+        if (keyFilePath) keyFileBuf = _readBackupKeyFile(keyFilePath);
+      } catch (eK) {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e2) {}
+        return { success: false, message: 'Key file: ' + eK.message };
+      }
+      if (!password && !keyFileBuf) {
         try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
         return { success: false, needPassword: true };
       }
       try {
-        jsonStr = _decryptBuffer(dataBuf, password).toString('utf8');
+        jsonStr = _decryptBuffer(dataBuf, String(password || ''), undefined, keyFileBuf).toString('utf8');
       } catch(e) {
         try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e2) {}
-        return { success: false, message: 'Wrong password' };
+        return { success: false, message: manifest.keyFile ? 'Wrong password or key file' : 'Wrong password' };
       }
     } else {
       jsonStr = dataBuf.toString('utf8');
     }
 
     var data = JSON.parse(jsonStr);
-    var store = readStorage();
+    // Collect the imported fields into a PATCH first: the cookie restore
+    // below awaits, and other IPC handlers may write settings.json in the
+    // meantime. Writing a pre-await snapshot afterwards would silently
+    // erase their changes (classic lost update) — so we re-read and merge
+    // AFTER the await instead.
+    var patch = {};
+    var delKeys = [];
 
     if (options.settings) {
       var imported = data.settings || {};
       if (data.security) imported.security = data.security;
       if (data.customization) imported.customization = data.customization;
-      Object.assign(store, imported);
+      Object.assign(patch, imported);
     }
-    if (options.history && data.history) store.history = data.history;
-    if (options.scripts && data.scripts) store.scripts = data.scripts;
-    if (options.bookmarks && data.bookmarks) store.bookmarks = data.bookmarks;
+    if (options.history && data.history) patch.history = data.history;
+    if (options.scripts && data.scripts) patch.scripts = data.scripts;
+    if (options.bookmarks && data.bookmarks) patch.bookmarks = data.bookmarks;
     if (options.passwords) {
       // Prefer the encrypted vault when present; fall back to plaintext
       // (re-sealed with the OS backend so nothing lands on disk in clear).
       if (data.passwordVault) {
-        store.passwordVault = data.passwordVault;
-        if (data.masterAuth) store.masterAuth = data.masterAuth;
-        delete store.passwords;
-        delete store.passwordsSealed;
+        patch.passwordVault = data.passwordVault;
+        if (data.masterAuth) patch.masterAuth = data.masterAuth;
+        delKeys.push('passwords', 'passwordsSealed');
         // Imported vault is locked by default until the user unlocks it.
         _vaultKey = null;
       } else if (data.passwords) {
-        delete store.passwordVault;
-        delete store.masterAuth;
+        delKeys.push('passwordVault', 'masterAuth');
         _vaultKey = null;
-        _writePasswords(store, data.passwords);
+        _writePasswords(patch, data.passwords);
       }
     }
-    if (options.siteThemes && data.siteThemes) store.siteThemes = data.siteThemes;
-    if (options.blockedLog && data.blockedLog) store.blockedLog = data.blockedLog;
-    if (options.sponsorblock && data.sponsorblock) store.sponsorBlockStats = data.sponsorblock;
-    if (options.profiles && data.profiles) store.profiles = data.profiles;
+    if (options.siteThemes && data.siteThemes) patch.siteThemes = data.siteThemes;
+    if (options.blockedLog && data.blockedLog) patch.blockedLog = data.blockedLog;
+    if (options.sponsorblock && data.sponsorblock) patch.sponsorBlockStats = data.sponsorblock;
+    if (options.profiles && data.profiles) patch.profiles = data.profiles;
 
-    writeStorage(store);
+    // Cookies: restore into their original partitions (default + containers).
+    var cookiesRestored = 0;
+    if (options.cookies && Array.isArray(data.cookies) && data.cookies.length) {
+      cookiesRestored = await _restoreCookiesFromBackup(data.cookies);
+    }
+
+    storage.update(function (s) {
+      Object.keys(patch).forEach(function (k) { s[k] = patch[k]; });
+      delKeys.forEach(function (k) { delete s[k]; });
+    });
 
     if (options.settings && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('mainpage-reload-needed');
@@ -8449,7 +10373,11 @@ ipcMain.handle('backup-import', async (_, filePath, password, options) => {
 
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
 
-    return { success: true, imported: Object.keys(options).filter(function(k) { return options[k]; }) };
+    return {
+      success: true,
+      imported: Object.keys(options).filter(function(k) { return options[k]; }),
+      cookiesRestored: cookiesRestored
+    };
   } catch(e) {
     return { success: false, message: e.message };
   }
@@ -8476,7 +10404,10 @@ ipcMain.handle('backup-check-file', async (_, filePath) => {
     safeExtractZip(filePath, tmpDir);
     var manifest = JSON.parse(fs.readFileSync(path.join(tmpDir, 'manifest.json'), 'utf8'));
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch(e) {}
-    return { success: true, encrypted: !!manifest.encrypted, version: manifest.version, date: manifest.date };
+    return {
+      success: true, encrypted: !!manifest.encrypted, version: manifest.version, date: manifest.date,
+      keyFile: !!manifest.keyFile, cookies: !!manifest.cookies
+    };
   } catch(e) {
     return { success: false, message: e.message };
   }
@@ -9161,22 +11092,39 @@ async function _readBridgesFromTorrc() {
     });
   }
 
+  // Minimal glob expansion ( * and ? ) done IN JS: the previous version
+  // interpolated the path into `/bin/sh -c 'ls -1 …'` and only escaped
+  // whitespace — a tor process whose argv contains shell metacharacters
+  // (;, $(), backticks, &&, ||) could inject commands. No shell anymore.
+  function expandGlob(p) {
+    var out = [];
+    var abs = String(p).charAt(0) === '/';
+    var segs = String(p).split('/').filter(function(s) { return s !== ''; });
+    (function walk(prefix, rest) {
+      if (!rest.length) { if (prefix) out.push(prefix); return; }
+      var seg = rest[0], tail = rest.slice(1);
+      if (seg.indexOf('*') === -1 && seg.indexOf('?') === -1) {
+        walk(prefix ? path.join(prefix, seg) : (abs ? '/' + seg : seg), tail);
+        return;
+      }
+      var re = new RegExp('^' + seg.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]') + '$');
+      var list = [];
+      try { list = fs.readdirSync(prefix || (abs ? '/' : '.')); } catch (e) {}
+      list.forEach(function(f) { if (re.test(f)) walk(path.join(prefix || (abs ? '/' : '.'), f), tail); });
+    })('', segs);
+    return out;
+  }
+
   async function tryRead(p) {
     pathsChecked.push(p);
     try {
       if (p.indexOf('*') !== -1) {
-        // Glob path — expand manually via sh (for TBB tor-browser_*)
-        var ls = await _execFileText('/bin/sh', ['-c', 'ls -1 ' + p.replace(/\s/g, '\\ ') + ' 2>/dev/null'], 1500);
-        if (ls) {
-          var lines = ls.split(/\r?\n/);
-          for (var li = 0; li < lines.length; li++) {
-            var rp = lines[li].trim();
-            if (!rp) continue;
-            try {
-              if (fs.existsSync(rp)) parseText(fs.readFileSync(rp, 'utf8'));
-            } catch(e) {}
-          }
-        }
+        // Glob path — expand in JS (for TBB tor-browser_* layouts)
+        expandGlob(p).forEach(function(rp) {
+          try {
+            if (fs.existsSync(rp)) parseText(fs.readFileSync(rp, 'utf8'));
+          } catch(e) {}
+        });
         return;
       }
       if (!fs.existsSync(p)) return;
@@ -9310,30 +11258,87 @@ ipcMain.handle('ensure-tor-for-onion', async function() {
   }
 });
 
-// Check: does traffic really go through Tor (via the Tor check API)
+// Check: does traffic really go through Tor?
+// Speaks REAL SOCKS5 to the local Tor port. The old code sent an HTTP
+// "CONNECT host:443" line to the SOCKS port — Tor does not answer HTTP on
+// 9050, so the check could only ever fail with error/timeout and
+// "reachable:true" was unreachable in practice.
+// Full check: SOCKS5 greeting → CONNECT check.torproject.org:80 → read the
+// JSON body and look for "IsTor":true.
 function checkTor() {
   return new Promise(function(resolve) {
-    var http = require('http');
-    var opts = {
-      host: '127.0.0.1',
-      port: _torPort,
-      method: 'CONNECT',
-      path: 'check.torproject.org:443',
-      timeout: 8000
-    };
-    var req = http.request(opts);
-    req.on('connect', function() {
-      resolve({ running: true, reachable: true, bootstrap: _torBootstrap });
-      req.destroy();
-    });
-    req.on('error', function() {
+    var net = require('net');
+    var finished = false;
+    // Prefer the ACTUALLY configured proxy endpoint: the old hard-coded
+    // 127.0.0.1:9050 made the check report a working remote/system Tor
+    // (e.g. port 9150) as unreachable.
+    var torHost = '127.0.0.1';
+    var torPort = _torPort;
+    try {
+      if (_proxySettings && _proxySettings.host) {
+        var ph = String(_proxySettings.host);
+        if (ph === 'localhost' || ph === '127.0.0.1' || ph === '::1' || ph === '0.0.0.0') {
+          torHost = '127.0.0.1';
+        } else {
+          torHost = ph;
+        }
+        torPort = parseInt(_proxySettings.port, 10) || _torPort;
+      }
+    } catch (eP) {}
+    var sock = net.connect({ host: torHost, port: torPort });
+    sock.setTimeout(9000);
+    var stage = 0; // 1=greeting sent, 2=connect sent, 3=http sent
+    var buf = Buffer.alloc(0);
+    function fail() {
+      if (finished) return;
+      finished = true;
+      try { sock.destroy(); } catch(e) {}
       resolve({ running: !!_torProcess, reachable: false, bootstrap: _torBootstrap });
+    }
+    sock.on('connect', function() {
+      // SOCKS5 greeting: one auth method — no-auth.
+      sock.write(Buffer.from([0x05, 0x01, 0x00]));
+      stage = 1;
     });
-    req.on('timeout', function() {
-      resolve({ running: !!_torProcess, reachable: false, bootstrap: _torBootstrap });
-      req.destroy();
+    sock.on('data', function(d) {
+      if (finished) return;
+      buf = Buffer.concat([buf, d]);
+      if (stage === 1) {
+        if (buf.length < 2) return;
+        if (buf[0] !== 0x05 || buf[1] !== 0x00) return fail(); // not a SOCKS5 no-auth server
+        buf = Buffer.alloc(0); stage = 2;
+        var host = 'check.torproject.org';
+        var req = Buffer.alloc(7 + host.length); // VER CMD RSV ATYP len host port
+        req[0] = 0x05; req[1] = 0x01; req[2] = 0x00; req[3] = 0x03;
+        req[4] = host.length;
+        req.write(host, 5, 'ascii');
+        req.writeUInt16BE(80, 5 + host.length);
+        sock.write(req);
+        return;
+      }
+      if (stage === 2) {
+        if (buf.length < 5) return;
+        if (buf[0] !== 0x05 || buf[1] !== 0x00) return fail(); // CONNECT rejected
+        buf = Buffer.alloc(0); stage = 3;
+        sock.write('GET /api/ip HTTP/1.1\r\nHost: check.torproject.org\r\nUser-Agent: Mozilla/5.0\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      if (stage === 3) {
+        var s = buf.toString('utf8');
+        if (s.indexOf('"IsTor"') > -1) {
+          var ok = /"IsTor"\s*:\s*true/.test(s);
+          var ipm = s.match(/"IP"\s*:\s*"([^"]+)"/);
+          if (finished) return;
+          finished = true;
+          try { sock.destroy(); } catch(e) {}
+          resolve({ running: true, reachable: ok, exitIp: ipm ? ipm[1] : undefined, bootstrap: _torBootstrap });
+        }
+        // otherwise keep reading until the body arrives, socket closes or timeout fires
+      }
     });
-    req.end();
+    sock.on('close', fail);
+    sock.on('error', fail);
+    sock.on('timeout', fail);
   });
 }
 
@@ -9549,7 +11554,7 @@ var _proxyLiveFallback = false;
 
 function _proxyNotify(title, body) {
   try {
-    var n = new Notification({ title: t(title), body: t(body) });
+    var n = new Notification({ title: t(title), body: t(body), icon: _appIcon() });
     n.show();
   } catch(e) {}
 }
@@ -9874,46 +11879,100 @@ ipcMain.handle('start-element-picker', async (event, webContentsId) => {
     // Only webview contents can be targeted — never arbitrary windows.
     if (wc.getType() !== 'webview') return { success: false };
 
-    // Re-invocation while active cancels the running picker (toggle-like UX).
+    // Run the picker in the MAIN frame AND every sub-frame: ads live inside
+    // iframes, and each frame has its own window — main-frame capture
+    // listeners never see clicks made inside a cross-domain ad iframe.
+    // That was exactly why manual blocking "did not block anything".
+    // NOTE: Electron 42 WebFrameMain has `frames` (direct children) and
+    // `framesInSubtree` (all descendants) — there is NO `framesInHierarchy`.
+    var frames = [];
+    try { frames.push(wc.mainFrame); } catch (eF) {}
     try {
-      var wasActive = await wc.executeJavaScript('!!window.__spzMwPickerActive', false);
-      if (wasActive) {
-        await wc.executeJavaScript('if(window.__spzMwCancel){window.__spzMwCancel();}0', false);
-        return { success: true, cancelled: true };
-      }
-    } catch (e0) {}
+      (wc.mainFrame.framesInSubtree || []).forEach(function (f) { frames.push(f); });
+    } catch (eF2) {}
 
-    var picked;
-    try {
-      picked = await wc.executeJavaScript(_MAIN_WORLD_PICKER_CODE, true);
-    } catch (e1) {
-      return { success: false };
+    // Toggle-cancel: if a picker is already running in ANY frame — cancel all.
+    var anyActive = false;
+    for (var i = 0; i < frames.length; i++) {
+      try {
+        var act = await frames[i].executeJavaScript('!!window.__spzMwPickerActive', false);
+        if (act) { anyActive = true; break; }
+      } catch (eA) {}
     }
+    if (anyActive) {
+      for (var j = 0; j < frames.length; j++) {
+        try { frames[j].executeJavaScript('if(window.__spzMwCancel){window.__spzMwCancel();}0', false).catch(function() {}); } catch (eC) {}
+      }
+      return { success: true, cancelled: true };
+    }
+
+    // Race the pickers: the FIRST frame where the user clicks wins; the
+    // others are cancelled.
+    var picked = await new Promise(function (resolve) {
+      var remaining = frames.length;
+      var resolved = false;
+      if (!remaining) { resolve(null); return; }
+      frames.forEach(function (frame) {
+        var p;
+        try { p = frame.executeJavaScript(_MAIN_WORLD_PICKER_CODE, true); }
+        catch (eE) { p = Promise.reject(eE); }
+        p.then(function (v) {
+          remaining--;
+          if (resolved) return;
+          if (v) {
+            resolved = true;
+            // Cancel the pickers in all other frames.
+            frames.forEach(function (g) {
+              if (g !== frame) {
+                try { g.executeJavaScript('if(window.__spzMwCancel){window.__spzMwCancel();}0', false).catch(function() {}); } catch (eG) {}
+              }
+            });
+            resolve({ result: v, frame: frame });
+          } else if (remaining === 0) {
+            resolve(null);
+          }
+        }).catch(function () {
+          remaining--;
+          if (!resolved && remaining === 0) resolve(null);
+        });
+      });
+    });
     if (!picked) return { success: true, cancelled: true };
+    var res = picked.result;
+    var frame = picked.frame;
+
+    // The rule is stored under the MAIN page's domain: on reload the
+    // renderer injects it via webview.insertCSS, which Chromium applies to
+    // ALL frames of the page — including the ad iframe the element was
+    // picked in.
+    var pageDomain = '';
+    try { pageDomain = new URL(wc.getURL()).hostname; } catch (eD) { pageDomain = res.domain || ''; }
 
     // Undo (U key): remove the most recent rule for this domain.
-    if (picked.undo && picked.domain) {
+    if (res.undo && pageDomain) {
       var ustore = readStorage();
-      var ulist = ustore.elementHidingRules && ustore.elementHidingRules[picked.domain];
+      var ulist = ustore.elementHidingRules && ustore.elementHidingRules[pageDomain];
       if (Array.isArray(ulist) && ulist.length) {
         var removed = ulist.pop();
-        if (!ulist.length) delete ustore.elementHidingRules[picked.domain];
+        if (!ulist.length) delete ustore.elementHidingRules[pageDomain];
         writeStorage(ustore);
         if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('element-hiding-updated', { domain: picked.domain, selector: removed, added: false });
+          mainWindow.webContents.send('element-hiding-updated', { domain: pageDomain, selector: removed, added: false });
         }
+        try { _applyElementHidingToWc(wc); } catch (eU) {}
       }
       return { success: true, undo: true };
     }
 
-    if (picked.selector && picked.domain) {
-      // Hide immediately in the page…
+    if (res.selector && pageDomain) {
+      // Hide immediately in the frame where the element was picked…
       try {
-        var hideCss = picked.selector + ' { display: none !important; }';
-        wc.executeJavaScript('(function(){try{var s=document.createElement("style");s.id="__spz_zap_hide";s.textContent=' + JSON.stringify(hideCss) + ';document.documentElement.appendChild(s);return 1}catch(e){return 0}})()', false).catch(function() {});
+        var hideCss = res.selector + ' { display: none !important; }';
+        frame.executeJavaScript('(function(){try{var s=document.createElement("style");s.id="__spz_zap_hide";s.textContent=' + JSON.stringify(hideCss) + ';document.documentElement.appendChild(s);return 1}catch(e){return 0}})()', false).catch(function() {});
       } catch (e3) {}
-      // …and persist so the renderer keeps applying it on future loads.
-      _saveElementHidingRule(picked.domain, picked.selector, wc);
+      // …and persist under the main page domain so the renderer keeps
+      // applying it on future loads.
+      _saveElementHidingRule(pageDomain, res.selector, wc);
       return { success: true };
     }
     return { success: true, cancelled: true };
@@ -10051,6 +12110,39 @@ function _saveElementHidingRule(domain, selector, sourceWc) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('element-hiding-updated', { domain: domain, selector: selector, added: true });
   }
+  // Apply immediately across ALL frames of the page the pick came from.
+  try { if (sourceWc && !sourceWc.isDestroyed()) _applyElementHidingToWc(sourceWc); } catch (eA) {}
+}
+
+// Apply saved element-hiding (zapper) rules to EVERY frame of a webContents.
+// The renderer's webview.insertCSS reaches only the main frame in Electron
+// 42, so rules picked inside iframes vanished after a reload. Injection via
+// WebFrameMain.executeJavaScript works for cross-domain ad frames too.
+function _applyElementHidingToWc(wc) {
+  try {
+    if (!wc || wc.isDestroyed()) return;
+    var url = wc.getURL();
+    if (!url || url.indexOf('http') !== 0) return;
+    var host = '';
+    try { host = new URL(url).hostname; } catch (e0) { return; }
+    var rules = readStorage().elementHidingRules || {};
+    var css = '';
+    Object.keys(rules).forEach(function (d) {
+      if (d === host || host.endsWith('.' + d)) {
+        var sels = rules[d];
+        if (sels && sels.length) css += sels.join(', ') + ' { display: none !important; }\n';
+      }
+    });
+    var js = '(function(){try{var o=document.getElementById("__spz_eh");if(o)o.remove();' +
+      (css ? 'var s=document.createElement("style");s.id="__spz_eh";s.textContent=' + JSON.stringify(css) + ';document.documentElement.appendChild(s);' : '') +
+      'return 1}catch(e){return 0}})()';
+    var frames = [];
+    try { frames.push(wc.mainFrame); } catch (e1) {}
+    try { (wc.mainFrame.framesInSubtree || []).forEach(function (f) { frames.push(f); }); } catch (e2) {}
+    frames.forEach(function (f) {
+      try { f.executeJavaScript(js, false).catch(function () {}); } catch (e3) {}
+    });
+  } catch (e) {}
 }
 
 // Element selected inside a webview (via preload-webview → main)
@@ -10091,12 +12183,20 @@ ipcMain.on('element-picker-result', function(event, data) {
   }
 });
 
-// ============== UPDATE CHECK ==============
-// Checks the GitHub releases feed of the upstream repo. Goes through
-// net.fetch (respects Tor/proxy), throttled to once per 24h, never installs
-// anything silently — only opens the release page when the user agrees.
+// ============== UPDATE CHECK (hybrid) ==============
+// Primary source: the project's own update server (up.api.startpozi.com) —
+// a signed latest.json manifest (ed25519, public key embedded below). The
+// signature is verified BEFORE anything is trusted, so a compromised server
+// or CDN cannot push a crafted manifest. Fallback: the GitHub releases feed.
+// All requests go through net.fetch (respects Tor/proxy), throttled to once
+// per 24h, nothing is ever installed silently.
 const UPDATE_FEED_URL = 'https://api.github.com/repos/StartPOZI/StartPOZI-Desktop-Browser-beta-/releases/latest';
+const UPDATE_MANIFEST_URL = 'https://up.api.startpozi.com/latest.json';
 const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
+// ed25519 public key (SPKI, base64 DER) — pair of update-server/keys/
+// update-private.pem. Replacing the key requires shipping a new browser
+// build; manifests signed with the old key then stop validating.
+const UPDATE_PUBKEY_B64 = 'MCowBQYDK2VwAyEAkNpiw4tix4kmOuYPLznbV2s4AkohfBnm9NRomEVhWyw=';
 
 function _cmpVersions(a, b) {
   var pa = String(a || '').replace(/^v/i, '').split('.');
@@ -10109,14 +12209,99 @@ function _cmpVersions(a, b) {
   return 0;
 }
 
+// Canonical JSON (recursive key sort) — byte-identical to what
+// scripts/make-update.js signed.
+function _canonicalJson(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(_canonicalJson).join(',') + ']';
+  return '{' + Object.keys(v).sort()
+    .map(function (k) { return JSON.stringify(k) + ':' + _canonicalJson(v[k]); })
+    .join(',') + '}';
+}
+
+function _verifyManifestSignature(manifest) {
+  try {
+    if (!manifest || typeof manifest !== 'object' || !manifest.signature) return false;
+    var pub = require('crypto').createPublicKey({
+      key: Buffer.from(UPDATE_PUBKEY_B64, 'base64'), format: 'der', type: 'spki'
+    });
+    var check = {};
+    Object.keys(manifest).forEach(function (k) { if (k !== 'signature') check[k] = manifest[k]; });
+    return require('crypto').verify(
+      null,
+      Buffer.from(_canonicalJson(check), 'utf8'),
+      pub,
+      Buffer.from(String(manifest.signature), 'base64')
+    );
+  } catch (e) { return false; }
+}
+
+// Download URL for this platform from a verified manifest (null = no match).
+function _manifestDownload(manifest) {
+  try {
+    var key = (process.platform === 'win32') ? 'win-setup'
+      : (process.platform === 'darwin') ? 'mac-dmg' : 'linux-appimage';
+    return manifest.files[key] || null;
+  } catch (e) { return null; }
+}
+
 async function _fetchUpdateInfo() {
   var cur = electronApp.getVersion();
-  var resp = await require('electron').net.fetch(UPDATE_FEED_URL, {
+  // ---- 1) Own signed manifest ----
+  try {
+    var resp = await require('electron').net.fetch(UPDATE_MANIFEST_URL, {
+      headers: { 'User-Agent': 'StartPOZI-Browser-Updater' },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (resp.ok) {
+      var m = await resp.json();
+      if (_verifyManifestSignature(m) && m.version) {
+        // Anti-rollback: never "upgrade" to an older version. The signed
+        // minAuto (if present) marks the minimum auto-updatable release —
+        // expose it as belowMinAuto so the UI can tell the user their build
+        // is outdated, but we still never download an older build than the
+        // running one.
+        var avail = _cmpVersions(cur, m.version) < 0;
+        var out = {
+          current: cur,
+          latest: String(m.version),
+          updateAvailable: avail,
+          belowMinAuto: !!(m.minAuto && _cmpVersions(cur, String(m.minAuto)) < 0 && !avail),
+          releaseNotes: String(m.notes || '').slice(0, 1500),
+          source: 'startpozi'
+        };
+        if (avail) {
+          var dl = _manifestDownload(m);
+          out.releaseUrl = dl ? dl.url : null;
+          out.downloadUrl = dl ? dl.url : null;
+          out.downloadSha512 = dl ? dl.sha512 : null;
+          out.downloadSize = dl ? dl.size : null;
+          // Same bytes straight from GitHub if our CDN chokes mid-download.
+          if (dl && dl.githubFallback) out.downloadFallbackUrl = dl.githubFallback;
+        }
+        return out;
+      }
+      // Signature failed on our OWN server: treat as compromised, do not
+      // fall through to GitHub silently either — the client must not mix
+      // trust levels within one check. Report as a check failure.
+      // (Tagged error: the catch below re-throws it instead of falling back.)
+      var eSig = new Error('manifest signature invalid');
+      eSig.spzNoFallback = true;
+      throw eSig;
+    }
+  } catch (eOwn) {
+    // Compromised own manifest ≠ network problem: bail out immediately,
+    // NEVER continue to the GitHub fallback from a trust failure.
+    if (eOwn && eOwn.spzNoFallback) throw eOwn;
+    // Network failure/timeout/404 → fall back to GitHub below.
+  }
+  // ---- 2) GitHub fallback ----
+  var resp2 = await require('electron').net.fetch(UPDATE_FEED_URL, {
     headers: { 'User-Agent': 'StartPOZI-Browser-Updater', 'Accept': 'application/vnd.github+json' },
     signal: AbortSignal.timeout(10000)
   });
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  var rel = await resp.json();
+  if (!resp2.ok) throw new Error('HTTP ' + resp2.status);
+  var rel = await resp2.json();
   var latest = String(rel.tag_name || '').replace(/^v/i, '');
   if (!latest) throw new Error('no tag in release');
   return {
@@ -10124,17 +12309,90 @@ async function _fetchUpdateInfo() {
     latest: latest,
     updateAvailable: _cmpVersions(cur, latest) < 0,
     releaseUrl: rel.html_url || 'https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-/releases',
-    releaseNotes: String(rel.body || '').slice(0, 1500)
+    releaseNotes: String(rel.body || '').slice(0, 1500),
+    source: 'github'
   };
 }
 
-ipcMain.handle('check-for-updates', async () => {
+// Manual/background download of a verified update package: streams via
+// net.fetch (proxy-aware) straight to disk — installers are ~180 MB and the
+// old resp.arrayBuffer() buffered the whole thing in RAM with a hard 120 s
+// cap that no slow connection (or Tor) could ever meet. sha512 is verified
+// while streaming; only a verified file lands in the Downloads folder.
+// Nothing is executed — the user installs it.
+ipcMain.handle('download-update', async (event) => {
+  var tmpPath = null;
   try {
     var info = await _fetchUpdateInfo();
+    if (!info.updateAvailable || !info.downloadUrl) {
+      return { success: false, error: 'no downloadable update for this platform' };
+    }
+    var url = info.downloadUrl;
+    // ~15 min overall budget for ~200 MB; per-read stalls still abort early
+    // thanks to net.fetch's internal timeouts.
+    var dlOpts = { signal: AbortSignal.timeout(15 * 60 * 1000), headers: { 'User-Agent': 'StartPOZI-Browser-Updater' } };
+    var resp;
     try {
-      var store = readStorage();
-      store.lastUpdateCheck = Date.now();
-      writeStorage(store);
+      resp = await require('electron').net.fetch(url, dlOpts);
+    } catch (eNet) { resp = null; }
+    if ((!resp || !resp.ok) && info.downloadFallbackUrl) {
+      // Primary CDN rejected/failed at the network level — retry the same
+      // bytes on GitHub instead of giving up.
+      url = info.downloadFallbackUrl;
+      try { resp = await require('electron').net.fetch(url, dlOpts); } catch (eNet2) { resp = null; }
+    }
+    if (!resp || !resp.ok) {
+      return { success: false, error: !resp ? 'network error' : 'HTTP ' + resp.status };
+    }
+    var fname = 'StartPOZI-' + info.latest + (process.platform === 'win32' ? '.exe'
+      : process.platform === 'darwin' ? '.dmg' : '.AppImage');
+    var dir = app.getPath('downloads');
+    var outPath = path.join(dir, fname);
+    tmpPath = outPath + '.part';
+    var hash = info.downloadSha512 ? require('crypto').createHash('sha512') : null;
+    var total = 0;
+    var NodeReadable = require('stream').Readable;
+    var nodeStream = NodeReadable.fromWeb(resp.body);
+    var out = fs.createWriteStream(tmpPath);
+    await new Promise(function (resolveWrite, rejectWrite) {
+      nodeStream.on('data', function (chunk) {
+        total += chunk.length;
+        if (hash) hash.update(chunk);
+      });
+      nodeStream.on('error', rejectWrite);
+      out.on('error', rejectWrite);
+      out.on('finish', resolveWrite);
+      nodeStream.pipe(out);
+    });
+    if (hash) {
+      var h = hash.digest('hex');
+      if (h !== String(info.downloadSha512).toLowerCase()) {
+        try { fs.unlinkSync(tmpPath); } catch (eDel) {}
+        return { success: false, error: 'checksum mismatch — file discarded' };
+      }
+    }
+    fs.renameSync(tmpPath, outPath);
+    tmpPath = null;
+    try { fs.chmodSync(outPath, 0o755); } catch (eC) {}
+    try { shell.showItemInFolder(outPath); } catch (eS) {}
+    return { success: true, path: outPath, size: total };
+  } catch (e) {
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (eDel) {} }
+    return { success: false, error: String(e && e.message || e) };
+  }
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    var store = readStorage();
+    if (store.security && store.security.updateChecks === false) {
+      return { success: false, message: 'Update checks are disabled in Settings' };
+    }
+    var info = await _fetchUpdateInfo();
+    try {
+      var store2 = readStorage();
+      store2.lastUpdateCheck = Date.now();
+      writeStorage(store2);
     } catch(e0) {}
     return { success: true, updateAvailable: info.updateAvailable, current: info.current, latest: info.latest, releaseUrl: info.releaseUrl, releaseNotes: info.releaseNotes };
   } catch(e) {
@@ -10153,6 +12411,9 @@ function _autoCheckForUpdates() {
   (async function() {
     try {
       var store = readStorage();
+      // Opt-out toggle (Settings → Security → External services): when the
+      // user disabled update checks, no background request is made at all.
+      if (store.security && store.security.updateChecks === false) return;
       var last = store.lastUpdateCheck || 0;
       if (Date.now() - last < UPDATE_CHECK_INTERVAL) return;
       var info = await _fetchUpdateInfo();
@@ -10231,10 +12492,20 @@ ipcMain.handle('settings-import-json', async function() {
 ipcMain.handle('settings-apply-imported', function(_, data) {
   try {
     if (!data || typeof data !== 'object') return { success: false, error: 'Invalid format' };
-    // Merge imported over current (do not overwrite customDataPath and service keys)
+    // Merge imported over current (do not overwrite customDataPath and service keys).
+    // Credential material is NEVER taken from a settings file — the export
+    // side strips exactly these keys too (see settings-export-json), so a
+    // legit round-trip loses nothing while a crafted file cannot swap the
+    // vault or the master-auth verifier. Use the encrypted .spzi backup to
+    // carry passwords between machines.
+    var forbidden = {
+      customDataPath: true, _sessionStartTime: true,
+      passwords: true, passwordsSealed: true,
+      passwordVault: true, masterAuth: true
+    };
     var current = readStorage();
     Object.keys(data).forEach(function(k) {
-      if (k === 'customDataPath' || k === '_sessionStartTime') return;
+      if (forbidden[k]) return;
       current[k] = data[k];
     });
     writeStorage(current);

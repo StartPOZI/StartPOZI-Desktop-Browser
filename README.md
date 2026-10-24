@@ -5,12 +5,13 @@
 ```
 npm install
 npm start        # запуск
+npm test         # автотесты чистых модулей (node --test)
 npm run build    # сборка (electron-builder)
 ```
 
 ## Приватность
 
-- **Блокировщик рекламы** на каталоге [FilterHub](https://github.com/StartPOZI/FilterHub): 44 списка (EasyList/EasyPrivacy, uBlock Origin, AdGuard, HaGezi, Phishing Army…), включаются по отдельности, пресеты Light / Medium (по умолчанию) / Maximum
+- **Блокировщик рекламы** на каталоге [FilterHub](https://github.com/StartPOZI/FilterHub): 44 списка (EasyList/EasyPrivacy, uBlock Origin, AdGuard, HaGezi, Phishing Army…), включаются по отдельности, пресеты Light / Medium (по умолчанию) / Maximum; списки с ABP-заголовком `! Checksum:` проверяются при скачивании — это защита от порчи/обрыва при скачивании (MD5-чексумма): несовпавшая копия отбрасывается с откатом на кэш; от целенаправленной подмены (пересчёт чексуммы атакующим) защищает HTTPS-транспорт
 - **Автоотклонение cookie-баннеров** (~70 провайдеров, shadow DOM, кнопка «Принять» никогда не нажимается)
 - **Tor с мостами** (obfs4 / snowflake / webtunnel) и прокси HTTP/SOCKS4/SOCKS5 с диагностикой exit-IP; watchdog автоматически переключает на прямое соединение при падении прокси и возвращает при восстановлении
 - **Авто-удаление cookie при выходе** (опция), инкогнито не пишет историю/загрузки и не видит общие
@@ -27,11 +28,11 @@ npm run build    # сборка (electron-builder)
 
 ## Возможности
 
-Quick Commands (~60 команд) · Vim-режим · мульти-поиск · workspaces и контейнеры · гибернация вкладок и eco-freeze · split view · OCR (офлайн) · TTS (офлайн) · hover-перевод · элемент-заппер · скриншоты с аннотациями · диспетчер задач · темы `.thmz` и кастомный CSS · 27 кнопок тулбара (drag&drop) · виджеты на новой вкладке · проверка обновлений через GitHub Releases
+Мастер первого запуска с пресетами приватности (Стандарт / Приватный / Максимум) · Quick Commands (~60 команд) · Vim-режим · мульти-поиск · workspaces и контейнеры · гибернация вкладок и eco-freeze · split view · OCR (офлайн) · TTS (офлайн) · hover-перевод · элемент-заппер · скриншоты с аннотациями · диспетчер задач · темы `.thmz` и кастомный CSS · 27 кнопок тулбара (drag&drop) · виджеты на новой вкладке · проверка обновлений через GitHub Releases
 
 ## Безопасность архитектуры
 
-`contextIsolation` + `nodeIntegration: false` везде · пер-страничные права API внутренних страниц (пароли — только Settings/Library) · `will-attach-webview` фиксирует безопасные атрибуты · атомарная запись хранилища (кэш в памяти + tmp/rename) · fail-closed разрешения
+`contextIsolation` + `nodeIntegration: false` везде · пер-страничные права API внутренних страниц (пароли — только Settings/Library) · **двойной гейт секретных IPC: capability-фильтр в preload + перепроверка отправителя в main-процессе (`_isSecretsSender`)** · `will-attach-webview` фиксирует безопасные атрибуты · атомарная запись хранилища (кэш в памяти + tmp/rename) · fail-closed разрешения
 
 ## Внутренние страницы
 
@@ -45,8 +46,9 @@ Quick Commands (~60 команд) · Vim-режим · мульти-поиск �
 | `about:tor` / `about:proxy` | Прокси и Tor |
 | `about:hotkeys` / `about:vim` | Хоткеи и Vim |
 | `about:backup` | Бэкапы |
+| `about:help` | Справка / Help (RU+EN) |
 
-Полный список — в [docs/](docs/).
+Полный список — в [docs/](docs/) (RU + [EN](docs/en/)).
 
 ## Сборка
 

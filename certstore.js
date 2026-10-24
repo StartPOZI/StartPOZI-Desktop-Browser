@@ -21,6 +21,45 @@ var _bundlePem = null;   // raw file contents
 var _roots = [];         // [{ cert: X509Certificate, fp: sha256-hex }]
 var _rootFingerprints = new Set(); // sha256(DER) of every bundled root
 var _loaded = false;
+// User-managed trust (Settings → Security → SSL certificates):
+var _extraRoots = [];    // user-added trust anchors [{ cert, fp }]
+var _extraPems = [];     // their PEM blocks (for the Node-side `ca` list)
+var _systemEnabled = true; // bundled Mozilla roots switch
+
+// Push the current manager state into the store: user certs (PEM strings,
+// only the ENABLED ones are trusted) and whether the bundled system roots
+// stay trusted. Called after every manager mutation and at startup.
+function setTrustConfig(userPems, systemEnabled) {
+  _extraRoots = [];
+  _extraPems = [];
+  (Array.isArray(userPems) ? userPems : []).forEach(function (pem) {
+    if (typeof pem !== 'string' || pem.indexOf('BEGIN CERTIFICATE') === -1) return;
+    var re = /-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g;
+    var m;
+    while ((m = re.exec(pem)) !== null) {
+      try {
+        var cert = new crypto.X509Certificate(m[0]);
+        _extraRoots.push({ cert: cert, fp: crypto.createHash('sha256').update(cert.raw).digest('hex') });
+        _extraPems.push(m[0]);
+      } catch (e) {}
+    }
+  });
+  _systemEnabled = systemEnabled !== false;
+}
+
+function userTrustOnly() { return _systemEnabled !== true; }
+function extraRootCount() { return _extraRoots.length; }
+
+function _allRoots() {
+  return _systemEnabled ? _roots.concat(_extraRoots) : _extraRoots.slice();
+}
+function _anyRootFingerprint(fp) {
+  if (_systemEnabled && _rootFingerprints.has(fp)) return true;
+  for (var i = 0; i < _extraRoots.length; i++) {
+    if (_extraRoots[i].fp === fp) return true;
+  }
+  return false;
+}
 
 function _locateBundle() {
   var candidates = [];
@@ -38,7 +77,6 @@ function _locateBundle() {
 // Lazy one-time load; safe to call from every verify proc invocation.
 function load() {
   if (_loaded) return _roots.length > 0;
-  _loaded = true;
   var file = _locateBundle();
   if (!file) return false;
   try { _bundlePem = fs.readFileSync(file, 'utf8'); } catch (e) { return false; }
@@ -52,6 +90,10 @@ function load() {
       _rootFingerprints.add(fp);
     } catch (e) {}
   }
+  // Mark as loaded ONLY when the bundle actually parsed into at least one
+  // root — a transient read failure used to latch "loaded" forever and left
+  // the embedded bundle dead until a restart.
+  if (_roots.length > 0) _loaded = true;
   return _roots.length > 0;
 }
 
@@ -60,10 +102,20 @@ function rootCount() {
   return _roots.length;
 }
 
-// Raw PEM bundle (null if missing/unreadable).
+// Raw PEM bundle for Node-side https.request/get (`ca` option): the Mozilla
+// bundle plus the enabled user roots. When the system roots are DISABLED,
+// only user roots are returned (an EMPTY ARRAY when there are none — Node
+// then rejects every TLS peer, which is the intended fail-closed behavior).
+// null only when the bundle file is missing/unreadable AND no user roots exist.
 function pem() {
   load();
-  return _bundlePem;
+  var extra = _extraPems.join('\n');
+  if (!_systemEnabled) {
+    if (_extraPems.length) return extra;
+    return (_bundlePem === null) ? null : [];
+  }
+  if (!_bundlePem) return extra || null;
+  return extra ? _bundlePem + '\n' + extra : _bundlePem;
 }
 
 function _fingerprint(x509) {
@@ -91,25 +143,14 @@ function _chainFromElectron(cert) {
   return out;
 }
 
-// The top (server-sent) certificate must be signed by one of the bundled
-// roots. Several roots can share a subject, so try every candidate.
-function _issuedByBundledRoot(cert) {
-  for (var i = 0; i < _roots.length; i++) {
-    try {
-      var root = _roots[i].cert;
-      if (cert.checkIssued(root) && cert.verify(root.publicKey)) return true;
-    } catch (e) {}
-  }
-  return false;
-}
-
-// Full validation of a server chain against the embedded bundle.
-// Returns true ONLY when: hostname matches the leaf, every certificate is
-// inside its validity window, every link is a properly issued CA→child
-// signature, and the chain anchors at a bundled root.
+// Full validation of a server chain against the embedded bundle and/or the
+// user-added roots. Returns true ONLY when: hostname matches the leaf, every
+// certificate is inside its validity window, every link is a properly issued
+// CA→child signature, and the chain anchors at a trusted root.
 function verifyAgainstBundle(hostname, electronCert) {
   try {
-    if (!load() || !electronCert || !electronCert.data || !hostname) return false;
+    if (!electronCert || !electronCert.data || !hostname) return false;
+    load();
 
     var pemChain = _chainFromElectron(electronCert);
     if (!pemChain.length) return false;
@@ -147,17 +188,18 @@ function verifyAgainstBundle(hostname, electronCert) {
     }
 
     // 3. verify every link; intermediates must be real CAs (basicConstraints)
+    var roots = _allRoots();
     for (var k = 0; k < chain.length; k++) {
       var isTop = (k === chain.length - 1);
       if (isTop) {
-        // Top of the server-sent chain: either it IS a bundled self-signed
+        // Top of the server-sent chain: either it IS a trusted self-signed
         // root, or it is signed by one (servers usually omit the root).
         var top = chain[k];
         if (top.issuer === top.subject) {
-          return _rootFingerprints.has(_fingerprint(top));
+          return _anyRootFingerprint(_fingerprint(top));
         }
         if (!top.ca && k > 0) return false; // non-CA intermediate — reject
-        return _issuedByBundledRoot(top);
+        return _issuedByAnyRoot(top, roots);
       }
       if (!chain[k].verify(chain[k + 1].publicKey)) return false;
       if (!chain[k + 1].ca) return false; // issuer of a non-top cert must be a CA
@@ -168,9 +210,24 @@ function verifyAgainstBundle(hostname, electronCert) {
   }
 }
 
+// The top (server-sent) certificate must be signed by one of the trusted
+// roots. Several roots can share a subject, so try every candidate.
+function _issuedByAnyRoot(cert, roots) {
+  for (var i = 0; i < roots.length; i++) {
+    try {
+      var root = roots[i].cert;
+      if (cert.checkIssued(root) && cert.verify(root.publicKey)) return true;
+    } catch (e) {}
+  }
+  return false;
+}
+
 module.exports = {
   load: load,
   rootCount: rootCount,
   pem: pem,
-  verifyAgainstBundle: verifyAgainstBundle
+  verifyAgainstBundle: verifyAgainstBundle,
+  setTrustConfig: setTrustConfig,
+  userTrustOnly: userTrustOnly,
+  extraRootCount: extraRootCount
 };

@@ -3,6 +3,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- CSP: local scripts only, no remote code; connect-src limits any injected
+         script to approved (or no) endpoints. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' https:; frame-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New tab</title>
     <link rel="stylesheet" href="style.css">
@@ -32,12 +35,13 @@
         }
     </style>
 <script src="../i18n.js"></script>
+<script src="index-handlers.js"></script>
 </head>
 <body class="wallpapers-enabled">
     <div class="container">
         <div class="header">
             <div class="logo-container">
-                <img src="img/logo.png" alt="StartPOZI" class="logo-img" onerror="this.style.display='none'; document.getElementById('logo-fallback').style.display='block';">
+                <img src="img/logo.png" alt="StartPOZI" class="logo-img">
                 <h1 class="logo" id="logo-fallback" style="display: none;">Start<span>POZI</span></h1>
             </div>
         </div>
@@ -248,7 +252,6 @@
         </div>
     </div>
 
-    <script src="MouseConfig.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

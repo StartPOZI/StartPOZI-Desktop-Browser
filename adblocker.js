@@ -1,6 +1,6 @@
 const { ElectronBlocker } = require('@cliqz/adblocker-electron');
 const { Request } = require('@cliqz/adblocker');
-const { ipcMain } = require('electron');
+const { ipcMain, webContents } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -96,6 +96,21 @@ let filterhubEnabled = FILTERHUB_LEVELS[FILTERHUB_DEFAULT_LEVEL].slice();
 
 function _filterhubUrl(list) {
   return FILTERHUB_RAW + list.num + '/' + list.file;
+}
+
+// Download timeout scales with the DECLARED list size (sizeKB from the
+// catalog above): a flat 30 s cap aborts the big lists (31–44 MB, e.g.
+// ddg-us-tracking / hagezi-tif) long before they can arrive — especially
+// over Tor. ~sizeKB * 10 ms ≈ 100 KB/s, with a 30 s floor for small lists.
+// Keyed by download URL because cachedFetcher() only receives the URL.
+var _LIST_SIZE_KB_BY_URL = {};
+FILTERHUB_LISTS.forEach(function(l) {
+  _LIST_SIZE_KB_BY_URL[_filterhubUrl(l)] = l.sizeKB || 0;
+});
+
+function _downloadTimeoutMs(url) {
+  var sizeKB = _LIST_SIZE_KB_BY_URL[url] || 0;
+  return Math.max(30000, sizeKB * 10);
 }
 
 function getEnabledLists() {
@@ -232,14 +247,11 @@ var CUSTOM_FILTERS = [
  '||bing.com/ads^',
 ];
 
-var TRACKING_PARAMS = [
-  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-  'fbclid', 'gclid', 'gclsrc', 'dclid', 'msclkid',
-  'mc_eid', 'mc_cid', '_ga', '_gl', '_hsenc', '_hsmi',
-  'hsCtaTracking', 'vero_id', 'oly_anon_id', 'oly_enc_id',
-  'otc', 'igshid', 'wickedid', 'twclid', 'ttclid',
-  'li_fat_id', 'li_shid', 'spm', 'scm',
-];
+// Tracking-parameter cleaning lives in lib/url-cleaner.js (extracted
+// module, unit-tested); re-exported here for IPC callers.
+var _urlCleaner = require('./lib/url-cleaner');
+var TRACKING_PARAMS = _urlCleaner.TRACKING_PARAMS;
+var cleanTrackingParams = _urlCleaner.cleanTrackingParams;
 
 var HARDBLOCK_DOMAINS = [
   'doubleclick.net', 'googlesyndication.com', 'googleadservices.com',
@@ -275,8 +287,8 @@ function isHardblocked(url) {
       var w = AUTH_WHITELIST[i];
       if (hostname === w || hostname.endsWith('.' + w)) return false;
     }
-    for (var i = 0; i < HARDBLOCK_DOMAINS.length; i++) {
-      var d = HARDBLOCK_DOMAINS[i];
+    for (var j = 0; j < HARDBLOCK_DOMAINS.length; j++) {
+      var d = HARDBLOCK_DOMAINS[j];
       if (hostname === d || hostname.endsWith('.' + d)) return true;
     }
   } catch(e) {}
@@ -340,8 +352,75 @@ function isAuthWhitelisted(url) {
 
 let blocker = null;
 let enabled = true;
-let sessionStats = { blocked: 0, trackers: 0, ads: 0 };
+// ===== Blocked-request categories (for the stats UI) =====
+// Every blocked/redirected request is classified by hostname so the panel
+// can show Ads / Trackers / Social / CDN / Other separately. Previously ALL
+// cancelled requests were counted as "ads" and only rare redirect-rules as
+// "trackers" — which is why the Trackers counter was stuck near zero.
+var CAT_ORDER = ['trackers', 'ads', 'social', 'cdn']; // priority
+var CAT_PATTERNS = {
+  trackers: [
+    /(^|\.)google-analytics\.com$/, /(^|\.)googletagmanager\.com$/, /(^|\.)analytics\./,
+    /(^|\.)mc\.yandex\.ru$/, /(^|\.)top-fwz1\.mail\.ru$/, /(^|\.)metrika/,
+    /(^|\.)hotjar\.com$/, /(^|\.)hotjar\.io$/, /(^|\.)mixpanel\.com$/, /(^|\.)segment\.(io|com)$/,
+    /(^|\.)amplitude\.com$/, /(^|\.)chartbeat\.(com|net)$/, /(^|\.)newrelic\.com$/, /(^|\.)nr-data\.net$/,
+    /(^|\.)fullstory\.com$/, /(^|\.)mouseflow\.com$/, /(^|\.)clicky\.com$/, /(^|\.)statcounter\.com$/,
+    /(^|\.)quantserve\.com$/, /(^|\.)scorecardresearch\.com$/, /(^|\.)comscore\.com$/, /(^|\.)gemius\.com$/,
+    /(^|\.)liveinternet\.ru$/, /(^|\.)criteo\.(com|net)$/, /(^|\.)matomo/, /(^|\.)plausible/,
+    /(^|\.)telemetry\./, /(^|\.)beacon\./, /(^|\.)px\.gravatar\.com$/, /(^|\.)(track|tracking)\./i
+  ],
+  ads: [
+    /(^|\.)doubleclick\.net$/, /(^|\.)googlesyndication\.com$/, /(^|\.)googleadservices\.com$/,
+    /(^|\.)adservice\.google\./, /(^|\.)amazon-adsystem\.com$/, /(^|\.)adnxs\.(com|net)$/,
+    /(^|\.)taboola\.com$/, /(^|\.)outbrain\.com$/, /(^|\.)adfox\.ru$/, /(^|\.)an\.yandex\.(ru|com)$/,
+    /(^|\.)pubmatic\.com$/, /(^|\.)rubiconproject\.com$/, /(^|\.)openx\.(net|net)$/, /(^|\.)smartadserver\.com$/,
+    /(^|\.)mgid\.com$/, /(^|\.)propellerads\.com$/, /(^|\.)popads\.net$/, /(^|\.)moatads\.com$/,
+    /(^|\.)adsrvr\.org$/, /(^|\.)adriver\.ru$/, /(^|\.)adform\.net$/, /(^|\.)betweendigital\.com$/,
+    /adsystem|adserver|advertising|adservice|syndication|(^|\.)(ads?)\./i
+  ],
+  social: [
+    /(^|\.)facebook\.com$/, /(^|\.)facebook\.net$/, /(^|\.)fbcdn\.net$/, /(^|\.)connect\.facebook\.net$/,
+    /(^|\.)platform\.twitter\.com$/, /(^|\.)twimg\.com$/, /(^|\.)vk\.com$/, /(^|\.)userapi\.com$/,
+    /(^|\.)ok\.ru$/, /(^|\.)instagram\.com$/, /(^|\.)pinterest\./, /(^|\.)linkedin\.(com|net)$/,
+    /(^|\.)t\.me$/, /(^|\.)telegram\./, /(^|\.)discord(app)?\.com$/, /(^|\.)tiktok\.com$/
+  ],
+  cdn: [
+    /(^|\.)cdnjs\.cloudflare\.com$/, /(^|\.)jsdelivr\.net$/, /(^|\.)unpkg\.com$/, /(^|\.)polyfill\.io$/,
+    /(^|\.)ajax\.googleapis\.com$/, /(^|\.)fonts\.googleapis\.com$/, /(^|\.)storage\.googleapis\.com$/,
+    /(^|\.)akamaihd\.net$/, /(^|\.)akamaized\.net$/, /(^|\.)cloudfront\.net$/, /(^|\.)fastly\.net$/,
+    /(^|\.)kxcdn\.com$/, /(^|\.)statically\.io$/, /(^|\.)(cdn)[\.\-]/, /\.(cdn)\./
+  ]
+};
+function categorizeUrl(url) {
+  var h = '';
+  try { h = new URL(url).hostname.toLowerCase(); } catch (e) { return 'other'; }
+  if (!h) return 'other';
+  for (var c = 0; c < CAT_ORDER.length; c++) {
+    var cat = CAT_ORDER[c];
+    var pats = CAT_PATTERNS[cat];
+    for (var i = 0; i < pats.length; i++) {
+      try { if (pats[i].test(h)) return cat; } catch (e) {}
+    }
+  }
+  return 'other';
+}
+
+function _newStats() {
+  return { blocked: 0, ads: 0, trackers: 0, social: 0, cdn: 0, other: 0 };
+}
+
+let sessionStats = _newStats();
 let pageStats = {};
+
+// Engine diagnostics for the UI panel: which lists built the engine and
+// from where (catalog / disk cache / offline fallback).
+let _engineInfo = { lists: 0, source: 'none' };
+function getEngineInfo() {
+  var info = { lists: _engineInfo.lists, source: _engineInfo.source, enabled: !!enabled };
+  try { info.lists = _engineInfo.lists || (getEnabledLists().length + _extraListUrls().length); } catch(e) {}
+  info.checksums = { verified: _checksumStats.verified, failed: _checksumStats.failed, unverified: _checksumStats.unverified };
+  return info;
+}
 let whitelist = [];
 let currentSession = null;
 let blockedLog = [];
@@ -386,7 +465,8 @@ function saveSettings() {
       store.blockerLogPersistent = logPersistent;
       store.filterhubEnabled = filterhubEnabled;
       if (logPersistent) {
-        store.blockedLog = blockedLog.slice(-5000);
+        // Keep in sync with the bloat-guard cap in storage.js (_bloatGuard).
+        store.blockedLog = blockedLog.slice(-2000);
       } else {
         delete store.blockedLog;
       }
@@ -406,7 +486,9 @@ function addBlockedLogEntry(details, type) {
       time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       timestamp: Date.now()
     });
-    if (blockedLog.length > 5000) blockedLog = blockedLog.slice(-4000);
+    // Keep both caps in sync: the in-memory trim below and the slice(-2000)
+    // persisted by saveSettings() (bloat-guard cap in storage.js).
+    if (blockedLog.length > 2000) blockedLog = blockedLog.slice(-2000);
     _debouncedLogSave();
   } catch(e) {}
 }
@@ -442,6 +524,25 @@ function makeResponse(text) {
   return { text: function() { return Promise.resolve(text); } };
 }
 
+// ===== Adblock Plus checksum verification =====
+// Logic lives in lib/filter-checksum.js (extracted module, unit-tested);
+// stats below feed the engine-info panel so the user can see how many
+// lists were verified / rejected / had no checksum.
+var _checksumStats = { verified: 0, failed: 0, unverified: 0 };
+var verifyListChecksum = require('./lib/filter-checksum').verifyListChecksum;
+
+// Filter lists MUST be downloaded through electron.net.fetch: it uses the
+// Chromium network stack and therefore the session proxy (Tor, HTTP/SOCKS).
+// The global Node fetch (undici) ignores the session proxy and would leak
+// direct requests to raw.githubusercontent.com past the user's Tor setup.
+function _proxyAwareFetch() {
+  try {
+    var net = require('electron').net;
+    if (net && typeof net.fetch === 'function') return net.fetch;
+  } catch (e) {}
+  return fetch;
+}
+
 function cachedFetcher(fetch) {
   return function(url) {
     return new Promise(function(resolve) {
@@ -456,12 +557,28 @@ function cachedFetcher(fetch) {
         }
       }
 
-      var timeout = new Promise(function(res) { setTimeout(function() { res(null); }, 30000); });
-
-      Promise.race([
-        fetch(url).then(function(resp) { if (!resp.ok) return null; return resp.text(); }),
-                   timeout
-      ]).then(function(text) {
+      var settled = false;
+      var timeoutMs = _downloadTimeoutMs(url);
+      var timer = setTimeout(function() { timer = null; if (!settled) { settled = true; resolve(null); } }, timeoutMs);
+      var finish = function(text) {
+        if (settled) return;
+        settled = true;
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (text) {
+          // Integrity gate: a fresh download with a Checksum header that
+          // does not match is discarded; the stale-but-trusted disk cache
+          // (verified when it was first downloaded) is used instead.
+          var verdict = verifyListChecksum(text);
+          if (verdict === false) {
+            _checksumStats.failed++;
+            console.warn('[adblocker] Checksum mismatch, rejecting download:', url);
+            text = null;
+          } else if (verdict === true) {
+            _checksumStats.verified++;
+          } else {
+            _checksumStats.unverified++;
+          }
+        }
         if (text) {
           try { ensureCacheDir(); fs.writeFileSync(cacheFile, text, 'utf-8'); } catch(e) {}
           resolve(makeResponse(text));
@@ -471,14 +588,13 @@ function cachedFetcher(fetch) {
           console.warn('[adblocker] Failed to fetch:', url);
           resolve(makeResponse(''));
         }
-      }).catch(function() {
-        if (fs.existsSync(cacheFile)) {
-          resolve(makeResponse(fs.readFileSync(cacheFile, 'utf-8')));
-        } else {
-          console.warn('[adblocker] Failed to fetch:', url);
-          resolve(makeResponse(''));
-        }
-      });
+      };
+
+      Promise.resolve()
+        .then(function() { return fetch(url); })
+        .then(function(resp) { if (!resp.ok) return null; return resp.text(); })
+        .then(finish)
+        .catch(function() { finish(null); });
     });
   };
 }
@@ -495,19 +611,33 @@ function isWhitelistedUrl(url) {
   return false;
 }
 
+// Per-site disable must behave like uBlock's: ALL requests INITIATED BY a
+// whitelisted page are allowed. The old code checked only the request's own
+// URL, so ads/trackers loaded BY the whitelisted site (from other domains)
+// kept getting blocked — "I disabled it for this site but it still works".
+function isFirstPartyWhitelisted(details) {
+  if (!details || !details.webContentsId) return false;
+  try {
+    var wc = webContents.fromId(details.webContentsId);
+    var top = (wc && wc.getURL) ? wc.getURL() : '';
+    return top ? isWhitelistedUrl(top) : false;
+  } catch(e) { return false; }
+}
+
 function updateStats(details, type) {
   var tabId = details.webContentsId || 'unknown';
-  if (!pageStats[tabId]) pageStats[tabId] = { blocked: 0, trackers: 0, ads: 0 };
-  if (type === 'blocked') {
+  if (!pageStats[tabId]) pageStats[tabId] = _newStats();
+  if (type === 'blocked' || type === 'redirected') {
+    // Categorize by hostname: ads / trackers / social / cdn / other.
+    // ("redirected" are tracker-redirect rules — they are blocked in the
+    // sense that nothing reaches the tracker, so they count towards the
+    // blocked total and their category, usually trackers.)
+    var cat = categorizeUrl(details.url);
     sessionStats.blocked++;
-    sessionStats.ads++;
+    sessionStats[cat]++;
     pageStats[tabId].blocked++;
-    pageStats[tabId].ads++;
-    addBlockedLogEntry(details, 'blocked');
-  } else if (type === 'redirected') {
-    sessionStats.trackers++;
-    pageStats[tabId].trackers++;
-    addBlockedLogEntry(details, 'tracker');
+    pageStats[tabId][cat]++;
+    addBlockedLogEntry(details, type === 'redirected' ? 'tracker' : 'blocked');
   }
 }
 
@@ -550,11 +680,11 @@ async function initBlocker(session) {
     var savedVersion = fs.readFileSync(versionPath, 'utf-8').trim();
     if (String(savedVersion) !== String(LISTS_VERSION)) needReload = true;
   } catch(e) { needReload = true; }
-  // The engine cache must match the CURRENT FilterHub selection: rebuild
-  // whenever the enabled-set signature changed (preset switch, toggles).
+  // The engine cache must match the CURRENT FilterHub selection AND the
+  // user's own list URLs: rebuild whenever either signature changed.
   try {
     var savedSig = fs.readFileSync(sigPath, 'utf-8').trim();
-    if (String(savedSig) !== _filterhubSignature()) needReload = true;
+    if (String(savedSig) !== _filterhubSignature() + '|' + _extraListUrls().join(',')) needReload = true;
   } catch(e) { needReload = true; }
   if (needReload) {
     try { fs.unlinkSync(enginePath); } catch(e) {}
@@ -579,25 +709,32 @@ async function initBlocker(session) {
   try {
     var buffer = await fs.promises.readFile(enginePath);
     blocker = ElectronBlocker.deserialize(buffer);
+    _engineInfo = { lists: getEnabledLists().length + _extraListUrls().length, source: 'cache' };
     console.log('[adblocker] Loaded from cache');
   } catch(e) {}
 
   if (!blocker) {
     try {
+      // FIX: the FIRST build used to include only the FilterHub lists — the
+      // user's own list URLs joined the engine only after a later
+      // reloadFromLists(), so after a fresh install/custom-list change "not
+      // everything is blocked" until some unrelated reload happened.
+      var allLists = getEnabledLists().concat(_extraListUrls());
       blocker = await ElectronBlocker.fromLists(
-        cachedFetcher(fetch),
-                                                getEnabledLists(),
+        cachedFetcher(_proxyAwareFetch()),
+                                                allLists,
                                                 {
                                                   loadCosmeticFilters: true,
                                                   loadNetworkFilters: true,
                                                 }
       );
+      _engineInfo = { lists: allLists.length, source: 'catalog' };
 
-      console.log('[adblocker] Loaded from filter lists');
+      console.log('[adblocker] Loaded from filter lists (' + allLists.length + ')');
       try {
         fs.writeFileSync(enginePath, blocker.serialize());
         fs.writeFileSync(versionPath, String(LISTS_VERSION), 'utf-8');
-        fs.writeFileSync(sigPath, _filterhubSignature(), 'utf-8');
+        fs.writeFileSync(sigPath, _filterhubSignature() + '|' + _extraListUrls().join(','), 'utf-8');
         console.log('[adblocker] Engine cached to disk');
       } catch(writeErr) {
         console.error('[adblocker] Failed to cache engine:', writeErr.message);
@@ -605,7 +742,8 @@ async function initBlocker(session) {
     } catch(e) {
       console.error('[adblocker] fromLists failed:', e.message);
       try {
-        blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch);
+        blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(_proxyAwareFetch());
+        _engineInfo = { lists: 1, source: 'fallback' };
         console.log('[adblocker] Loaded from prebuilt fallback');
         // Persist the engine for this session, but NOT the FilterHub
         // signature: without a valid sig the next startup treats the cache
@@ -702,24 +840,66 @@ function wireCosmeticsIpc() {
     return !!(blocker && blocker.config && blocker.config.enableMutationObserver);
   });
   ipcMain.on('get-cosmetic-filters', function(event, url, msg) {
-    if (!blocker || !enabled || isWhitelistedUrl(url)) return;
+    if (!blocker || !enabled || isWhitelistedUrl(url)) {
+      // Always answer, even when the blocker is off / the site is
+      // whitelisted: the library's early `return` left sync senders with
+      // an unset event.returnValue and async listeners of
+      // 'get-cosmetic-filters-response' waiting forever. Reply with an
+      // empty/inactive result so the caller can settle immediately.
+      try { event.returnValue = []; } catch(e0) {}
+      try {
+        event.sender.send('get-cosmetic-filters-response', {
+          active: false,
+          extended: [],
+          styles: '',
+        });
+      } catch(e1) {}
+      return;
+    }
     blocker.onGetCosmeticFiltersUpdated(event, url, msg);
   });
 }
 
+// Prefer the modern preload API (registerPreloadScript / unregisterPreloadScript);
+// the old getPreloads/setPreloads pair is deprecated and logs a warning on
+// every session touch. Fall back to the legacy pair when the modern one is
+// unavailable so older Electron builds keep working.
+function _sessionPreloadApi(session) {
+  if (typeof session.registerPreloadScript === 'function' &&
+      typeof session.getPreloadScripts === 'function' &&
+      typeof session.unregisterPreloadScript === 'function') {
+    return 'modern';
+  }
+  return 'legacy';
+}
 function ensureSessionPreload(session) {
   try {
+    if (_sessionPreloadApi(session) === 'modern') {
+      var already = session.getPreloadScripts().some(function(s) {
+        return s && s.filePath === ADBLOCKER_PRELOAD_PATH;
+      });
+      if (!already) session.registerPreloadScript({ type: 'frame', filePath: ADBLOCKER_PRELOAD_PATH });
+      return;
+    }
     var preloads = session.getPreloads();
     if (preloads.indexOf(ADBLOCKER_PRELOAD_PATH) === -1) {
       session.setPreloads(preloads.concat([ADBLOCKER_PRELOAD_PATH]));
     }
   } catch(e) {
-    console.warn('[adblocker] setPreloads failed:', e.message);
+    console.warn('[adblocker] preload registration failed:', e.message);
   }
 }
 
 function removeSessionPreload(session) {
   try {
+    if (_sessionPreloadApi(session) === 'modern') {
+      session.getPreloadScripts().forEach(function(s) {
+        if (s && s.filePath === ADBLOCKER_PRELOAD_PATH) {
+          try { session.unregisterPreloadScript(s.id); } catch(e0) {}
+        }
+      });
+      return;
+    }
     var preloads = session.getPreloads();
     if (preloads.indexOf(ADBLOCKER_PRELOAD_PATH) !== -1) {
       session.setPreloads(preloads.filter(function(p) { return p !== ADBLOCKER_PRELOAD_PATH; }));
@@ -790,8 +970,11 @@ function reEnable(session, secBeforeRequest) {
 
   try {
     session.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, function(details, callback) {
-      // Пользовательский белый список имеет наивысший приоритет
+      // Пользовательский белый список имеет наивысший приоритет:
+      // 1) сам запрос указывает на вайтлист-домен,
+      // 2) запрос инициирован СТРАНИЦЕЙ вайтлист-домена (саб-реквесты).
       if (isWhitelistedUrl(details.url)) { callback({}); return; }
+      if (whitelist.length && isFirstPartyWhitelisted(details)) { callback({}); return; }
       if (isHardblocked(details.url)) {
         updateStats(details, 'blocked');
         callback({ cancel: true });
@@ -815,37 +998,16 @@ function reEnable(session, secBeforeRequest) {
   }
 }
 
-function cleanTrackingParams(url) {
-  try {
-    var urlObj = new URL(url);
-    var params = urlObj.searchParams;
-    var changed = false;
-    TRACKING_PARAMS.forEach(function(param) {
-      if (params.has(param)) {
-        params.delete(param);
-        changed = true;
-      }
-    });
-    if (changed) {
-      var cleaned = urlObj.origin + urlObj.pathname;
-      if (params.toString()) cleaned += '?' + params.toString();
-      if (urlObj.hash) cleaned += urlObj.hash;
-      return cleaned;
-    }
-  } catch(e) {}
-  return url;
-}
-
 function getStats() {
   return { session: sessionStats, pages: pageStats };
 }
 
 function getPageStats(tabId) {
-  return pageStats[tabId] || { blocked: 0, trackers: 0, ads: 0 };
+  return pageStats[tabId] || _newStats();
 }
 
 function resetPageStats(tabId) {
-  pageStats[tabId] = { blocked: 0, trackers: 0, ads: 0 };
+  pageStats[tabId] = _newStats();
 }
 
 function deletePageStats(tabId) {
@@ -906,32 +1068,49 @@ function updateCustomFilters(text) {
   }
 }
 
+// Full engine rebuild from the CURRENT FilterHub selection + custom URLs.
+// Throws on failure so callers can decide whether to persist whatever
+// caused the rebuild (see setFilterhubEnabled / setFilterhubPreset).
+async function _rebuildEngineFromLists() {
+  var store = require('./storage').read();
+  // _extraListUrls() filters non-strings: a single corrupted entry in
+  // filterLists (hand-edit / partial import) would otherwise throw inside
+  // every list download promise and kill the WHOLE rebuild ("Update
+  // lists" button included).
+  var extraLists = _extraListUrls();
+  var allLists = getEnabledLists().concat(extraLists);
+  blocker = await ElectronBlocker.fromLists(
+    cachedFetcher(_proxyAwareFetch()),
+    allLists,
+    { loadCosmeticFilters: true, loadNetworkFilters: true }
+  );
+  var customText = store.customFilters || '';
+  if (customText) {
+    var lines = customText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l && !l.startsWith('!'); });
+    if (lines.length > 0) blocker.updateFromDiff({ added: lines, removed: [] });
+  }
+  blocker.updateFromDiff({ added: CUSTOM_FILTERS, removed: [] });
+  var cacheDir = ensureCacheDir();
+  fs.writeFileSync(path.join(cacheDir, 'engine.bin'), blocker.serialize());
+  try { fs.writeFileSync(path.join(cacheDir, 'filterhub-sig'), _filterhubSignature() + '|' + extraLists.join(','), 'utf-8'); } catch(e0) {}
+  // NOTE: do NOT delete the 'custom-applied' marker here. The serialized
+  // engine above ALREADY contains the custom filters; removing the marker
+  // made the next boot apply CUSTOM_FILTERS a second time (ReverseIndex
+  // does not dedupe → duplicates grew on every update+restart cycle).
+  _engineInfo = { lists: allLists.length, source: 'catalog' };
+  // Re-attach hooks + preload to the session with the new engine.
+  try { reEnable(currentSession, _managedSessions.get(currentSession) || null); } catch(e) {}
+  console.log('[adblocker] Reloaded with', allLists.length, 'lists');
+}
+
 async function reloadFromLists() {
-  if (!currentSession) return;
+  if (!currentSession) return { success: false, message: 'no active session' };
   try {
-    var store = require('./storage').read();
-    var extraLists = store.filterLists || [];
-    var allLists = getEnabledLists().concat(extraLists);
-    blocker = await ElectronBlocker.fromLists(
-      cachedFetcher(fetch),
-      allLists,
-      { loadCosmeticFilters: true, loadNetworkFilters: true }
-    );
-    var customText = store.customFilters || '';
-    if (customText) {
-      var lines = customText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l && !l.startsWith('!'); });
-      if (lines.length > 0) blocker.updateFromDiff({ added: lines, removed: [] });
-    }
-    blocker.updateFromDiff({ added: CUSTOM_FILTERS, removed: [] });
-    var cacheDir = ensureCacheDir();
-    fs.writeFileSync(path.join(cacheDir, 'engine.bin'), blocker.serialize());
-    try { fs.writeFileSync(path.join(cacheDir, 'filterhub-sig'), _filterhubSignature(), 'utf-8'); } catch(e0) {}
-    try { fs.unlinkSync(path.join(cacheDir, 'custom-applied')); } catch(e) {}
-    // Re-attach hooks + preload to the session with the new engine.
-    try { reEnable(currentSession, _managedSessions.get(currentSession) || null); } catch(e) {}
-    console.log('[adblocker] Reloaded with', allLists.length, 'lists');
+    await _rebuildEngineFromLists();
+    return { success: true };
   } catch(e) {
     console.error('[adblocker] reloadFromLists failed:', e.message);
+    return { success: false, message: e.message };
   }
 }
 
@@ -972,12 +1151,36 @@ function getFilterhubEnabled() {
   return filterhubEnabled.slice();
 }
 
+// Apply a new FilterHub selection: rebuild FIRST, persist only on success.
+// The old order (saveSettings → rebuild) persisted the new selection even
+// when the rebuild failed (e.g. offline). The 'filterhub-sig' cache file was
+// then left at the OLD selection, so the next boot's needReload check saw a
+// settings/sig mismatch, deleted engine.bin and the offline rebuild degraded
+// to the prebuilt fallback. On failure we roll the in-memory state back and
+// report an honest error — settings.json never sees the failed choice.
+function _applyFilterhubSelection(nextSel, label) {
+  var prevSel = filterhubEnabled;
+  var prevBlocker = blocker;
+  filterhubEnabled = nextSel; // the rebuild reads the selection from here
+  return _rebuildEngineFromLists().then(function() {
+    // Rebuild (and the signature cache write) succeeded — safe to persist.
+    saveSettings();
+    return { success: true };
+  }).catch(function(err) {
+    filterhubEnabled = prevSel;
+    blocker = prevBlocker;
+    var msg = (err && err.message) ? err.message : String(err);
+    console.error('[adblocker] FilterHub rebuild failed (' + label + '):', msg);
+    return { success: false, message: msg };
+  });
+}
+
 function setFilterhubEnabled(nums) {
   var validNums = {};
   FILTERHUB_LISTS.forEach(function(l) { validNums[l.num] = true; });
-  filterhubEnabled = Array.isArray(nums) ? nums.filter(function(n) { return validNums[n]; }) : [];
-  saveSettings();
-  return reloadFromLists().then(function() {
+  var nextSel = Array.isArray(nums) ? nums.filter(function(n) { return validNums[n]; }) : [];
+  return _applyFilterhubSelection(nextSel, 'selection').then(function(res) {
+    if (!res.success) return res;
     return { success: true, enabled: filterhubEnabled.slice() };
   });
 }
@@ -985,9 +1188,8 @@ function setFilterhubEnabled(nums) {
 function setFilterhubPreset(level) {
   var lvl = FILTERHUB_LEVELS[level];
   if (!lvl) return Promise.resolve({ success: false, message: 'Unknown level: ' + level });
-  filterhubEnabled = lvl.slice();
-  saveSettings();
-  return reloadFromLists().then(function() {
+  return _applyFilterhubSelection(lvl.slice(), 'preset ' + level).then(function(res) {
+    if (!res.success) return res;
     return { success: true, level: level, enabled: filterhubEnabled.slice() };
   });
 }
@@ -1020,4 +1222,6 @@ module.exports = {
   clearBlockedLog,
   isLogPersistent,
   setLogPersistent,
+  getEngineInfo,
+  verifyListChecksum,
 };

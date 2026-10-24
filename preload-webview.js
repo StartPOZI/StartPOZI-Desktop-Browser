@@ -65,11 +65,37 @@ function _apiCapabilityFilter(api) {
     var controlPages = ['settings.html'];
     var isSecretsPage = secretsPages.indexOf(_pageName) !== -1;
     var isControlPage = controlPages.indexOf(_pageName) !== -1;
+    // viewer-read-file belongs to Viewer.html (the main process re-validates
+    // the caller and the file extension/whitelist anyway). It used to sit in
+    // the control-group regex below, which DELETED it for Viewer.html too —
+    // the viewer could never read a file through its own API.
+    var isViewerPage = _pageName === 'viewer.html';
+    var isThemeEditorPage = _pageName === 'themeeditor.html';
+    // Certificate exceptions + HTTP consents are the "trust this host anyway"
+    // switches: they must only be reachable from the interstitial
+    // (ErrorPage/security.html) and Settings — an XSS on any other internal
+    // page must not be able to silently MITM arbitrary domains.
+    var isCertControlPage = _pageName === 'security.html' || _pageName === 'settings.html';
     Object.keys(api).forEach(function (key) {
-      if (!isSecretsPage && /(password|vault|breach|backup)/i.test(key)) {
+      // `cookies` and `passwords` are the same class of secret (the cookie
+      // jar carries site sessions) — both stay on the secrets pages only.
+      if (!isSecretsPage && /(password|vault|breach|backup|securityanalysis|readclipboard|cookies)/i.test(key)) {
         delete api[key];
       }
-      if (!isControlPage && /(proxys|proxy|torstart|torstop|torcheck|torstatus|tornewnym|torautostart|torbootstrap|settingsimport|settingsapply|skitimport|dohset|viewerread)/i.test(key)) {
+      if (!isViewerPage && /(viewerread)/i.test(key)) {
+        delete api[key];
+      }
+      if (!isThemeEditorPage && /(themeeditor)/i.test(key)) {
+        delete api[key];
+      }
+      if (!isCertControlPage && /(certexception|httpconsent)/i.test(key)) {
+        delete api[key];
+      }
+      // Control group now also covers: tor hardening/security-level switches
+      // (they toggle the CSP lockdown core), detectTor/ensureTorForOnion,
+      // the whole skit lifecycle (list/toggle/delete/export, not just
+      // import) and the trust-root manager sslCerts*.
+      if (!isControlPage && /(proxys|proxy|torstart|torstop|torcheck|torstatus|tornewnym|torautostart|torbootstrap|torhardening|torsecurity|detecttor|ensuretor|settingsimport|settingsapply|skitimport|skitlist|skittoggle|skitdelete|skitexport|dohset|sslcerts|clearfrequent)/i.test(key)) {
         delete api[key];
       }
     });
@@ -85,9 +111,10 @@ var _electronApi = {
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowMaximize: () => ipcRenderer.send('window-maximize'),
   windowClose: () => ipcRenderer.send('window-close'),
-  onMaximizeChange: (callback) => {
-    ipcRenderer.on('maximize-change', (_, isMaximized) => callback(isMaximized));
-  },
+
+  // Start-page mini-player: control the tab that last started playing
+  // (see the media bridge in main.js). Direct IPC — reliable on every page.
+  mediaControl: (act) => ipcRenderer.invoke('spz-media-control', act),
 
   // New tab from main process
   onOpenInNewTab: (callback) => {
@@ -159,6 +186,8 @@ var _electronApi = {
   // Security settings
   getSecuritySetting: (key) => ipcRenderer.invoke('get-security-setting', key),
   setSecuritySetting: (key, val) => ipcRenderer.invoke('set-security-setting', key, val),
+  // Settings → Search: forget the local "frequent sites" counters.
+  clearFrequentSites: () => ipcRenderer.invoke('clear-frequent-sites'),
   getAllSecuritySettings: () => ipcRenderer.invoke('get-all-security-settings'),
   cleanUrl: (url) => ipcRenderer.invoke('clean-url', url),
 
@@ -217,8 +246,9 @@ var _electronApi = {
   chooseDataPath: () => ipcRenderer.invoke('choose-data-path'),
   migrateDataPath: (newPath) => ipcRenderer.invoke('migrate-data-path', newPath),
 
-  backupExport: (usePassword, password) => ipcRenderer.invoke('backup-export', usePassword, password),
-  backupImport: (filePath, password, options) => ipcRenderer.invoke('backup-import', filePath, password, options),
+  backupExport: (usePassword, password, keyFilePath) => ipcRenderer.invoke('backup-export', usePassword, password, keyFilePath),
+  backupImport: (filePath, password, options, keyFilePath) => ipcRenderer.invoke('backup-import', filePath, password, options, keyFilePath),
+  backupPickKeyfile: () => ipcRenderer.invoke('backup-pick-keyfile'),
   backupChooseImport: () => ipcRenderer.invoke('backup-choose-import'),
   backupCheckFile: (filePath) => ipcRenderer.invoke('backup-check-file', filePath),
   getBackupSettings: () => ipcRenderer.invoke('get-backup-settings'),
@@ -283,6 +313,15 @@ var _electronApi = {
   unregisterSystem: () => ipcRenderer.invoke('unregister-system'),
   checkRegistration: () => ipcRenderer.invoke('check-registration'),
   showInstructions: () => ipcRenderer.invoke('show-instructions'),
+  clearCacheReload: () => ipcRenderer.invoke('clear-cache-reload'),
+  checkDefaultBrowser: () => ipcRenderer.invoke('check-default-browser'),
+  setDefaultBrowser: () => ipcRenderer.invoke('set-default-browser'),
+  sslCertsGet: () => ipcRenderer.invoke('ssl-certs-get'),
+  sslCertsAdd: () => ipcRenderer.invoke('ssl-certs-add'),
+  sslCertsToggle: (id, enabled) => ipcRenderer.invoke('ssl-certs-toggle', id, enabled),
+  sslCertsRemove: (id) => ipcRenderer.invoke('ssl-certs-remove', id),
+  sslCertsSetSystem: (enabled) => ipcRenderer.invoke('ssl-certs-set-system', enabled),
+  sslCertsSetService: (enabled) => ipcRenderer.invoke('ssl-certs-set-service', enabled),
 
   // Misc
   restartBrowser: () => ipcRenderer.invoke('restart-browser'),
@@ -350,6 +389,7 @@ var _electronApi = {
   themeImport: (filePath) => ipcRenderer.invoke('theme-import', filePath),
   themeList: () => ipcRenderer.invoke('theme-list'),
   themeApply: (themeId) => ipcRenderer.invoke('theme-apply', themeId),
+  themeEditorExport: (payload) => ipcRenderer.invoke('theme-editor-export', payload),
   themeClear: () => ipcRenderer.invoke('theme-clear'),
   themeGetActive: () => ipcRenderer.invoke('theme-get-active'),
   themeGetCss: (themeId) => ipcRenderer.invoke('theme-get-css', themeId),
@@ -587,6 +627,7 @@ var _electronApi = {
 
   // ===== Update check (Settings → About + startup notification) =====
   checkForUpdate: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
   skipUpdateVersion: (ver) => ipcRenderer.invoke('skip-update-version', ver),
 
   // ===== FilterHub blocklist catalog (Settings → Blocker) =====
@@ -659,6 +700,50 @@ var _authStealth = _isSensitiveAuthPage();
     webFrame.executeJavaScript(code).catch(function() {});
   } catch (e) {}
 })();
+
+// Global Privacy Control (Firefox-compatible): expose
+// navigator.globalPrivacyControl in the page world. Together with the
+// Sec-GPC: 1 HTTP header (added in main.js) this is the full GPC opt-out
+// signal ("do not sell or share my data"). Synchronous at document-start so
+// page scripts reading the property early see the right value.
+(function installGlobalPrivacyControl() {
+  try {
+    var gpcOn = true;
+    try { gpcOn = ipcRenderer.sendSync('spz-get-gpc') !== false; } catch (e0) {}
+    if (!webFrame || !webFrame.executeJavaScript) return;
+    var code = '(function(){' +
+      'try{Object.defineProperty(Navigator.prototype,"globalPrivacyControl",' +
+      '{get:function(){return ' + (gpcOn ? 'true' : 'undefined') + ';},configurable:true,enumerable:true});}catch(e){}' +
+    '})();';
+    webFrame.executeJavaScript(code).catch(function() {});
+  } catch (e) {}
+})();
+
+// Internal pages (Settings, Library, MainPage, …): no text selection and no
+// context menu OUTSIDE of lists and form fields — they should feel like a
+// native app UI, not a web page. Regular websites are not affected.
+if (_exposeFullAPI) {
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      var style = document.createElement('style');
+      style.textContent =
+        'body{user-select:none;-webkit-user-select:none !important;}' +
+        'input,textarea,select,[contenteditable="true"],.item,.ck-item,' +
+        '.password-item,.history-item,.shortcut,.dl-item,[data-url]' +
+        '{user-select:text;-webkit-user-select:text;}';
+      (document.head || document.documentElement).appendChild(style);
+    } catch (e) {}
+  });
+  document.addEventListener('contextmenu', function (e) {
+    try {
+      var t = e.target;
+      if (t && t.closest && t.closest(
+          'input,textarea,select,[contenteditable="true"],' +
+          '.item,.ck-item,.password-item,.history-item,.shortcut,.dl-item,[data-url]')) return;
+      e.preventDefault();
+    } catch (e0) {}
+  }, true);
+}
 
 // Main-world IPC shim + native-disguise helper. Both installed in ONE
 // injection so __spzNat exists before any other engine patches natives.
@@ -768,7 +853,7 @@ var _authStealth = _isSensitiveAuthPage();
         '    if(pos>22 && r[pos]!=="="){r=r.slice(0,pos)+chars[Math.floor(Math.random()*chars.length)]+r.slice(pos+1);}' +
         '  }' +
         '  return r;' +
-        '};' +
+        '});' +
         'var _origGetImageData=CanvasRenderingContext2D.prototype.getImageData;' +
         'CanvasRenderingContext2D.prototype.getImageData=_n(function getImageData(){' +
         '  var d=_origGetImageData.apply(this,arguments);' +
@@ -777,7 +862,7 @@ var _authStealth = _isSensitiveAuthPage();
         '    for(var i=0;i<d.data.length;i+=step){d.data[i]=d.data[i]^1;}' +
         '  }' +
         '  return d;' +
-        '};' +
+        '});' +
         'var _np=Navigator.prototype;' +
         // Spoof the platform to match the REAL OS: claiming Win32 on Linux
         // was itself a fingerprint (mismatch with sec-ch-ua-platform and
@@ -785,8 +870,8 @@ var _authStealth = _isSensitiveAuthPage();
         'try{Object.defineProperty(_np,"platform",{get:function(){return ' + JSON.stringify(_fpRealPlatform) + ';}});}catch(e){}' +
         'try{Object.defineProperty(_np,"hardwareConcurrency",{get:function(){return 4;}});}catch(e){}' +
         'try{Object.defineProperty(_np,"deviceMemory",{get:function(){return 4;}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"userAgent",{get:function(){return "Mozilla/5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"appVersion",{get:function(){return "5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}});}catch(e){}' +
+        'try{Object.defineProperty(_np,"userAgent",{get:function(){return "Mozilla/5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}});}catch(e){}' +
+        'try{Object.defineProperty(_np,"appVersion",{get:function(){return "5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}});}catch(e){}' +
         'try{Object.defineProperty(_np,"languages",{get:function(){return ["en-US","en"];}});}catch(e){}' +
         // sendBeacon — fire-and-forget tracking pings (analytics, ads). Noop silently.
         'try{Navigator.prototype.sendBeacon=_n(function sendBeacon(){return true;});}catch(e){}' +
@@ -826,21 +911,21 @@ var _authStealth = _isSensitiveAuthPage();
         'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&4)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|4,enumerable:false,configurable:true});}catch(e){}' +
         'var _getParam=WebGLRenderingContext.prototype.getParameter;' +
         'WebGLRenderingContext.prototype.getParameter=function(p){' +
-        '  if(p===37445)return "Intel Inc.";' +
-        '  if(p===37446)return "Intel Iris OpenGL Engine";' +
-        '  if(p===7937)return "Intel(R) HD Graphics 630";' +
-        '  if(p===7936)return "Intel Inc.";' +
-        '  if(p===37447)return "WebKit WebGL";' +
+        '  if(p===37445)return "StartPOZI";' +
+        '  if(p===37446)return "StartPOZI Browser Graphics Engine";' +
+        '  if(p===7937)return "StartPOZI Browser Graphics Engine";' +
+        '  if(p===7936)return "StartPOZI";' +
+        '  if(p===37447)return "WebGL 2.0";' +
         '  return _getParam.apply(this,arguments);' +
         '};' +
         'if(typeof WebGL2RenderingContext!=="undefined"){' +
         '  var _getParam2=WebGL2RenderingContext.prototype.getParameter;' +
         '  WebGL2RenderingContext.prototype.getParameter=function(p){' +
-        '    if(p===37445)return "Intel Inc.";' +
-        '    if(p===37446)return "Intel Iris OpenGL Engine";' +
-        '    if(p===7937)return "Intel(R) HD Graphics 630";' +
-        '    if(p===7936)return "Intel Inc.";' +
-        '    if(p===37447)return "WebKit WebGL";' +
+        '    if(p===37445)return "StartPOZI";' +
+        '    if(p===37446)return "StartPOZI Browser Graphics Engine";' +
+        '    if(p===7937)return "StartPOZI Browser Graphics Engine";' +
+        '    if(p===7936)return "StartPOZI";' +
+        '    if(p===37447)return "WebGL 2.0";' +
         '    return _getParam2.apply(this,arguments);' +
         '  };' +
         '}' +
@@ -2049,14 +2134,14 @@ function __spzVimEngine() {
       'if(typeof WebGLRenderingContext!=="undefined"){' +
       '  var _gp=WebGLRenderingContext.prototype.getParameter;' +
       '  WebGLRenderingContext.prototype.getParameter=function(p){' +
-      '    if(p===37445||p===37446||p===7937||p===7936)return"Tor Browser";' +
+      '    if(p===37445||p===37446||p===7937||p===7936)return"StartPOZI Browser";' +
       '    return _gp.apply(this,arguments);' +
       '  };' +
       '}' +
       'if(typeof WebGL2RenderingContext!=="undefined"){' +
       '  var _gp2=WebGL2RenderingContext.prototype.getParameter;' +
       '  WebGL2RenderingContext.prototype.getParameter=function(p){' +
-      '    if(p===37445||p===37446||p===7937||p===7936)return"Tor Browser";' +
+      '    if(p===37445||p===37446||p===7937||p===7936)return"StartPOZI Browser";' +
       '    return _gp2.apply(this,arguments);' +
       '  };' +
       '}' +
@@ -2108,10 +2193,10 @@ function __spzVimEngine() {
     'var _mn=function(fn){try{_nat.add(fn);}catch(e){}return fn;};' +
     '_nat.add(_mn);' +
     'try{' +
-    'var _brands=[{brand:"Chromium",version:"' + _chromeMajorVer + '"},{brand:"Not:A-Brand",version:"24"},{brand:"Google Chrome",version:"' + _chromeMajorVer + '"}];' +
+    'var _brands=[{brand:"StartPOZI Browser",version:"' + _chromeMajorVer + '"},{brand:"Not:A-Brand",version:"24"}];' +
     // fullVersionList for getHighEntropyValues — FULL versions, not major ones.
     // Google cross-checks uaFullVersion against fullVersionList — mismatch = spoof marker.
-    'var _brandsFull=[{brand:"Chromium",version:"' + _chromeFullVer + '"},{brand:"Not:A-Brand",version:"24.0.0.0"},{brand:"Google Chrome",version:"' + _chromeFullVer + '"}];' +
+    'var _brandsFull=[{brand:"StartPOZI Browser",version:"' + _chromeFullVer + '"},{brand:"Not:A-Brand",version:"24.0.0.0"}];' +
     // IMPORTANT: use Object.create(NavigatorUAData.prototype) if the prototype
     // exists — otherwise BotGuard detects it via instanceof / toString.
     'var _proto=(typeof NavigatorUAData!=="undefined")?NavigatorUAData.prototype:null;' +
@@ -2137,10 +2222,10 @@ function __spzVimEngine() {
     // would expose the default Electron UA containing "Electron".
     'try{Object.defineProperty(Navigator.prototype,"userAgent",{get:_mn(function(){return "Mozilla/5.0 (' +
       (platform === 'Windows' ? 'Windows NT 10.0; Win64; x64' : platform === 'macOS' ? 'Macintosh; Intel Mac OS X 10_15_7' : 'X11; Linux x86_64') +
-      ') AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}),configurable:true});}catch(e){}' +
+      ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}),configurable:true});}catch(e){}' +
     'try{Object.defineProperty(Navigator.prototype,"appVersion",{get:_mn(function(){return "5.0 (' +
       (platform === 'Windows' ? 'Windows NT 10.0; Win64; x64' : platform === 'macOS' ? 'Macintosh; Intel Mac OS X 10_15_7' : 'X11; Linux x86_64') +
-      ') AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}),configurable:true});}catch(e){}' +
+      ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}),configurable:true});}catch(e){}' +
     // Just in case, hide the webdriver flag (if any left)
     'try{Object.defineProperty(Navigator.prototype,"webdriver",{get:_mn(function(){return false;}),configurable:true});}catch(e){}' +
     // === window.chrome === real Chrome has a window.chrome object with runtime,

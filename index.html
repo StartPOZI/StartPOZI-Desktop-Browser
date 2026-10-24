@@ -6,17 +6,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StartPOZI Browser</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
   <meta name="description" content="StartPOZI Browser.">
     <meta name="keywords" content="startpozi, spi, Privacy, desktop, StartPOZI, Pro">
     <meta name="author" content="StartPOZI">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=11">
   <link rel="stylesheet" href="vendor/font-awesome/css/all.min.css">
   <!-- Content Security Policy for the browser chrome.
        External page content is never trusted here: scripts may only load
        from local files, inline event handlers are banned, and remote
        connections are blocked. This neutralises any XSS that could otherwise
        reach the privileged electronAPI surface exposed by the preload. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' https://sponsor.ajay.app; object-src 'none'; base-uri 'self'; form-action 'self';">
   <script src="vendor/jsqr/jsQR.min.js"></script>
 </head>
 <body>
@@ -109,6 +110,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
+        <span class="ab-badge" id="abBadge" style="display:none">0</span>
       </button>
       <button class="nav-btn" id="settingsBtn" title="Settings" style="display:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
       <button class="nav-btn" id="scriptsBtn" title="Scripts" style="position:relative;">
@@ -185,6 +187,7 @@
       </button>
       <div class="hamburger-menu" id="hamburgerMenu">
         <button type="button" class="hm-item" id="hmSettings"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Settings</button>
+        <button type="button" class="hm-item" id="hmHelp"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>Help / Справка</button>
         <div class="hm-divider"></div>
         <button type="button" class="hm-item" id="hmLibrary"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>Library</button>
         <button type="button" class="hm-item" id="hmBookmarks"><span class="hm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>Bookmarks</button>
@@ -230,6 +233,11 @@
       <span class="ab-status-text" id="abStatusText">Enabled</span>
     </div>
 
+    <div class="ab-engine-row" id="abEngineRow" style="display:none">
+      <span class="ab-engine-info" id="abEngineInfo"></span>
+      <button class="ab-engine-reload" id="abReloadLists" title="Reload filter lists">↻</button>
+    </div>
+
     <div class="ab-section-label">This page</div>
     <div class="ab-page-row">
       <div class="ab-page-domain" id="abSiteName">—</div>
@@ -244,7 +252,25 @@
       <div class="ab-stat"><span class="ab-stat-num" id="abTotal">0</span><span class="ab-stat-label">Total</span></div>
     </div>
 
+    <button class="ab-fullstats-toggle" id="abFullStatsToggle" title="Full statistics">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/><line x1="12" y1="4" x2="12" y2="20"/><line x1="9" y1="7" x2="9" y2="17"/><line x1="15" y1="7" x2="15" y2="17"/></svg>
+      <span class="ab-fullstats-toggle-label">Full statistics</span>
+      <svg class="ab-fullstats-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="ab-fullstats" id="abFullStats" style="display:none">
+      <div class="ab-fullstats-row"><span>Ads</span><b id="abFsAds">0</b></div>
+      <div class="ab-fullstats-row"><span>Trackers</span><b id="abFsTrackers">0</b></div>
+      <div class="ab-fullstats-row"><span>Social networks</span><b id="abFsSocial">0</b></div>
+      <div class="ab-fullstats-row"><span>CDN</span><b id="abFsCdn">0</b></div>
+      <div class="ab-fullstats-row"><span>Other</span><b id="abFsOther">0</b></div>
+      <div class="ab-fullstats-row ab-fullstats-cookies"><span>Cookies stored (this site)</span><b id="abFsCookies">0</b></div>
+    </div>
+
     <div class="ab-panel-actions">
+      <button class="ab-action-btn" id="abBlockManually" title="Block ads manually">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        Block ads manually
+      </button>
       <button class="ab-action-btn" id="abReportIssue" title="Report a problem">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         Report a problem
@@ -256,6 +282,76 @@
     </div>
 
     <button class="ab-panel-settings" id="abPanelSettings">Open in settings</button>
+  </div>
+
+  <!-- Dark Reader Panel -->
+  <div class="adblock-panel dr-panel" id="darkReaderPanel">
+    <div class="ab-panel-header">
+      <div class="ab-panel-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        Dark Reader
+      </div>
+    </div>
+    <div class="dr-mode-seg">
+      <button type="button" id="drModeLight">🌞 Light</button>
+      <button type="button" id="drModeDark">🌙 Dark</button>
+    </div>
+
+    <div class="ab-section-label">Schedule</div>
+    <div class="dr-sched">
+      <label class="dr-check"><input type="checkbox" id="drSchedOn"><span>Auto on/off by time</span></label>
+      <div class="dr-times">
+        <label>On <input type="time" id="drTimeOn" value="20:00"></label>
+        <label>Off <input type="time" id="drTimeOff" value="07:00"></label>
+      </div>
+    </div>
+
+    <div class="ab-section-label">Sites</div>
+    <div class="dr-mode-row">
+      <select id="drSiteMode">
+        <option value="all">Use on all sites</option>
+        <option value="include">Use only on listed sites</option>
+        <option value="exclude">Use everywhere except listed</option>
+      </select>
+    </div>
+    <button class="ab-site-toggle" id="drAddSite">Enable for this site</button>
+    <div class="dr-sites" id="drSites"></div>
+
+    <div class="ab-section-label">Adjustment</div>
+    <div class="dr-slider-row"><span>Brightness</span><input type="range" id="drBrightness" min="50" max="150" value="100"><b id="drBrightnessVal">100%</b></div>
+    <div class="dr-slider-row"><span>Contrast</span><input type="range" id="drContrast" min="50" max="150" value="100"><b id="drContrastVal">100%</b></div>
+    <div class="dr-slider-row"><span>Grayscale</span><input type="range" id="drGrayscale" min="0" max="100" value="0"><b id="drGrayscaleVal">0%</b></div>
+    <div class="dr-slider-row"><span>Sepia</span><input type="range" id="drSepia" min="0" max="100" value="0"><b id="drSepiaVal">0%</b></div>
+    <div class="dr-slider-row"><span>Text stroke</span><input type="range" id="drStroke" min="0" max="30" value="0"><b id="drStrokeVal">0</b></div>
+
+    <div class="ab-panel-actions">
+      <button class="ab-action-btn" id="drReset">Reset defaults</button>
+    </div>
+  </div>
+
+  <!-- Quick Bookmarks panel (star on the main page) -->
+  <div class="adblock-panel" id="quickBmPanel" style="display:none;min-width:340px">
+    <div class="ab-panel-header">
+      <div class="ab-panel-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span id="qbmTitle">Bookmarks</span>
+      </div>
+      <button id="qbmClose" title="Close" style="font-size:16px;color:var(--text-secondary,#999);cursor:pointer">×</button>
+    </div>
+    <div id="qbmLock" style="display:none;padding:10px 2px 4px">
+      <div style="font-size:12px;color:var(--text-secondary,#999);margin-bottom:8px" id="qbmLockHint">Enter the Library password</div>
+      <div style="display:flex;gap:8px">
+        <input type="password" id="qbmPassword" placeholder="Password"
+          style="flex:1;background:var(--bg-color,#202020);border:1px solid var(--border-color,#3d3d3d);color:var(--text-primary,#eee);border-radius:8px;padding:8px 10px;font-size:13px">
+        <button id="qbmUnlock" class="ab-action-btn" style="border-radius:8px">→</button>
+      </div>
+    </div>
+    <div id="qbmBody" style="display:none">
+      <input type="text" id="qbmSearch" placeholder="Search bookmarks…"
+        style="width:100%;box-sizing:border-box;background:var(--bg-color,#202020);border:1px solid var(--border-color,#3d3d3d);color:var(--text-primary,#eee);border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:10px">
+      <div id="qbmList" style="max-height:300px;overflow-y:auto"></div>
+      <button class="ab-panel-settings" id="qbmOpenLibrary">Open Library</button>
+    </div>
   </div>
 
   <!-- Autofill Panel -->
@@ -340,7 +436,7 @@
   <div class="eq-panel" id="eqPanel">
     <div class="eq-header">
       <span class="eq-title">&#127925; Equalizer</span>
-      <label class="eq-toggle"><input type="checkbox" id="eqToggle" checked><span class="eq-toggle-slider"></span></label>
+      <label class="eq-toggle"><input type="checkbox" id="eqToggle"><span class="eq-toggle-slider"></span></label>
     </div>
     <div class="eq-presets">
       <select id="eqPreset">
@@ -676,6 +772,65 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/><path d="M5 19.5C5.5 18 6 15 6 12c0-.7.12-1.37.34-2"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M12 2a10 10 0 0 0-10 10c0 4.14 2.5 7.69 6.06 9.21"/><path d="M16 21c-3.43 0-6.5-2.5-7-6"/><path d="M22 16.5c0-3.5-3-6.5-6.5-6.5"/><circle cx="12" cy="12" r="2"/></svg>
         Use fingerprint
       </button>
+    </div>
+  </div>
+
+  <!-- First-run wizard: 4-step onboarding (privacy preset → master
+       password → import → done). Shown once per profile; all texts are
+       filled by renderer.js (RU/EN). Sits one z-step under the appLock
+       screen so a locked startup always wins. -->
+  <style>
+    #firstRunWizard .wzLead { font-size:13px;color:var(--secondary-text,#bbb);line-height:1.55;margin-top:4px; }
+    #firstRunWizard .wzCard { flex:1;border:1.5px solid var(--border-color,rgba(255,255,255,0.12));border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;transition:border-color .15s, background .15s; }
+    #firstRunWizard .wzCard:hover { border-color:rgba(29,161,242,0.5); }
+    #firstRunWizard .wzCard.sel { border-color:#1da1f2;background:rgba(29,161,242,0.08); }
+    #firstRunWizard .wzCard .t { font-size:14px;font-weight:700;color:var(--text-color,#fff);margin-bottom:6px; }
+    #firstRunWizard .wzCard .d { font-size:11px;color:var(--secondary-text,#aaa);line-height:1.45; }
+    #firstRunWizard .wzDot { width:22px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15); }
+    #firstRunWizard .wzDot.on { background:#1da1f2; }
+    #firstRunWizard .wzInput { width:100%;box-sizing:border-box;padding:11px 13px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:14px;outline:none;margin-top:10px; }
+    #firstRunWizard .wzBtn { padding:10px 18px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer; }
+    #firstRunWizard .wzPrimary { background:linear-gradient(135deg,#1da1f2,#764ba2);color:#fff; }
+    #firstRunWizard .wzGhost { background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--secondary-text,#bbb); }
+  </style>
+  <div id="firstRunWizard" style="display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(8,8,14,0.72);backdrop-filter:blur(10px);-webkit-app-region:no-drag;align-items:center;justify-content:center;">
+    <div style="width:600px;max-width:calc(100vw - 40px);background:var(--card-bg,rgba(28,28,38,0.96));border:1px solid var(--border-color,rgba(255,255,255,0.12));border-radius:18px;padding:26px 28px;box-shadow:0 24px 80px rgba(0,0,0,0.65);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1da1f2,#764ba2);display:flex;align-items:center;justify-content:center;flex:none;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--text-color,#fff);">StartPOZI Browser</div>
+          <div id="wzStepLabel" style="font-size:11px;color:var(--secondary-text,#aaa);"></div>
+        </div>
+      </div>
+      <div id="wzDots" style="display:flex;gap:6px;margin:14px 0 16px;"></div>
+
+      <div id="wzStep1">
+        <div id="wzS1Lead" class="wzLead"></div>
+        <div id="wzCards" style="display:flex;gap:10px;margin-top:14px;"></div>
+      </div>
+
+      <div id="wzStep2" style="display:none;">
+        <div id="wzS2Lead" class="wzLead"></div>
+        <input type="password" id="wzPw1" class="wzInput" autocomplete="new-password">
+        <input type="password" id="wzPw2" class="wzInput" autocomplete="new-password">
+        <div id="wzPwErr" style="color:#ff5f57;font-size:12px;min-height:14px;margin-top:6px;"></div>
+      </div>
+
+      <div id="wzStep3" style="display:none;">
+        <div id="wzS3Lead" class="wzLead"></div>
+      </div>
+
+      <div id="wzStep4" style="display:none;">
+        <div id="wzDoneTitle" style="font-size:20px;font-weight:700;color:var(--text-color,#fff);margin:10px 0 8px;"></div>
+        <div id="wzSummary" class="wzLead"></div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:22px;">
+        <button id="wzSkip" class="wzBtn wzGhost"></button>
+        <button id="wzNext" class="wzBtn wzPrimary"></button>
+      </div>
     </div>
   </div>
 

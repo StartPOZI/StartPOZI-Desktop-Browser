@@ -41,7 +41,10 @@ var REJECT_SELECTORS = [
   '#truste-consent-required',                // TrustArc
   '#truste-consent-button3',
   '.reject-all', '.rejectAll',
-  '#pubtech-cmp .pt-accept-all',             // PubTech (reject is sometimes the non-highlighted)
+  '#pubtech-cmp #pt-close',                // PubTech opt-out (close banner);
+  '.pt-k2L',                                // PubTech reject — ".pt-accept-all" was here before:
+                                             // that is the OPT-IN button (Mozilla/DDG lists confirm) —
+                                             // the "reject" feature was accepting all cookies!
   'button.reject-all-cookies',
   '#cookie-banner .cta__decline',
   '[data-action="reject"]',

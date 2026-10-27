@@ -19,10 +19,10 @@
   ],
   "author": "StartPOZI <startpozi@internet.ru> (https://startpozi.com)",
   "license": "GPL-3.0",
-  "homepage": "https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-",
+  "homepage": "https://github.com/StartPOZI/StartPOZI-Desktop-Browser",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-/startpozi-browser.git"
+    "url": "git+https://github.com/StartPOZI/StartPOZI-Desktop-Browser.git"
   },
   "type": "commonjs",
   "dependencies": {

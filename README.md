@@ -1,6 +1,30 @@
-# StartPOZI Browser
+<p align="center"><img src="logo.png" width="128" alt="StartPOZI Browser"></p>
 
-**Независимый приватный браузер на базе Chromium (Electron).** Без телеметрии, без скрытых трекеров, все настройки по умолчанию настроены на защиту от слежения. GPL-3.0.
+<h1 align="center">StartPOZI Browser</h1>
+
+<p align="center"><strong>Независимый приватный браузер на базе Chromium (Electron).</strong><br>Без телеметрии, без скрытых трекеров — все настройки по умолчанию настроены на защиту от слежки.</p>
+
+<p align="center">
+  <a href="https://github.com/StartPOZI/StartPOZI-Desktop-Browser/releases"><img src="https://img.shields.io/badge/версия-1.0.0-blue" alt="Версия 1.0.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/лицензия-GPL--3.0-green" alt="GPL-3.0"></a>
+  <img src="https://img.shields.io/badge/движок-Electron%20%2F%20Chromium-9feaf9" alt="Electron / Chromium">
+  <img src="https://img.shields.io/badge/платформы-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey" alt="Windows | Linux | macOS">
+</p>
+
+## О проекте
+
+| | |
+|---|---|
+| **Версия** | 1.0.0 (релиз [«Version 1.0»](https://github.com/StartPOZI/StartPOZI-Desktop-Browser/releases)) |
+| **Лицензия** | [GPL-3.0](LICENSE) |
+| **Движок** | Electron / Chromium |
+| **Платформы** | Windows · Linux · macOS |
+| **Сайт** | [startpozi.com](https://startpozi.com) |
+| **Поддержать разработчиков** | [startpozi.com/donate](https://startpozi.com/donate) ❤️ |
+
+## Скачать
+
+Готовые сборки — на странице [**Releases**](https://github.com/StartPOZI/StartPOZI-Desktop-Browser/releases) (актуальный релиз — «Version 1.0»).
 
 ```
 npm install
@@ -50,6 +74,14 @@ npm run build    # сборка (electron-builder)
 
 Полный список — в [docs/](docs/) (RU + [EN](docs/en/)).
 
+## Поддержать разработчиков ❤️
+
+StartPOZI Browser — бесплатный браузер с открытым исходным кодом (GPL-3.0). Разработка, обновление блок-листов и поддержка инфраструктуры существуют благодаря поддержке пользователей.
+
+**Поддержать проект:** → **[startpozi.com/donate](https://startpozi.com/donate)**
+
+Любая помощь идёт на разработку новых функций, обновление фильтров и работу сервисов проекта.
+
 ## Сборка
 
 Требуется Node.js. Платформы: Windows, Linux, macOS.
@@ -62,6 +94,6 @@ npm run build
 
 ## Лицензия
 
-GPL-3.0. Отдельные списки блокировки сохраняют лицензии своих источников (см. [FilterHub](https://github.com/StartPOZI/FilterHub)).
+[GPL-3.0](LICENSE) — полный текст лицензии в файле [LICENSE](LICENSE). Отдельные списки блокировки сохраняют лицензии своих источников (см. [FilterHub](https://github.com/StartPOZI/FilterHub)).
 
 © 2026 StartPOZI Project

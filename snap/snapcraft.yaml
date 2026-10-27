@@ -1,0 +1,159 @@
+# Snapcraft manifest for StartPOZI Browser
+# Build (from the repository root):
+#   snapcraft --use-lxd        # или: snapcraft --use-container
+#   snap install --dangerous startpozi-browser_1.0.0_amd64.snap
+#
+# Layout:
+#   browser/                     — результат `electron-builder --linux dir`
+#   bin/startpozi-browser        — обёртка запуска
+#   usr/bin/tor, obfs4proxy      — из stage-packages (приложение ищет их через PATH)
+#   bin/snowflake-client, webtunnel-client — собраны из исходников (нет в Ubuntu)
+
+name: startpozi-browser
+title: StartPOZI Browser
+version: "1.0.0"
+summary: The safe private browser
+description: |
+  Independent private browser based on Chromium (Electron). No telemetry,
+  no hidden trackers, every default is tuned for privacy.
+
+  Ad blocker with 44 filter lists, automatic cookie-banner dismissal,
+  Tor with obfs4 / snowflake / webtunnel bridges, anti-fingerprinting,
+  encrypted password storage (AES-256-GCM) and offline TTS / OCR.
+
+website: https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-
+contact: startpozi@internet.ru
+license: GPL-3.0-only
+
+grade: stable
+confinement: strict
+base: core24
+
+platforms:
+  amd64:
+
+plugs:
+  browser-support:
+    interface: browser-support
+    # true => сохраняет Chromium-песочницу (SUID chrome-sandbox).
+    # Публикация в Snap Store с allow-sandbox требует ревью.
+    # Для локальной установки (--dangerous) работает как есть.
+    allow-sandbox: true
+
+apps:
+  startpozi-browser:
+    command: bin/startpozi-browser
+    desktop: usr/share/applications/startpozi-browser.desktop
+    environment:
+      ELECTRON_OZONE_PLATFORM_HINT: auto
+      # Tor/mосты: обёртка дополняет PATH до $SNAP/usr/bin и $SNAP/bin
+    plugs:
+      - network
+      - network-bind
+      - network-observe      # ss/netstat: автодетект локального SOCKS-порта Tor
+      - browser-support
+      - desktop
+      - desktop-legacy
+      - x11
+      - wayland
+      - unity7
+      - pulseaudio           # TTS / WebAudio
+      - opengl
+      - home                 # загрузки, локальные файлы (about:viewer)
+      - password-manager-service  # libsecret (пароли без мастер-пароля)
+      - cups                 # печать
+
+parts:
+  # ------------------------------------------------------- приложение
+  startpozi-app:
+    plugin: nil
+    source: .
+    build-packages:
+      - nodejs
+      - npm
+    # системные библиотеки, с которыми линкуется Electron
+    stage-packages:
+      - libgtk-3-0
+      - libnss3
+      - libxss1
+      - libasound2t64
+      - libatk-bridge2.0-0
+      - libatk1.0-0
+      - libcups2
+      - libdrm2
+      - libgbm1
+      - libpango-1.0-0
+      - libcairo2
+      - libx11-xcb1
+      - libxcb-dri3-0
+      - libxcomposite1
+      - libxdamage1
+      - libxfixes3
+      - libxrandr2
+      - libxkbcommon0
+      - libsecret-1-0
+    override-build: |
+      set -eu
+      # npm ci сносит существующий node_modules и ставит по package-lock.json
+      npm ci --no-audit --no-fund
+      npx electron-builder --linux dir --publish never
+      mkdir -p "$CRAFT_PART_INSTALL/browser"
+      cp -a dist/linux-unpacked/. "$CRAFT_PART_INSTALL/browser/"
+      # Chromium-песочница: SUID-бит обязателен при allow-sandbox: true
+      chmod 4755 "$CRAFT_PART_INSTALL/browser/chrome-sandbox" || true
+      install -Dm755 snap/wrapper "$CRAFT_PART_INSTALL/bin/startpozi-browser"
+      install -Dm644 snap/startpozi-browser.desktop \
+        "$CRAFT_PART_INSTALL/usr/share/applications/startpozi-browser.desktop"
+      install -Dm644 assets/favicon/icon.png \
+        "$CRAFT_PART_INSTALL/usr/share/icons/hicolor/1024x1024/apps/startpozi-browser.png"
+
+  # ------------------------------------------------ tor + obfs4 (apt)
+  tor:
+    plugin: nil
+    stage-packages:
+      - tor
+      - obfs4proxy
+    prime:
+      - -lib/systemd
+      - -usr/lib/systemd
+      - -usr/share/doc
+      - -usr/share/lintian
+      - -usr/share/man
+
+  # ------------------------------------- snowflake (нет в Ubuntu архиве)
+  snowflake-client:
+    plugin: nil
+    build-packages:
+      - golang-go
+      - git
+      - ca-certificates
+    build-environment:
+      - GO111MODULE: "on"
+      - GOPROXY: https://proxy.golang.org,direct
+      - GOTOOLCHAIN: local
+    override-build: |
+      set -eu
+      git clone --depth 1 \
+        https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake.git \
+        snowflake
+      cd snowflake
+      go build -trimpath -o "$CRAFT_PART_INSTALL/bin/snowflake-client" ./client
+
+  # -------------------------------------- webtunnel (нет в Ubuntu архиве)
+  webtunnel-client:
+    plugin: nil
+    build-packages:
+      - golang-go
+      - git
+      - ca-certificates
+    build-environment:
+      - GO111MODULE: "on"
+      - GOPROXY: https://proxy.golang.org,direct
+      - GOTOOLCHAIN: local
+    override-build: |
+      set -eu
+      git clone --depth 1 \
+        https://gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/webtunnel.git \
+        webtunnel
+      cd webtunnel
+      go build -trimpath -o "$CRAFT_PART_INSTALL/bin/webtunnel-client" ./main/client

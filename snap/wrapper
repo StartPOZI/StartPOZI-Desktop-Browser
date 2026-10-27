@@ -1,0 +1,8 @@
+#!/bin/sh
+# Snap launcher for StartPOZI Browser.
+# PATH нужен, чтобы приложение нашло tor / obfs4proxy / snowflake-client /
+# webtunnel-client (main.js ищет их через `which`).
+export PATH="$SNAP/usr/sbin:$SNAP/usr/bin:$SNAP/sbin:$SNAP/bin:$PATH"
+export LD_LIBRARY_PATH="$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$SNAP/usr/lib:$SNAP/lib/$SNAPCRAFT_ARCH_TRIPLET:$SNAP/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+exec "$SNAP/browser/startpozi-desktop-browser-beta" "$@"

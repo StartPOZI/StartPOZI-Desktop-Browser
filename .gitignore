@@ -30,3 +30,9 @@ npm-debug.log*
 update-server/keys/
 update-server/stable/
 update-server/beta/
+
+# Snap packaging (snapcraft build dirs; manifest stays in git)
+snap/parts/
+snap/prime/
+snap/stage/
+*.snap

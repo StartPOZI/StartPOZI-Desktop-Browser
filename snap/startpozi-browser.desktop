@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=StartPOZI Browser
+Name[ru]=Браузер StartPOZI
+GenericName=Web Browser
+GenericName[ru]=Веб-браузер
+Comment=The safe private browser
+Comment[ru]=Безопасный приватный браузер
+Exec=startpozi-browser %U
+# snapd (>= 2.39) резолвит имя иконки внутри snap:
+# usr/share/icons/hicolor/1024x1024/apps/startpozi-browser.png
+Icon=startpozi-browser
+Terminal=false
+Categories=Network;WebBrowser;
+StartupWMClass=startpozi-desktop-browser-beta
+MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/about;text/html;application/xhtml+xml;text/xml;

@@ -33,6 +33,26 @@ npm test         # unit tests for pure modules (node --test)
 npm run build    # build (electron-builder)
 ```
 
+## Why StartPOZI is safe and private
+
+**No telemetry.** The browser never sends usage statistics, crash reports, or analytics. Everything — filtering, blocking, history — happens locally on your machine. Every external service it can contact (filter updates, suggestions, translator, password breach checks) is listed in settings and can be disabled individually.
+
+**Protection from trackers.**
+- Ad and tracker blocking with 44 filter lists (EasyList, EasyPrivacy, uBlock Origin, AdGuard, HaGezi, Phishing Army…), each toggleable, with one-click Light / Medium / Maximum presets
+- Cookie banners are rejected automatically (~70 providers, shadow DOM) — the “Accept” button is never clicked
+- URLs are cleaned of hundreds of tracking parameters (`utm_*`, `fbclid`, `gclid`…) and known redirect chains are unwrapped
+- Third-party cookies, `<a ping>`, and mixed HTTP content on HTTPS pages are blocked; DNT and Sec-GPC signals are sent; the referrer is trimmed to the origin only
+
+**Resistance to fingerprinting.** Canvas and AudioContext readings get noise injected, viewport size is rounded (letterboxing) so your real screen resolution stays unknown, the reported platform matches your real OS instead of standing out, GPU/WebGL info is masked, and WebRTC cannot leak your local IP — even under VPN or Tor. Punycode domains and credentials embedded in URLs trigger phishing warnings.
+
+**Network privacy.** Built-in Tor with obfs4 / snowflake / webtunnel bridges and a one-click “new identity”, HTTP/SOCKS4/SOCKS5 proxy support with exit-IP diagnostics, an automatic watchdog that falls back to a direct connection if the proxy dies, HTTPS-only mode, and site isolation that gives every domain its own separate cookies and storage.
+
+**Your data is encrypted at rest.** Passwords are always stored encrypted — AES-256-GCM with a scrypt-derived key when you set a master password, or the OS keystore (Windows DPAPI, macOS Keychain, Linux libsecret) when you don’t. TOTP secrets and `.spzi` backups are encrypted too. Profile writes are atomic (in-memory cache + temp-file rename), so a crash or power loss can’t corrupt your data.
+
+**A hardened engine.** Electron is locked down: `contextIsolation` everywhere and `nodeIntegration: false`; internal pages can only call APIs they’ve been granted per-page (passwords are reachable from Settings/Library only); secret IPC channels (passwords, vault, TOTP) sit behind a double gate — a capability filter in the preload plus sender re-validation in the main process (`_isSecretsSender`); `will-attach-webview` enforces safe webview attributes; and anything not explicitly allowed is denied (fail-closed).
+
+**One-click presets.** The first-run wizard offers Standard / Private (default) / Maximum privacy presets — or you can fine-tune every switch individually in Settings → Security.
+
 ## Privacy
 
 - **Ad blocker** powered by the [FilterHub](https://github.com/StartPOZI/FilterHub) catalog: 44 lists (EasyList/EasyPrivacy, uBlock Origin, AdGuard, HaGezi, Phishing Army…), each toggleable, with Light / Medium (default) / Maximum presets; lists with the ABP `! Checksum:` header are verified on download — protection against corrupted or truncated downloads (MD5 checksum): a mismatched copy is discarded and the cached one is used; HTTPS transport protects against deliberate tampering (an attacker recomputing the checksum)

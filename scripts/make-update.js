@@ -30,7 +30,7 @@ const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const OUT = path.join(ROOT, 'update-server');
 const UPDATE_HOST = 'up.api.startpozi.com';
-const GH_REPO = 'StartPOZI/StartPOZI-Desktop-Browser-beta-';
+const GH_REPO = 'StartPOZI/StartPOZI-Desktop-Browser';
 const DEFAULT_KEY_PATH = path.join(OUT, 'keys', 'update-private.pem');
 
 // Reference ed25519 public key (raw base64 DER/SPKI) — must stay

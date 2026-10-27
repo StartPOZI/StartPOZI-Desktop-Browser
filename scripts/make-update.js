@@ -120,7 +120,10 @@ function main() {
       url: artifactUrl(channel, version, hit),
       size: fs.statSync(full).size,
       sha512: sha512File(full),
-      githubFallback: 'https://github.com/' + GH_REPO + '/releases/download/v' + version + '/' + encodeURIComponent(hit)
+      // GitHub normalizes release asset names: every space becomes a dot
+      // ("StartPOZI Browser-…" is stored as "StartPOZI.Browser-…"), and a
+      // %20 URL is a 404 — the fallback must use the normalized name.
+      githubFallback: 'https://github.com/' + GH_REPO + '/releases/download/v' + version + '/' + encodeURIComponent(hit.replace(/ /g, '.'))
     };
     files[w.key] = entry;
     copyList.push(hit);

@@ -25,7 +25,7 @@
   "dependencies": {
     "@cliqz/adblocker-electron": "^1.34.0",
     "adm-zip": "^0.6.0",
-    "electron": "^42.0.0",
+    "electron": "^42.11.18",
     "espeak-ng": "^1.0.2",
     "sql.js": "^1.14.1",
     "tesseract.js": "^7.0.0"

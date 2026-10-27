@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<title>Help / Справка — StartPOZI Browser</title>
+<style>
+  :root {
+    --bg: #202024; --bg2: #2a2a30; --card: #26262c; --border: #3d3d44;
+    --text: #f2f2f5; --muted: #a8a8b3; --accent: #7c8cff; --accent2: #5f6ee6;
+    --code-bg: #1b1b1f; --ok: #4cc38a; --warn: #f0a44c;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f5f7; --bg2: #ffffff; --card: #ffffff; --border: #d8d8de;
+      --text: #1d1d21; --muted: #63636e; --accent: #4c5fd5; --accent2: #3d4fc0;
+      --code-bg: #eef0f4; --ok: #188551; --warn: #b26a00;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.6 'Segoe UI', Roboto, Arial, sans-serif; }
+  header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 16px; padding: 12px 28px; background: var(--bg2); border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 17px; margin: 0; flex: 1; }
+  .lang-switch { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .lang-switch button { padding: 6px 14px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 600; }
+  .lang-switch button.active { background: var(--accent); color: #fff; }
+  nav { position: sticky; top: 53px; z-index: 9; display: flex; gap: 4px; flex-wrap: wrap; padding: 10px 28px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  nav a { color: var(--muted); text-decoration: none; font-size: 12.5px; padding: 4px 10px; border-radius: 6px; }
+  nav a:hover { background: var(--card); color: var(--text); }
+  main { max-width: 900px; margin: 0 auto; padding: 26px 28px 80px; }
+  section { margin-bottom: 40px; }
+  h2 { font-size: 20px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-top: 0; }
+  h3 { font-size: 15.5px; margin: 22px 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 10px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code, kbd { background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font: 12.5px/1.5 ui-monospace, Consolas, monospace; }
+  kbd { white-space: nowrap; }
+  .tip { border-left: 3px solid var(--ok); }
+  .warnbox { border-left: 3px solid var(--warn); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 5px; padding: 1px 7px; margin-right: 6px; vertical-align: 1px; }
+  .tag.new { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.pro { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+  details { margin: 8px 0; }
+  summary { cursor: pointer; font-weight: 600; padding: 8px 4px; }
+  summary:hover { color: var(--accent); }
+  details .card { margin-top: 6px; }
+  a { color: var(--accent); }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <h1>StartPOZI Browser — <span data-ru="Справка" data-en="Help"></span></h1>
+  <div class="lang-switch">
+    <button id="langRu">Русский</button>
+    <button id="langEn">English</button>
+  </div>
+</header>
+<nav>
+  <a href="#start" data-ru="Начало работы" data-en="Getting started"></a>
+  <a href="#omnibox" data-ru="Умная строка" data-en="Smart address bar"></a>
+  <a href="#privacy" data-ru="Приватность" data-en="Privacy"></a>
+  <a href="#siteinfo" data-ru="Инфо о сайте" data-en="Site Info"></a>
+  <a href="#settings" data-ru="Настройки" data-en="Settings"></a>
+  <a href="#themes" data-ru="Темы" data-en="Themes"></a>
+  <a href="#scripts" data-ru="Скрипты" data-en="Scripts"></a>
+  <a href="#passwords" data-ru="Пароли" data-en="Passwords"></a>
+  <a href="#hotkeys" data-ru="Горячие клавиши" data-en="Hotkeys"></a>
+  <a href="#faq" data-ru="FAQ" data-en="FAQ"></a>
+  <a href="#dev" data-ru="Разработчикам" data-en="For developers"></a>
+</nav>
+<main>
+
+<!-- ============================ START ============================ -->
+<section id="start">
+  <h2 data-ru="Начало работы" data-en="Getting started"></h2>
+  <div class="card">
+    <p data-ru="StartPOZI — независимый приватный браузер на Chromium (Electron). Все настройки по умолчанию подобраны так, чтобы вас не отслеживали: без телеметрии, без скрытых трекеров, история хранится только на вашем устройстве."
+       data-en="StartPOZI is an independent privacy browser built on Chromium (Electron). Defaults are tuned against tracking: no telemetry, no hidden trackers, your history stays on your device."></p>
+  </div>
+  <h3 data-ru="Внутренние адреса" data-en="Internal addresses"></h3>
+  <table>
+    <tr><th data-ru="Адрес" data-en="Address"></th><th data-ru="Страница" data-en="Page"></th></tr>
+    <tr><td><code>about:settings</code></td><td data-ru="Настройки" data-en="Settings"></td></tr>
+    <tr><td><code>about:library</code></td><td data-ru="История, закладки, загрузки, пароли, cookie" data-en="History, bookmarks, downloads, passwords, cookies"></td></tr>
+    <tr><td><code>about:newtab</code></td><td data-ru="Новая вкладка с виджетами" data-en="New tab page with widgets"></td></tr>
+    <tr><td><code>about:tor</code></td><td data-ru="Tor и прокси" data-en="Tor & proxies"></td></tr>
+    <tr><td><code>about:taskmanager</code></td><td data-ru="Диспетчер задач браузера" data-en="Built-in task manager"></td></tr>
+    <tr><td><code>about:hotkeys</code></td><td data-ru="Горячие клавиши и Vim-режим" data-en="Hotkeys and Vim mode"></td></tr>
+    <tr><td><code>about:themes</code></td><td data-ru="Темы и кастомизация" data-en="Themes and customization"></td></tr>
+    <tr><td><code>about:backup</code></td><td data-ru="Бэкапы" data-en="Backups"></td></tr>
+    <tr><td><code>about:help</code></td><td data-ru="Эта справка" data-en="This help page"></td></tr>
+  </table>
+  <div class="card tip">
+    <b data-ru="Быстрый старт:" data-en="Quick start:"></b>
+    <span data-ru="введите в адресной строке <code>about:settings</code> и пройдитесь по разделам — у каждой опции есть пояснение. Команды для опытных пользователей — нажмите <kbd>Ctrl+Shift+P</kbd> (Quick Commands)."
+          data-en="type <code>about:settings</code> in the address bar and browse the sections — every option has a description. Power users: press <kbd>Ctrl+Shift+P</kbd> for Quick Commands."></span>
+  </div>
+</section>
+
+<!-- ============================ OMNIBOX ============================ -->
+<section id="omnibox">
+  <h2 data-ru="Умная адресная строка" data-en="Smart address bar"></h2>
+  <div class="card">
+    <p data-ru="Строка объединяет URL, поиск, закладки, открытые вкладки и команды — как единая «командная строка» браузера."
+       data-en="The bar combines URLs, search, bookmarks, open tabs and commands — a single command line for the browser."></p>
+  </div>
+  <h3 data-ru="Что показывается при вводе" data-en="What you see while typing"></h3>
+  <table>
+    <tr><th data-ru="Секция" data-en="Section"></th><th data-ru="Описание" data-en="Description"></th></tr>
+    <tr><td><span class="tag new">NEW</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-2.791 3-4 2z"/></svg> <span data-ru="Частые сайты" data-en="Frequent sites"></span></td>
+        <td data-ru="Домены, которые вы посетили 3+ раза за последние 2 дня, предлагаются первыми. Счётчик хранится только на вашем устройстве."
+            data-en="Origins you visited 3+ times in the last 2 days are suggested first. The counter never leaves your device."></td></tr>
+    <tr><td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01z"/></svg> <span data-ru="Закладки" data-en="Bookmarks"></span></td>
+        <td data-ru="Совпадения по названию или адресу закладки." data-en="Matches by bookmark title or URL."></td></tr>
+    <tr><td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> <span data-ru="История" data-en="History"></span></td>
+        <td data-ru="Совпадения из истории (инкогнито не учитывается)." data-en="Matches from history (incognito is never included)."></td></tr>
+    <tr><td>⌘ <span data-ru="Команды" data-en="Commands"></span></td>
+        <td data-ru="Быстрые команды Quick Commands — <code>:имя</code>." data-en="Quick Commands — <code>:name</code>."></td></tr>
+    <tr><td><span class="tag new">NEW</span> <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M2 10h20"/></svg> <span data-ru="Открытые вкладки" data-en="Open tabs"></span></td>
+        <td data-ru="Внизу списка — разделитель и вкладки, открытые прямо сейчас. Выбор (клик или Enter) переключает на вкладку — удобно вместо открытия дубля."
+            data-en="At the bottom of the list — a divider and currently open tabs. Selecting one (click or Enter) switches to that tab instead of opening a duplicate."></td></tr>
+    <tr><td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> <span data-ru="Поисковые подсказки" data-en="Search hints"></span></td>
+        <td data-ru="Подсказки поисковика (отключаются в Settings → Search → External services)."
+            data-en="Engine suggestions (can be disabled in Settings → Search → External services)."></td></tr>
+  </table>
+  <h3 data-ru="Быстрый поиск по движку — «bang»" data-en="Engine bangs — instant search"></h3>
+  <div class="card">
+    <p data-ru="Введите букву движка, пробел и запрос — строка сразу отправит запрос в нужный сервис:"
+       data-en="Type an engine letter, a space and your query — the bar sends it straight to that engine:"></p>
+    <table>
+      <tr><td><code>g погода</code></td><td>→ Google</td></tr>
+      <tr><td><code>d tor browser</code></td><td>→ DuckDuckGo</td></tr>
+      <tr><td><code>b electron docs</code></td><td>→ Bing</td></tr>
+      <tr><td><code>y lofi music</code></td><td>→ YouTube</td></tr>
+      <tr><td><code>w электрон</code></td><td>→ Wikipedia <span data-ru="(язык — как в браузере)" data-en="(matches browser language)"></span></td></tr>
+    </table>
+  </div>
+  <h3 data-ru="Отключение и очистка" data-en="Toggles and cleanup"></h3>
+  <div class="card">
+    <p data-ru="Settings → Search → <b>Address bar suggestions</b>: отдельные выключатели для «частых сайтов» и закладок + кнопка «Clear remembered frequent sites» — полностью стирает запомненные счётчики."
+       data-en="Settings → Search → <b>Address bar suggestions</b>: separate toggles for frequent sites and bookmarks, plus a “Clear remembered frequent sites” button that wipes the remembered counters."></p>
+  </div>
+</section>
+
+<!-- ============================ PRIVACY ============================ -->
+<section id="privacy">
+  <h2 data-ru="Приватность и безопасность" data-en="Privacy & security"></h2>
+  <table>
+    <tr><th data-ru="Возможность" data-en="Feature"></th><th data-ru="Где" data-en="Where"></th></tr>
+    <tr><td data-ru="Блокировщик рекламы (44 списка, пресеты Light/Medium/Maximum)" data-en="Ad blocker (44 lists, Light/Medium/Maximum presets)"></td><td><code>about:settings</code> → Security / <span data-ru="кнопка щита на панели" data-en="shield button on the toolbar"></span></td></tr>
+    <tr><td data-ru="Автоотклонение cookie-баннеров (~70 провайдеров)" data-en="Automatic cookie-banner dismissal (~70 providers)"></td><td>Security</td></tr>
+    <tr><td>Tor <span data-ru="с мостами obfs4/snowflake/webtunnel" data-en="with obfs4/snowflake/webtunnel bridges"></span></td><td><code>about:tor</code></td></tr>
+    <tr><td data-ru="Пресеты приватности (Стандарт / Приватный / Максимум) — мастер первого запуска, 4 шага" data-en="Privacy presets (Standard / Private / Maximum) — first-run wizard, 4 steps"></td><td data-ru="при первом запуске; далее Security" data-en="on first run; later in Security"></td></tr>
+    <tr><td data-ru="Анти-фингерпринтинг (Canvas/Audio шум, letterboxing, подмена UA)" data-en="Anti-fingerprinting (Canvas/Audio noise, letterboxing, UA spoof)"></td><td>Security</td></tr>
+    <tr><td data-ru="Очистка URL от трекинг-параметров (utm_*, fbclid, gclid…)" data-en="URL tracker-parameter stripping (utm_*, fbclid, gclid…)"></td><td>Security</td></tr>
+    <tr><td data-ru="DNS-over-HTTPS" data-en="DNS-over-HTTPS"></td><td>Settings → <span data-ru="Сеть" data-en="Network"></span></td></tr>
+    <tr><td data-ru="Инкогнито-вкладки и контейнеры" data-en="Incognito tabs and containers"></td><td><span data-ru="меню гамбургера" data-en="hamburger menu"></span></td></tr>
+  </table>
+  <div class="card warnbox">
+    <b data-ru="Внешние сервисы:" data-en="External services:"></b>
+    <span data-ru="подсказки поиска, переводчик, проверка утечек паролей и диагностика соединения обращаются к сторонним endpoint'ам. Каждый отключается: Settings → Security → External services."
+          data-en="search suggestions, translator, password-breach checks and connection diagnostics contact third-party endpoints. Each one can be turned off: Settings → Security → External services."></span>
+  </div>
+</section>
+
+<!-- ============================ SITE INFO ============================ -->
+<section id="siteinfo">
+  <h2 data-ru="Информация о сайте (замочек)" data-en="Site Info (the lock icon)"></h2>
+  <div class="card">
+    <p data-ru="Кликните значок слева в адресной строке: значок замка на HTTPS, информационный — на внутренних страницах."
+       data-en="Click the icon at the left of the address bar: a lock on HTTPS pages, an info glyph on internal pages."></p>
+  </div>
+  <table>
+    <tr><td data-ru="Состояние соединения" data-en="Connection state"></td>
+        <td data-ru="«Вы подключены к сайту по защищённому соединению» или предупреждение для HTTP." data-en="“You are connected over a secure connection”, or a warning for plain HTTP."></td></tr>
+    <tr><td>SSL<span data-ru="-сертификат" data-en=" certificate"></span></td>
+        <td data-ru="Реальные данные текущего соединения: протокол/шифр, кому и кем выдан, срок действия. Никаких внешних проверок — данные из самого соединения страницы."
+            data-en="Real data of the page's own connection: protocol/cipher, issued to/by, validity period. No external lookups."></td></tr>
+    <tr><td><span class="tag new">NEW</span> <span data-ru="Удалить cookie и данные сайта" data-en="Delete cookies and site data"></span></td>
+        <td data-ru="Полный сброс для этого сайта: cookies (включая доменные), localStorage, IndexedDB, service workers, кэши. Работает и в контейнерах/инкогнито."
+            data-en="Full reset for the origin: cookies (incl. domain-wide), localStorage, IndexedDB, service workers, caches. Works in containers/incognito too."></td></tr>
+    <tr><td><span class="tag new">NEW</span> <span data-ru="Подробнее о странице" data-en="More page details"></span></td>
+        <td data-ru="Разворачиваемый блок: заголовок, адрес, тип (MIME), тип визуализации (Standards/Quirks), кодировка текста, размер, ссылающийся URL, последнее изменение, мета-теги."
+            data-en="Expandable block: title, address, type (MIME), render mode (Standards/Quirks), text encoding, size, referring URL, last modified, meta tags."></td></tr>
+    <tr><td data-ru="Разрешения сайта" data-en="Site permissions"></td>
+        <td data-ru="JavaScript, cookies, камера/микрофон, уведомления, геолокация (в т.ч. подмена координат), буфер и др. Изменения применяются после перезагрузки страницы."
+            data-en="JavaScript, cookies, camera/mic, notifications, geolocation (incl. fake coordinates), clipboard and more. Changes apply after a reload."></td></tr>
+  </table>
+</section>
+
+<!-- ============================ SETTINGS ============================ -->
+<section id="settings">
+  <h2 data-ru="Настройки — обзор разделов" data-en="Settings — section overview"></h2>
+  <table>
+    <tr><th data-ru="Раздел" data-en="Section"></th><th data-ru="Что там" data-en="What's inside"></th></tr>
+    <tr><td>Search</td><td data-ru="Движок по умолчанию, тип поиска (веб/картинки/видео/новости), onion-зеркала при Tor, мульти-поиск, подсказки адресной строки (частые сайты/закладки)."
+        data-en="Default engine, search type (web/images/videos/news), onion mirrors under Tor, multi-search, address-bar suggestions (frequent sites/bookmarks)."></td></tr>
+    <tr><td>Security</td><td data-ru="Блокировщик, cookie-баннеры, анти-фингерпринтинг, HTTPS-only, WebRTC/DNS/clipboard, внешние сервисы, SSL-сертификаты, DNT/GPC."
+        data-en="Blocker, cookie banners, anti-fingerprinting, HTTPS-only, WebRTC/DNS/clipboard, external services, SSL certificates, DNT/GPC."></td></tr>
+    <tr><td>Proxy / Tor</td><td data-ru="HTTP/SOCKS-прокси, встроенный Tor, мосты, диагностика exit-IP, watchdog автопереключения."
+        data-en="HTTP/SOCKS proxies, built-in Tor, bridges, exit-IP diagnostics, watchdog failover."></td></tr>
+    <tr><td>Scripts</td><td data-ru="Пользовательские скрипты (.skit) — менеджер, импорт, права." data-en="User scripts (.skit) — manager, import, permissions."></td></tr>
+    <tr><td>Customization</td><td data-ru="Темы (.thmz), тёмный режим, Dark Reader, кастомный CSS, панель инструментов (27 кнопок, drag&drop)."
+        data-en="Themes (.thmz), dark mode, Dark Reader, custom CSS, toolbar (27 buttons, drag & drop)."></td></tr>
+    <tr><td>Hotkeys / Vim</td><td data-ru="Все горячие клавиши + Vim-режим навигации." data-en="All hotkeys + Vim navigation mode."></td></tr>
+    <tr><td>Backup</td><td data-ru="Бэкапы .spzi (AES-256-GCM), с паролем или без секретов, восстановление."
+        data-en="Backups .spzi (AES-256-GCM), with or without secrets, restore."></td></tr>
+    <tr><td>Profiles</td><td data-ru="Профили с отдельными данными и паролем разблокировки." data-en="Profiles with separate data and an unlock password."></td></tr>
+  </table>
+</section>
+
+<!-- ============================ THEMES ============================ -->
+<section id="themes">
+  <h2 data-ru="Темы и внешний вид" data-en="Themes & appearance"></h2>
+  <h3 data-ru="Установка темы из файла .thmz" data-en="Installing a .thmz theme"></h3>
+  <div class="card">
+    <ol>
+      <li data-ru="Settings → Customization → Themes → «Import theme»." data-en="Settings → Customization → Themes → “Import theme”."></li>
+      <li data-ru="Выберите файл <code>.thmz</code> (или перетащите его в окно)." data-en="Pick a <code>.thmz</code> file (or drop it into the window)."></li>
+      <li data-ru="Тема появится в списке — клик применяет, превью показывается сразу." data-en="The theme appears in the list — click to apply; the preview is instant."></li>
+    </ol>
+    <p data-ru="В темах запрещён удалённый код: только цвета и локальные ресурсы — тема не может отправить ваши данные в сеть."
+       data-en="Themes may not reference remote code: colors and local assets only — a theme cannot exfiltrate your data."></p>
+  </div>
+  <h3 data-ru="Редактор тем" data-en="Theme editor"></h3>
+  <div class="card">
+    <p data-ru="<code>about:themeeditor</code> — визуальный редактор: палитры, акценты, фон вкладок, экспорт в .thmz. Плюс Custom CSS для тонкой настройки."
+       data-en="<code>about:themeeditor</code> — visual editor: palettes, accents, tab backgrounds, .thmz export. Custom CSS is available for fine-tuning."></p>
+  </div>
+</section>
+
+<!-- ============================ SCRIPTS ============================ -->
+<section id="scripts">
+  <h2 data-ru="Пользовательские скрипты (.skit)" data-en="User scripts (.skit)"></h2>
+  <div class="card">
+    <p data-ru="Скрипты расширяют сайты: автозаполнение, редиректы, чистка интерфейса. Управление — Settings → Scripts (<code>about:scripts</code>)."
+       data-en="Scripts extend pages: autofill, redirects, UI cleanup. Manage them in Settings → Scripts (<code>about:scripts</code>)."></p>
+  </div>
+  <h3 data-ru="Минимальный пример" data-en="Minimal example"></h3>
+  <div class="card"><pre><code>{
+  "name": "My First Script",
+  "version": "1.0.0",
+  "type": "js",
+  "main": "script.js",
+  "match": "*://example.com/*",
+  "runAt": "document-idle",
+  "permissions": ["storage"]
+}</code></pre></div>
+  <p data-ru="Полную спецификацию (манифест, права, API, импорт) см. <code>docs/09-scripts.md</code> в папке браузера."
+     data-en="Full spec (manifest, grants, API, import) — see <code>docs/09-scripts.md</code> in the browser folder."></p>
+</section>
+
+<!-- ============================ PASSWORDS ============================ -->
+<section id="passwords">
+  <h2 data-ru="Пароли и бэкапы" data-en="Passwords & backups"></h2>
+  <div class="card">
+    <ul>
+      <li data-ru="Шифрование на диске всегда: с мастер-паролем — AES-256-GCM + scrypt; без — системное хранилище (DPAPI/Keychain/libsecret)."
+          data-en="Always encrypted at rest: with a master password — AES-256-GCM + scrypt; without — the OS store (DPAPI/Keychain/libsecret)."></li>
+      <li data-ru="TOTP-коды 2FA, проверка утечек (k-anonymity — сам пароль не покидает устройство), биометрия, импорт из браузеров и Google Authenticator."
+          data-en="TOTP 2FA codes, breach check (k-anonymity — the password never leaves the device), biometrics, import from browsers and Google Authenticator."></li>
+      <li data-ru="Бэкапы .spzi: полные (с паролями, шифруются) или без секретов. Восстановление — about:backup."
+          data-en=".spzi backups: full (with secrets, encrypted) or secrets-free. Restore via about:backup."></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================ HOTKEYS ============================ -->
+<section id="hotkeys">
+  <h2 data-ru="Горячие клавиши" data-en="Hotkeys"></h2>
+  <table>
+    <tr><td><kbd>Ctrl+T</kbd> / <kbd>Ctrl+W</kbd></td><td data-ru="Новая вкладка / закрыть вкладку" data-en="New tab / close tab"></td></tr>
+    <tr><td><kbd>Ctrl+L</kbd></td><td data-ru="Фокус в адресную строку" data-en="Focus the address bar"></td></tr>
+    <tr><td><kbd>Ctrl+Shift+P</kbd></td><td data-ru="Quick Commands (~60 команд)" data-en="Quick Commands (~60 commands)"></td></tr>
+    <tr><td><kbd>Ctrl+Shift+T</kbd></td><td data-ru="Восстановить закрытую вкладку" data-en="Reopen closed tab"></td></tr>
+    <tr><td><kbd>Ctrl+Tab</kbd></td><td data-ru="Следующая вкладка" data-en="Next tab"></td></tr>
+    <tr><td><kbd>F11</kbd></td><td data-ru="Полный экран" data-en="Fullscreen"></td></tr>
+  </table>
+  <p data-ru="Полный список и Vim-режим: <code>about:hotkeys</code>." data-en="Full list and Vim mode: <code>about:hotkeys</code>."></p>
+</section>
+
+<!-- ============================ FAQ ============================ -->
+<section id="faq">
+  <h2 data-ru="Частые вопросы (FAQ)" data-en="FAQ"></h2>
+  <details open>
+    <summary data-ru="Вход в Google не работает / просит подтверждение?" data-en="Google sign-in fails or asks for verification?"></summary>
+    <div class="card" data-ru="На страницах входа браузер представляется Firefox — Google не запускает Chrome-аттестацию. Если проблема осталась, очистите данные сайта кнопкой в Site Info (замочек) и попробуйте снова."
+         data-en="On login pages the browser identifies as Firefox so Google skips Chrome attestation. If it still fails, wipe site data via the Site Info lock panel and retry."></div>
+  </details>
+  <details>
+    <summary data-ru="Как удалить данные одного сайта?" data-en="How do I wipe one site's data?"></summary>
+    <div class="card" data-ru="Замочек в адресной строке → «Удалить cookie и данные сайта». Удаляются cookies, localStorage, IndexedDB, service workers и кэши только этого домена."
+         data-en="Lock icon → “Delete cookies and site data”. Removes cookies, localStorage, IndexedDB, service workers and caches for that domain only."></div>
+  </details>
+  <details>
+    <summary data-ru="Tor упал — что происходит с трафиком?" data-en="Tor died — what happens to my traffic?"></summary>
+    <div class="card" data-ru="Watchdog после нескольких неудачных проб переключает соединение на прямое и обратно при восстановлении. Следите за индикатором в about:tor — там же диагностика exit-IP."
+         data-en="The watchdog fails over to a direct connection after a few failed probes and back when Tor returns. Watch the indicator in about:tor — exit-IP diagnostics live there too."></div>
+  </details>
+  <details>
+    <summary data-ru="Куда отправляются мои данные?" data-en="Where does my data go?"></summary>
+    <div class="card" data-ru="История, закладки, пароли, счётчики частых сайтов — только на ваше устройство. Сеть контактируют лишь опциональные сервисы (подсказки, перевод, HIBP, диагностика), и каждый отключается в Settings → Security → External services."
+         data-en="History, bookmarks, passwords, frequent-site counters — your device only. Only optional services touch the network (suggestions, translate, HIBP, diagnostics), each disableable in Settings → Security → External services."></div>
+  </details>
+  <details>
+    <summary data-ru="Почему в адресной строке предлагаются сайты с 🔥?" data-en="Why do sites with 🔥 appear in the address bar?"></summary>
+    <div class="card" data-ru="Это «частые сайты» — домены, открытые 3+ раза за последние 48 часов. Отключается и очищается: Settings → Search → Address bar suggestions."
+         data-en="Those are “frequent sites” — origins opened 3+ times in the last 48 hours. Toggle/clear them in Settings → Search → Address bar suggestions."></div>
+  </details>
+  <details>
+    <summary data-ru="Скрипты замедляют браузер?" data-en="Do scripts slow the browser down?"></summary>
+    <div class="card" data-ru="Скрипты включаются только на совпадающих адресах. Если вкладка тормозит, найдите её в about:taskmanager и посмотрите, что потребляет. Скрипт можно отключить в about:scripts без удаления."
+         data-en="Scripts only run on matching addresses. If a tab feels slow, check it in about:taskmanager. A script can be disabled in about:scripts without deleting it."></div>
+  </details>
+  <details>
+    <summary data-ru="Как обновить браузер?" data-en="How do I update the browser?"></summary>
+    <div class="card" data-ru="Проверка обновлений идёт через GitHub Releases (Settings → About). Скачивайте и устанавливайте поверх — данные и настройки сохраняются."
+         data-en="Update checks use GitHub Releases (Settings → About). Download and install over the old copy — data and settings are preserved."></div>
+  </details>
+  <details>
+    <summary data-ru="Забыл мастер-пароль хранилища" data-en="I forgot the vault master password"></summary>
+    <div class="card" data-ru="Без мастер-пароля расшифровать хранилище невозможно (AES-256-GCM + scrypt, ключ не хранится). Восстановите пароли из бэкапа .spzi, если он есть."
+         data-en="The vault cannot be decrypted without the master password (AES-256-GCM + scrypt, no stored key). Restore passwords from a .spzi backup if you have one."></div>
+  </details>
+</section>
+
+<!-- ============================ DEV ============================ -->
+<section id="dev">
+  <h2 data-ru="Разработчикам" data-en="For developers"></h2>
+  <div class="card">
+    <pre><code>npm install
+npm start        # run from source
+npm test         # unit tests (node --test)
+npm run build    # package with electron-builder</code></pre>
+  </div>
+  <table>
+    <tr><th data-ru="Файл/каталог" data-en="File/folder"></th><th data-ru="Назначение" data-en="Purpose"></th></tr>
+    <tr><td><code>main.js</code></td><td data-ru="Главный процесс Electron: окна, IPC, безопасность, Tor, пароли, бэкапы." data-en="Electron main process: windows, IPC, security, Tor, passwords, backups."></td></tr>
+    <tr><td><code>renderer.js</code></td><td data-ru="UI-логика: вкладки, омнибокс, панели, Quick Commands." data-en="UI logic: tabs, omnibox, panels, Quick Commands."></td></tr>
+    <tr><td><code>preload.js</code> / <code>preload-webview.js</code></td><td data-ru="IPC-мосты с пер-страничными правами API; секретные каналы перепроверяются в main-процессе." data-en="IPC bridges with per-page API capabilities; secrets channels are re-validated in the main process."></td></tr>
+    <tr><td><code>adblocker.js</code></td><td data-ru="Движок блокировки (списки FilterHub, ABP-чексуммы)." data-en="Blocking engine (FilterHub lists, ABP checksums)."></td></tr>
+    <tr><td><code>storage.js</code> / <code>certstore.js</code></td><td data-ru="Атомарное хранилище / верификация TLS." data-en="Atomic storage / TLS verification."></td></tr>
+    <tr><td><code>docs/</code></td><td data-ru="Вся документация (RU/EN): настройки, темы, скрипты, безопасность, FAQ." data-en="All documentation (RU/EN): settings, themes, scripts, security, FAQ."></td></tr>
+    <tr><td><code>lib/</code>, <code>test/</code></td><td data-ru="Чистые модули + автотесты к ним." data-en="Pure modules + their unit tests."></td></tr>
+  </table>
+  <p data-ru="Подробные руководства: <code>docs/11-settings-guide.md</code> (настройки), <code>docs/12-developer-guide.md</code> (разработка), <code>docs/13-faq.md</code> (FAQ) и EN-версии в <code>docs/en/</code>."
+     data-en="Deep guides: <code>docs/11-settings-guide.md</code> (settings), <code>docs/12-developer-guide.md</code> (development), <code>docs/13-faq.md</code> (FAQ); EN versions in <code>docs/en/</code>."></p>
+</section>
+
+</main>
+<footer>StartPOZI Browser · GPL-3.0 · 2026</footer>
+<script src="Help-inline.js"></script>
+</body>
+</html>

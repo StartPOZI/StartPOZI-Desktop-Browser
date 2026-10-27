@@ -49,15 +49,49 @@ function sanitizeText(text) {
     .slice(0, 2000);
 }
 
-async function synthesize(text, lang, rate) {
-  var ESpeakNg = await getModule();
-  var wpm = Math.max(80, Math.min(400, Math.round(175 * (parseFloat(rate) || 1))));
-  var voice = pickVoice(lang);
-  var args = ['-w', 'spz-out.wav', '-v', voice, '-s', String(wpm), sanitizeText(text)];
-  var espeak = await ESpeakNg({ arguments: args });
-  var buf = espeak.FS.readFile('spz-out.wav');
-  if (!buf || buf.length < 44) throw new Error('empty WAV');
-  return Buffer.from(buf).toString('base64');
+// One WASM instance for the worker's whole lifetime. Spawning a fresh
+// ESpeakNg({arguments}) per request (the old behaviour) re-instantiated
+// the entire WASM heap on every chunk — steady memory growth over a long
+// reading session. The module keeps its runtime alive after main()
+// returns (noExitRuntime defaults to true), so callMain() is reusable.
+var _espeakPromise = null;
+function getInstance() {
+  if (_espeakPromise) return _espeakPromise;
+  _espeakPromise = getModule().then(function (ESpeakNg) {
+    return ESpeakNg({ noInitialRun: true });
+  });
+  return _espeakPromise;
+}
+
+// Serialize syntheses: callMain is not re-entrant on a shared instance.
+var _queue = Promise.resolve();
+function enqueue(task) {
+  var run = _queue.then(task, task);
+  // Swallow errors in the chain itself; the caller gets them via `run`.
+  _queue = run.then(function () {}, function () {});
+  return run;
+}
+
+function synthesizeOnce(text, lang, rate) {
+  return getInstance().then(function (espeak) {
+    var wpm = Math.max(80, Math.min(400, Math.round(175 * (parseFloat(rate) || 1))));
+    var voice = pickVoice(lang);
+    var args = ['-w', 'spz-out.wav', '-v', voice, '-s', String(wpm), sanitizeText(text)];
+    try { espeak.callMain(args); } catch (e) {
+      // callMain throws if the runtime already exited — fall back to a
+      // fresh instance once and report failure if that also dies.
+      _espeakPromise = null;
+      throw e;
+    }
+    var buf = espeak.FS.readFile('spz-out.wav');
+    try { espeak.FS.unlink('spz-out.wav'); } catch (e2) {}
+    if (!buf || buf.length < 44) throw new Error('empty WAV');
+    return Buffer.from(buf).toString('base64');
+  });
+}
+
+function synthesize(text, lang, rate) {
+  return enqueue(function () { return synthesizeOnce(text, lang, rate); });
 }
 
 var port = null;

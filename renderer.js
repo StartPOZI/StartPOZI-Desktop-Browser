@@ -39,7 +39,21 @@ var _SVG = {
   '📥': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   '🔍': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
   '📓': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
-  '⚙': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+  '⚙': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  '🧩': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.966 1.02z"/></svg>',
+  '🔒': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  '⚠': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  '🪟': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/><path d="M10 4v4"/><path d="M6 4v4"/></svg>',
+  '🗣': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  '📷': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  '📘': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  '📜': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  '🔑': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+  '🟢': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="10"/></svg>',
+  '🟣': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="10"/></svg>',
+  '🗓': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  '🛡': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  '🗂': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M2 10h20"/></svg>'
 };
 
 function _icon(emoji, w, h) {
@@ -71,12 +85,85 @@ function canExecInWebview(wv) {
   return true;
 }
 
+// ===== Media-playing tabs must NEVER sleep =====
+// main.js broadcasts (every 3 s, on change) the webContents ids that are
+// currently producing sound — media elements OR WebAudio players (Yandex
+// Music has no <audio> at all, element-only checks always saw it "idle").
+var _mediaPlayingWcIds = [];
+function _tabIsPlayingMedia(tab) {
+  if (!tab || !tab.webview) return false;
+  try {
+    if (_mediaPlayingWcIds.length && tab.webview.getWebContentsId) {
+      var id = tab.webview.getWebContentsId();
+      return _mediaPlayingWcIds.indexOf(id) !== -1;
+    }
+  } catch (e) {}
+  return !!tab._mediaPlaying;
+}
+// Subscribe through a dedicated preload API if available; otherwise refresh
+// from the shell's own media poller below.
+if (window.electronAPI && window.electronAPI.onMediaPlaying) {
+  window.electronAPI.onMediaPlaying(function(ids) { _mediaPlayingWcIds = ids || []; });
+}
+
 var _forceDarkMode = false;
+
+// ===== Dark Reader: professional settings =====
+// { enabled, scheduleEnabled, scheduleOn/Off ('HH:MM'), siteMode
+// (all|include|exclude), sites[], brightness, contrast, grayscale, sepia,
+// textStroke } — persisted in main (settings.json), synced across windows.
+var _drSettings = {
+  enabled: false, scheduleEnabled: false, scheduleOn: '20:00', scheduleOff: '07:00',
+  siteMode: 'all', sites: [],
+  brightness: 100, contrast: 100, grayscale: 0, sepia: 0, textStroke: 0
+};
+
+function _drMinutes(hhmm) {
+  var m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return 0;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+// Is the schedule window active right now? Handles windows that cross
+// midnight (on 20:00 → off 07:00).
+function _drScheduleActive() {
+  if (!_drSettings.scheduleEnabled) return true; // no schedule — always on
+  var now = new Date();
+  var cur = now.getHours() * 60 + now.getMinutes();
+  var on = _drMinutes(_drSettings.scheduleOn);
+  var off = _drMinutes(_drSettings.scheduleOff);
+  if (on === off) return true;
+  if (on < off) return cur >= on && cur < off; // e.g. 08:00–19:00
+  return cur >= on || cur < off; // crosses midnight: 20:00–07:00
+}
+
+// Should Dark Reader run for this URL?
+function _drActiveForUrl(url) {
+  if (!_drSettings.enabled || !_drScheduleActive()) return false;
+  if (!url || url.indexOf('http') !== 0) return false;
+  var host = '';
+  try { host = new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch (e) { return false; }
+  var listed = _drSettings.sites.indexOf(host) !== -1;
+  if (_drSettings.siteMode === 'include') return listed;
+  if (_drSettings.siteMode === 'exclude') return !listed;
+  return true;
+}
+
+function _drFilterString() {
+  var s = _drSettings;
+  var f = 'invert(1) hue-rotate(180deg)';
+  if (s.brightness !== 100) f += ' brightness(' + s.brightness + '%)';
+  if (s.contrast !== 100) f += ' contrast(' + s.contrast + '%)';
+  if (s.grayscale > 0) f += ' grayscale(' + s.grayscale + '%)';
+  if (s.sepia > 0) f += ' sepia(' + s.sepia + '%)';
+  return f;
+}
 
 function injectForceDark(webview) {
   if (!webview || !canExecInWebview(webview)) return;
   var url = '';
   try { url = webview.getURL ? webview.getURL() : (webview.src || ''); } catch(e) { return; }
+  if (!_drActiveForUrl(url)) return;
   if (url.indexOf('file://') === 0 || url.indexOf('Settings.html') > -1 || url.indexOf('MainPage/index.html') > -1) return;
   var detectDarkCode =
     '(function(){' +
@@ -104,22 +191,31 @@ function injectForceDark(webview) {
     '})()';
   webview.executeJavaScript(detectDarkCode).then(function(result) {
     if (result) return;
+    // Build the filter from the user's adjustment settings (the un-invert
+    // for media uses the same chain so images keep their look).
+    var f = _drFilterString();
+    var mediaF = 'invert(1) hue-rotate(180deg)';
+    if (_drSettings.brightness !== 100) mediaF += ' brightness(' + _drSettings.brightness + '%)';
+    if (_drSettings.contrast !== 100) mediaF += ' contrast(' + _drSettings.contrast + '%)';
+    var strokeRule = '';
+    if (_drSettings.textStroke > 0) {
+      var px = (_drSettings.textStroke / 50).toFixed(2); // 0..30 -> 0..0.6px
+      strokeRule = 'html *:not(img):not(video):not(canvas):not(picture){-webkit-text-stroke:' + px + 'px currentColor}';
+    }
     webview.executeJavaScript(
       '(function(){' +
       'if(document.getElementById("__force_dark_style"))return;' +
       'var s=document.createElement("style");' +
       's.id="__force_dark_style";' +
       's.textContent=' +
-      '"html{filter:invert(1) hue-rotate(180deg)!important;background:#000!important}" +' +
-      '"html img,html video,html canvas,html picture,html embed,html object[type^=image],html [role=img]{filter:invert(1) hue-rotate(180deg)!important}" +' +
-      '"html iframe{filter:invert(1) hue-rotate(180deg)!important}" +' +
-      '"html [style*=background-image]{filter:invert(1) hue-rotate(180deg)!important}"' +
+      '"html{filter:' + f + '!important;background:#000!important}" +' +
+      '"html img,html video,html canvas,html picture,html embed,html object[type^=image],html [role=img]{filter:' + mediaF + '!important}" +' +
+      '"html iframe{filter:' + mediaF + '!important}" +' +
+      '"html [style*=background-image]{filter:' + mediaF + '!important}" +' +
+      JSON.stringify(strokeRule) +
       ';document.documentElement.appendChild(s);' +
       '})()'
     ).catch(function() {});
-    webview.executeJavaScript(detectDarkCode).then(function(result) {
-      if (result) removeForceDark(webview);
-    }).catch(function() {});
   }).catch(function() {});
 }
 
@@ -130,17 +226,217 @@ function removeForceDark(webview) {
   ).catch(function() {});
 }
 
-function toggleForceDark() {
-  _forceDarkMode = !_forceDarkMode;
+// Recompute the master flag and apply/remove on every tab.
+function _drApplyAll() {
+  _forceDarkMode = _drSettings.enabled && _drScheduleActive();
   var btn = document.getElementById('darkModeBtn');
   if (btn) btn.classList.toggle('active', _forceDarkMode);
   tabs.forEach(function(t) {
-    if (t.webview && canExecInWebview(t.webview)) {
-      if (_forceDarkMode) injectForceDark(t.webview);
-      else removeForceDark(t.webview);
+    if (!t.webview) return;
+    if (t._isSleeping) return;
+    var u = '';
+    try { u = t.webview.getURL ? t.webview.getURL() : ''; } catch(e) {}
+    if (_drActiveForUrl(u)) {
+      // Re-apply with fresh settings: remove then inject.
+      removeForceDark(t.webview);
+      injectForceDark(t.webview);
+    } else {
+      removeForceDark(t.webview);
     }
   });
 }
+
+function _drSave() {
+  if (window.electronAPI && window.electronAPI.setDarkReader) {
+    window.electronAPI.setDarkReader(_drSettings).catch(function() {});
+  }
+  _drApplyAll();
+}
+
+function toggleForceDark() {
+  _drSettings.enabled = !_drSettings.enabled;
+  var ml = document.getElementById('drModeLight'), md = document.getElementById('drModeDark');
+  if (ml) ml.classList.toggle('active', !_drSettings.enabled);
+  if (md) md.classList.toggle('active', _drSettings.enabled);
+  var dc = document.getElementById('hmDarkCheck');
+  if (dc) dc.className = 'hm-check' + (_drSettings.enabled ? ' active' : '');
+  _drSave();
+}
+
+// Schedule ticker: re-check the time window every minute.
+setInterval(function() {
+  if (_drSettings.enabled && _drSettings.scheduleEnabled) _drApplyAll();
+}, 60000);
+
+// ===== Dark Reader panel wiring =====
+(function drPanel() {
+  var panel = document.getElementById('darkReaderPanel');
+  if (!panel) return;
+  var el = function (id) { return document.getElementById(id); };
+  var sliders = [
+    ['drBrightness', 'brightness', 'drBrightnessVal', '%'],
+    ['drContrast',   'contrast',   'drContrastVal',   '%'],
+    ['drGrayscale',  'grayscale',  'drGrayscaleVal',  '%'],
+    ['drSepia',      'sepia',      'drSepiaVal',      '%'],
+    ['drStroke',     'textStroke', 'drStrokeVal',     '']
+  ];
+
+  function currentDomain() {
+    var t = tabs.find(function(x) { return x.id === activeTabId; });
+    if (!t || !t.webview) return '';
+    try {
+      var u = t.webview.getURL ? t.webview.getURL() : '';
+      if (u.indexOf('http') !== 0) return '';
+      return new URL(u).hostname.toLowerCase().replace(/^www\./, '');
+    } catch (e) { return ''; }
+  }
+
+  function renderSites() {
+    var box = el('drSites');
+    if (!box) return;
+    box.innerHTML = '';
+    _drSettings.sites.forEach(function(d) {
+      var chip = document.createElement('span');
+      chip.className = 'dr-site-chip';
+      var txt = document.createElement('span');
+      txt.textContent = d;
+      var x = document.createElement('span');
+      x.className = 'dr-chip-x';
+      x.textContent = '×';
+      x.title = 'Remove';
+      x.addEventListener('click', function() {
+        _drSettings.sites = _drSettings.sites.filter(function(s) { return s !== d; });
+        _drSave();
+        renderSites();
+        syncAddBtn();
+      });
+      chip.appendChild(txt);
+      chip.appendChild(x);
+      box.appendChild(chip);
+    });
+    if (!_drSettings.sites.length) {
+      var empty = document.createElement('div');
+      empty.style.cssText = 'font-size:11.5px;color:var(--text-secondary,#999)';
+      empty.textContent = _drSettings.siteMode === 'include'
+        ? 'No sites yet — dark mode will apply nowhere'
+        : 'No sites listed';
+      box.appendChild(empty);
+    }
+  }
+
+  function syncAddBtn() {
+    var btn = el('drAddSite');
+    var d = currentDomain();
+    if (!btn) return;
+    if (!d) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    var listed = _drSettings.sites.indexOf(d) !== -1;
+    btn.textContent = listed ? 'Remove "' + d + '" from the list' : 'Add "' + d + '" to the list';
+  }
+
+  function syncPanel() {
+    var ml = el('drModeLight'), md = el('drModeDark');
+    if (ml) ml.classList.toggle('active', !_drSettings.enabled);
+    if (md) md.classList.toggle('active', _drSettings.enabled);
+    var dc = document.getElementById('hmDarkCheck');
+    if (dc) dc.className = 'hm-check' + (_drSettings.enabled ? ' active' : '');
+    if (el('drSchedOn')) el('drSchedOn').checked = _drSettings.scheduleEnabled;
+    if (el('drTimeOn')) el('drTimeOn').value = _drSettings.scheduleOn;
+    if (el('drTimeOff')) el('drTimeOff').value = _drSettings.scheduleOff;
+    if (el('drSiteMode')) el('drSiteMode').value = _drSettings.siteMode;
+    sliders.forEach(function(s) {
+      var input = el(s[0]), val = el(s[2]);
+      if (input) input.value = _drSettings[s[1]];
+      if (val) val.textContent = _drSettings[s[1]] + s[3];
+    });
+    renderSites();
+    syncAddBtn();
+  }
+  window._drSyncPanel = syncPanel;
+
+  if (el('drModeLight')) el('drModeLight').addEventListener('click', function() {
+    _drSettings.enabled = false;
+    _drSave();
+    syncPanel();
+  });
+  if (el('drModeDark')) el('drModeDark').addEventListener('click', function() {
+    _drSettings.enabled = true;
+    _drSave();
+    syncPanel();
+  });
+  if (el('drSchedOn')) el('drSchedOn').addEventListener('change', function() {
+    _drSettings.scheduleEnabled = el('drSchedOn').checked;
+    _drSave();
+  });
+  ['drTimeOn', 'drTimeOff'].forEach(function(id) {
+    if (el(id)) el(id).addEventListener('change', function() {
+      _drSettings.scheduleOn = el('drTimeOn').value || '20:00';
+      _drSettings.scheduleOff = el('drTimeOff').value || '07:00';
+      _drSave();
+    });
+  });
+  if (el('drSiteMode')) el('drSiteMode').addEventListener('change', function() {
+    _drSettings.siteMode = el('drSiteMode').value;
+    _drSave();
+    renderSites();
+    syncAddBtn();
+  });
+  if (el('drAddSite')) el('drAddSite').addEventListener('click', function() {
+    var d = currentDomain();
+    if (!d) return;
+    var idx = _drSettings.sites.indexOf(d);
+    if (idx === -1) _drSettings.sites.push(d);
+    else _drSettings.sites.splice(idx, 1);
+    _drSave();
+    renderSites();
+    syncAddBtn();
+  });
+  sliders.forEach(function(s) {
+    var input = el(s[0]);
+    if (!input) return;
+    input.addEventListener('input', function() {
+      _drSettings[s[1]] = parseInt(input.value, 10) || 0;
+      var val = el(s[2]);
+      if (val) val.textContent = _drSettings[s[1]] + s[3];
+      _drApplyAll(); // live re-style while dragging
+    });
+    input.addEventListener('change', function() { _drSave(); }); // persist on release
+  });
+  if (el('drReset')) el('drReset').addEventListener('click', function() {
+    _drSettings.brightness = 100;
+    _drSettings.contrast = 100;
+    _drSettings.grayscale = 0;
+    _drSettings.sepia = 0;
+    _drSettings.textStroke = 0;
+    _drSave();
+    syncPanel();
+  });
+})();
+
+// Load settings at startup + follow changes from other windows.
+(function initDarkReader() {
+  function syncCheck() {
+    var dc = document.getElementById('hmDarkCheck');
+    if (dc) dc.className = 'hm-check' + (_drSettings.enabled ? ' active' : '');
+  }
+  if (window.electronAPI && window.electronAPI.getDarkReader) {
+    window.electronAPI.getDarkReader().then(function(s) {
+      if (s) {
+        _drSettings = s;
+        _drApplyAll();
+        syncCheck();
+      }
+    }).catch(function() {});
+  }
+  if (window.electronAPI && window.electronAPI.onDarkReaderChanged) {
+    window.electronAPI.onDarkReaderChanged(function(s) {
+      if (!s) return;
+      _drSettings = s;
+      _drApplyAll();
+      syncCheck();
+    });
+  }
+})();
 
 var _injectedScriptRuns = {};
 
@@ -175,6 +471,47 @@ function _isSensitiveAuthPage(url) {
   } catch(e) { return false; }
 }
 
+// Per-script SKit runtime shim. Built from the script's declared permissions
+// (validated at import/save time by the main process): API objects exist only
+// for declared capabilities, everything else is null. Scoped INSIDE the same
+// IIFE as the user code (var SKit), so scripts cannot touch each other's
+// storage namespace and two packages never collide.
+function _skitRuntimeShim(perms) {
+  var allowed = [];
+  if (perms && perms.length) {
+    for (var i = 0; i < perms.length; i++) {
+      if (['storage', 'clipboard', 'notifications'].indexOf(perms[i]) !== -1 && allowed.indexOf(perms[i]) === -1) {
+        allowed.push(perms[i]);
+      }
+    }
+  }
+  return 'var SKit=(function(){var allowed=' + JSON.stringify(allowed) + ';' +
+    'function has(x){return allowed.indexOf(x)!==-1}' +
+    'var api={permissions:allowed.slice(),has:has,storage:null,clipboard:null,notifications:null};' +
+    'try{if(has("storage")){var pre="skit:";api.storage={get:function(k){try{return localStorage.getItem(pre+k)}catch(e){return null}},' +
+    'set:function(k,v){try{localStorage.setItem(pre+k,String(v))}catch(e){}},' +
+    'remove:function(k){try{localStorage.removeItem(pre+k)}catch(e){}}};}}catch(e){}' +
+    'try{if(has("clipboard")){api.clipboard={writeText:function(t){if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(String(t));return Promise.reject(new Error("clipboard unavailable"))}};}}catch(e){}' +
+    'try{if(has("notifications")){api.notifications={request:function(){if(window.Notification&&Notification.requestPermission)return Notification.requestPermission();return Promise.resolve("denied")},' +
+    'show:function(t,o){try{return new Notification(String(t),o||{})}catch(e){return null}}};}}catch(e){}' +
+    'return api})();';
+}
+
+// Central favicon source. The Google s2 service resolves favicons for any
+// site, but it hands the DOMAINS of your tabs/bookmarks/history to Google —
+// therefore gated by Settings → Security → External services (faviconsEnabled).
+// Empty string = no remote favicon (callers fall back to a local glyph).
+var _faviconsSvcEnabled = true;
+function spzFaviconUrl(host) {
+  if (!_faviconsSvcEnabled || !host) return '';
+  return 'https://www.google.com/s2/favicons?domain=' + host + '&sz=32';
+}
+if (window.electronAPI && window.electronAPI.getExternalServices) {
+  window.electronAPI.getExternalServices().then(function (r) {
+    if (r && r.enabled) _faviconsSvcEnabled = r.enabled.faviconsEnabled !== false;
+  }).catch(function() {});
+}
+
 function injectUserScripts(webview, pageUrl, opts) {
   if (!webview || !pageUrl) return;
   if (pageUrl.indexOf('file://') === 0 || pageUrl.indexOf('about:') === 0 || pageUrl.indexOf('chrome') === 0) return;
@@ -205,7 +542,7 @@ function injectUserScripts(webview, pageUrl, opts) {
         setTimeout(function() { delete _injectedScriptRuns[runKey]; }, 2000);
       }
 
-      wvRef.executeJavaScript('(function(){try{' + s.code + '}catch(e){console.error("[UserScript error]",e)}return 0})()').catch(function() {});
+      wvRef.executeJavaScript('(function(){try{' + _skitRuntimeShim(s.permissions) + s.code + '}catch(e){console.error("[UserScript error]",e)}return 0})()').catch(function() {});
     });
   }).catch(function() {});
 }
@@ -227,14 +564,65 @@ var _tabAudioPlaying = {};
 var _tabMuted = {};
 var _tabZoom = {};
 var _tabPreviewTimer = null;
+// Monotonic part of tab ids (see createNewTab) — guarantees uniqueness even
+// when several tabs are created within the same millisecond.
+var _tabIdSeq = 0;
 
 // ============== GLOBAL SETTINGS (loaded at startup) ==============
 let searchEngineUrl = 'https://www.google.com/search?q=';
+// Default search vertical (web | images | video | news | maps). Appended to
+// searches as &ia=<type> for engines that support it (StartPOZI, DuckDuckGo).
+var _searchType = 'web';
+// Builds a search URL for a query, applying the default search type where the
+// engine supports search verticals (mirrors _applySearchType in main.js).
+// DuckDuckGo resets a bare "&ia=<type>" to web via its own JS — only the
+// canonical per-vertical forms survive there (iax=images / iax=videos /
+// iar=news / iaxm=maps, each with &ia=<type>).
+function buildSearchUrl(q) {
+  var url = searchEngineUrl + encodeURIComponent(q);
+  if (!_searchType || _searchType === 'web') return url;
+  var e = String(searchEngineUrl);
+  if (e.indexOf('duckduckgo') !== -1) {
+    switch (_searchType) {
+      case 'images': url += '&iax=images&ia=images'; break;
+      case 'video':  url += '&iax=videos&ia=videos'; break;
+      case 'news':   url += '&iar=news&ia=news'; break;
+      case 'maps':   url += '&iaxm=maps&ia=maps'; break;
+    }
+  } else if (e.indexOf('startpozi') !== -1 || e.indexOf('.onion') !== -1) {
+    // StartPOZI — including its .onion mirror (the only other onion-mapped
+    // engine, DuckDuckGo, is handled above).
+    url += '&ia=' + _searchType;
+  }
+  return url;
+}
 let currentTheme = 'dark';
 var _urlBarFullUrl = '';
 var _urlBarRevealed = false;
 var _urlBarSearchText = '';
 var _urlBarSearchTabId = null;
+// Unsent text the user typed/pasted into the omnibox — stored ON the tab it
+// belongs to. It survives tab switches, page navigations and even browser
+// restarts (persisted with the session); it disappears only when the user
+// clears the bar manually or closes the tab.
+function _draftTab() {
+  var t = tabs.find(function(x) { return x.id === activeTabId; });
+  if (!t && typeof _incognitoTabs !== 'undefined' && _activeIncognitoId) {
+    t = _incognitoTabs.find(function(x) { return x.id === _activeIncognitoId; });
+  }
+  return t || null;
+}
+function _getUrlBarDraft() {
+  var t = _draftTab();
+  return (t && typeof t.urlDraft === 'string' && t.urlDraft) ? t.urlDraft : null;
+}
+function _setUrlBarDraft(text) {
+  var t = _draftTab();
+  if (!t) return;
+  if (!text) t.urlDraft = null; // emptied by the user — the draft ends here
+  else t.urlDraft = text;
+}
+function _urlBarDraftText() { return _getUrlBarDraft(); }
 
 // Returns true if the URL points at a StartPOZI-internal page (Settings,
 // Library, TaskManager, etc.). These pages never expose their file:// path
@@ -246,6 +634,8 @@ function _isInternalPageUrl(url) {
          url.indexOf('Library.html') > -1 ||
          url.indexOf('TaskManager.html') > -1 ||
          url.indexOf('CustomizeToolbar.html') > -1 ||
+         url.indexOf('ThemeEditor.html') > -1 ||
+         url.indexOf('Help.html') > -1 ||
          url.indexOf('Viewer.html') > -1 ||
          url.indexOf('MainPage/index.html') > -1 ||
          url.indexOf('ErrorPage/') > -1 ||
@@ -295,36 +685,473 @@ function _internalUrlToAbout(url) {
   }
   if (url.indexOf('TaskManager.html') > -1)    return 'about:taskmanager';
   if (url.indexOf('CustomizeToolbar.html') > -1) return 'about:customization';
+  if (url.indexOf('ThemeEditor.html') > -1)    return 'about:themeeditor';
+  if (url.indexOf('Help.html') > -1)           return 'about:help';
   if (url.indexOf('MainPage/index.html') > -1) return 'about:newtab';
   return '';
+}
+
+// Is this URL a SEARCH ENGINE results page? On such pages the address bar
+// keeps the reveal "eye" (the full search URL is what the user may want to
+// inspect); everywhere else the eye is replaced by the bookmark button.
+function _isSearchEnginePage(url) {
+  if (!url || url.indexOf('http') !== 0) return false;
+  try {
+    var h = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    // The CONFIGURED engine (clearnet or its onion mirror)…
+    if (searchEngineUrl) {
+      try {
+        var eh = new URL(searchEngineUrl).hostname.toLowerCase().replace(/^www\./, '');
+        if (h === eh) return true;
+      } catch (e0) {}
+    }
+    // …plus the well-known engines, so switching the engine in Settings does
+    // not leave a stale eye on the previous engine's result pages.
+    return /(^|\.)google\.[a-z.]+$/.test(h) || h === 'yandex.com' || h.endsWith('.yandex.com') || h.endsWith('.yandex.ru') ||
+           h === 'bing.com' || h.endsWith('.bing.com') ||
+           h === 'duckduckgo.com' || h.endsWith('.duckduckgo.com') || h.endsWith('.duckduckgo.any') ||
+           h === 'startpozi.com' || h === 'startpozi.netlify.app' || h.endsWith('.startpozi.com') ||
+           h === 'stpozb3hldo6gj2t7c5z57slmqitig2nb4sbeioiqfzdcm63ilcnhlid.onion' ||
+           h === 'duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion';
+  } catch (e) { return false; }
+}
+
+// Extract the user's search phrase straight from a search-engine results
+// URL (q= / text= / query= / search= / p=, plus the configured engine's own
+// param names). Derived from the URL itself — NOT from the remembered
+// omnibox input — so the query also reappears after Back-navigation to the
+// results page, session restore, history/bookmark visits and tab switches,
+// cases where the remembered phrase was already dropped (renderer did-navigate
+// clears it when following a result link). Returns '' for non-engine pages
+// or engine pages without a query (the bare homepage).
+function _searchQueryFromUrl(url) {
+  if (!_isSearchEnginePage(url)) return '';
+  if (!url || url.indexOf('http') !== 0) return '';
+  try {
+    var u = new URL(url);
+    var names = ['q', 'query', 'text', 'search', 'p'];
+    if (searchEngineUrl) {
+      try {
+        var eu = new URL(searchEngineUrl);
+        eu.searchParams.forEach(function(_v, n) { if (names.indexOf(n) === -1) names.push(n); });
+      } catch (e0) {}
+    }
+    for (var i = 0; i < names.length; i++) {
+      var v = u.searchParams.get(names[i]);
+      if (v) return v;
+    }
+  } catch (e) {}
+  return '';
+}
+
+// "Show domain only": the omnibox displays just the site host (youtube.com /
+// www.youtube.com) instead of the full URL; clicking the bar reveals the
+// full address. Toggle: Settings → Customization → Address bar. Default ON.
+var _urlDomainOnly = true;
+function _displayUrlForBar(url) {
+  if (!_urlDomainOnly || !url || url.indexOf('http') !== 0) return url;
+  try { return new URL(url).hostname; } catch (e) { return url; }
 }
 
 function setUrlBarDisplay(url) {
   _urlBarFullUrl = url;
   var revealBtn = document.getElementById('urlRevealBtn');
+  var bmBtn = document.getElementById('urlBookmarkBtn');
 
   // Internal pages: never leak the local filesystem path. The bar is cleared
   // and the reveal "eye" button is hidden so it cannot be toggled to expose
-  // the path either. The user can still see the friendly about: alias by
-  // focusing the bar.
+  // the path either. EXCEPTION: the main (new-tab) page keeps the STAR as a
+  // quick access to saved bookmarks.
   if (_isInternalPageUrl(url)) {
-    urlInput.value = '';
+    var _dt0 = _urlBarDraftText();
+    urlInput.value = (_dt0 !== null) ? _dt0 : '';
     if (revealBtn) revealBtn.style.display = 'none';
+    var isMainPage = url.indexOf('MainPage/index.html') > -1;
+    if (bmBtn) {
+      bmBtn.style.display = isMainPage ? '' : 'none';
+      if (isMainPage) {
+        bmBtn.classList.remove('bookmarked');
+        bmBtn.title = 'Show bookmarks';
+      }
+    }
     return;
   }
-  if (revealBtn) revealBtn.style.display = '';
+  var enginePage = _isSearchEnginePage(url);
+  // Search pages: ONLY the eye (URL reveal) — no star there. Every other
+  // http page: ONLY the star — no eye. MainPage keeps the star as the quick
+  // bookmarks opener (handled in the internal-page branch above).
+  if (revealBtn) revealBtn.style.display = enginePage ? '' : 'none';
+  if (bmBtn) bmBtn.style.display = enginePage ? 'none' : '';
+  if (bmBtn) _refreshBookmarkBtnState(url);
 
-  var showText = '';
-  if (_urlBarSearchText && _urlBarSearchTabId === activeTabId && url && url.indexOf('http') === 0) {
-    try { var u = new URL(url); var q = u.searchParams.get('q') || u.searchParams.get('query') || u.searchParams.get('text') || u.searchParams.get('search') || u.searchParams.get('p') || ''; if (q) showText = q; } catch(e) {}
+  // Only SEARCH ENGINE pages may substitute the query text for the URL.
+  // Previously any site with ?q= / ?p= / ?text= … got its param value shown
+  // in the omnibox (with the eye hidden) — the real URL became invisible and
+  // uncopyable. Gate strictly on enginePage. The phrase is taken from the URL
+  // itself (survives Back-navigation to the results page); the remembered
+  // omnibox input remains only as a fallback for engines whose query param
+  // is not present in the current URL.
+  var showText = _searchQueryFromUrl(url);
+  if (!showText && enginePage && _urlBarSearchText && _urlBarSearchTabId === activeTabId) {
+    showText = _urlBarSearchText;
   }
-  if (!_urlBarRevealed && showText) {
+  var _dt = _urlBarDraftText();
+  if (_dt !== null) {
+    // Keep the user's unsent text — but only in the tab where it was typed.
+    urlInput.value = _dt;
+    if (revealBtn) { revealBtn.classList.remove('revealed'); }
+  } else if (!_urlBarRevealed && showText) {
     urlInput.value = showText;
     if (revealBtn) { revealBtn.classList.remove('revealed'); }
   } else {
-    urlInput.value = url;
+    // Domain-only display: youtube.com instead of
+    // https://www.youtube.com/shorts/96fe… (the full URL appears on focus
+    // or via the reveal eye).
+    urlInput.value = _displayUrlForBar(url);
     if (revealBtn) { if (_urlBarRevealed) revealBtn.classList.add('revealed'); else revealBtn.classList.remove('revealed'); }
   }
+}
+
+// ===== Address-bar bookmark button =====
+// Cache of bookmark URLs (drives the filled-star state).
+var _bmUrlCache = null;
+function _bmUrls() {
+  if (_bmUrlCache) return _bmUrlCache;
+  _bmUrlCache = new Set();
+  if (window.electronAPI && window.electronAPI.loadBookmarks) {
+    window.electronAPI.loadBookmarks().then(function(bm) {
+      var s = new Set();
+      (bm || []).forEach(function(b) { if (b && b.url && b.folder !== '__folder__') s.add(b.url); });
+      _bmUrlCache = s;
+      var btn = document.getElementById('urlBookmarkBtn');
+      if (btn) _refreshBookmarkBtnState(_urlBarFullUrl);
+    }).catch(function() {});
+  }
+  return _bmUrlCache;
+}
+function _refreshBookmarkBtnState(url) {
+  var btn = document.getElementById('urlBookmarkBtn');
+  if (!btn) return;
+  var urls = _bmUrls();
+  var bookmarked = !!(url && urls && urls.has && urls.has(url));
+  btn.classList.toggle('bookmarked', bookmarked);
+  btn.title = bookmarked ? 'Edit bookmark' : 'Add bookmark';
+}
+
+(function setupUrlBookmarkButton() {
+  var btn = document.getElementById('urlBookmarkBtn');
+  if (!btn) return;
+  _bmUrls(); // warm the cache at startup
+
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // On the main (new-tab) page the star opens the QUICK BOOKMARKS panel
+    // (password-gated when Library protection is on) instead of the
+    // add-bookmark dialog — there is no site URL to bookmark there.
+    if (_urlBarFullUrl && _urlBarFullUrl.indexOf('MainPage/index.html') > -1) {
+      _toggleQuickBookmarks(btn);
+      return;
+    }
+    var tab = tabs.find(function(t) { return t.id === activeTabId; });
+    if (!tab || !tab.webview) return;
+    var url = '';
+    var title = '';
+    try {
+      url = tab.webview.getURL ? tab.webview.getURL() : (tab.webview.src || '');
+      title = tab.webview.getTitle ? tab.webview.getTitle() : '';
+    } catch (err) {}
+    if (!url || url.indexOf('http') !== 0) return;
+    _openBookmarkDialog(url, title || url);
+  });
+})();
+
+// ===== Quick Bookmarks panel (star on the main page) =====
+// Small popup: password-gated when Library protection is on, then a search
+// field + every saved bookmark grouped by folders — one click opens.
+function _toggleQuickBookmarks(anchorBtn) {
+  var panel = document.getElementById('quickBmPanel');
+  if (!panel) return;
+  var open = panel.style.display === 'none';
+  // Mutual exclusion with other popups.
+  Object.keys(_POPUP_BTN_MAP).forEach(function(oid) {
+    var o = document.getElementById(oid);
+    if (o) o.classList.remove('open');
+  });
+  panel.style.display = open ? '' : 'none';
+  if (!open) return;
+  // Position under the url bar / star.
+  if (typeof _positionPanelUnderBtn === 'function') {
+    try { _positionPanelUnderBtn(panel, anchorBtn || document.getElementById('urlBookmarkBtn')); } catch(e) {}
+  }
+  _qbmInit();
+}
+
+var _qbmReady = false;
+function _qbmInit() {
+  var panel = document.getElementById('quickBmPanel');
+  if (!panel) return;
+  var isRu = !!(window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru');
+  var lock = document.getElementById('qbmLock');
+  var body = document.getElementById('qbmBody');
+  var closeBtn = document.getElementById('qbmClose');
+  var passInput = document.getElementById('qbmPassword');
+  var unlockBtn = document.getElementById('qbmUnlock');
+  var searchInput = document.getElementById('qbmSearch');
+  var listEl = document.getElementById('qbmList');
+  var libBtn = document.getElementById('qbmOpenLibrary');
+  var titleEl = document.getElementById('qbmTitle');
+  if (titleEl) titleEl.textContent = isRu ? 'Закладки' : 'Bookmarks';
+  if (closeBtn) closeBtn.onclick = null;
+
+  function close() { panel.style.display = 'none'; }
+  if (closeBtn) closeBtn.onclick = close;
+
+  function renderList(filter) {
+    if (!window.electronAPI || !window.electronAPI.loadBookmarks) return;
+    window.electronAPI.loadBookmarks().then(function(bm) {
+      bm = (bm || []).filter(function(b) { return b && b.url && b.folder !== '__folder__'; });
+      var q = (filter || '').toLowerCase();
+      if (q) {
+        bm = bm.filter(function(b) {
+          return (b.title || '').toLowerCase().indexOf(q) !== -1 || b.url.toLowerCase().indexOf(q) !== -1;
+        });
+      }
+      // Group by folder.
+      var groups = {};
+      var order = [];
+      bm.forEach(function(b) {
+        var f = b.folder || '';
+        if (!groups[f]) { groups[f] = []; order.push(f); }
+        groups[f].push(b);
+      });
+      order.sort();
+      listEl.innerHTML = '';
+      if (!bm.length) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'font-size:12px;color:var(--text-secondary,#999);padding:6px 2px';
+        empty.textContent = q
+          ? (isRu ? 'Ничего не найдено' : 'Nothing found')
+          : (isRu ? 'Закладок пока нет' : 'No bookmarks yet');
+        listEl.appendChild(empty);
+        return;
+      }
+      order.forEach(function(f) {
+        if (f) {
+          var head = document.createElement('div');
+          head.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-secondary,#999);margin:8px 2px 4px;letter-spacing:.5px';
+          head.textContent = '📁 ' + f;
+          listEl.appendChild(head);
+        }
+        groups[f].slice(0, 50).forEach(function(b) {
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer';
+          row.addEventListener('mouseenter', function() { row.style.background = 'var(--bg-hover,#3d3d3d)'; });
+          row.addEventListener('mouseleave', function() { row.style.background = 'transparent'; });
+          var ic = document.createElement('img');
+          var host = '';
+          try { host = new URL(b.url).hostname; } catch(e) {}
+          ic.src = host ? spzFaviconUrl(host) : '';
+          ic.style.cssText = 'width:16px;height:16px;flex:none;border-radius:3px';
+          ic.onerror = function() { ic.style.visibility = 'hidden'; };
+          var label = document.createElement('div');
+          label.textContent = b.title || b.url;
+          label.style.cssText = 'flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+          row.appendChild(ic);
+          row.appendChild(label);
+          row.addEventListener('click', function() {
+            close();
+            createNewTab(b.url);
+          });
+          listEl.appendChild(row);
+        });
+      });
+    }).catch(function() {});
+  }
+
+  function showBody() {
+    if (lock) lock.style.display = 'none';
+    if (body) body.style.display = '';
+    if (searchInput) { searchInput.value = ''; try { searchInput.focus(); } catch(e) {} }
+    renderList('');
+  }
+
+  // Password gate: only when Library protection is enabled.
+  if (window.electronAPI && window.electronAPI.checkLibraryProtection) {
+    window.electronAPI.checkLibraryProtection().then(function(r) {
+      var protectedLib = !!(r && r.protected);
+      if (!protectedLib) { showBody(); return; }
+      if (lock) lock.style.display = '';
+      if (body) body.style.display = 'none';
+      if (passInput) { passInput.value = ''; try { passInput.focus(); } catch(e) {} }
+      function tryUnlock() {
+        var pw = passInput ? passInput.value : '';
+        if (!pw || !window.electronAPI.verifyLibraryAccess) return;
+        window.electronAPI.verifyLibraryAccess(pw).then(function(ok) {
+          if (ok) showBody();
+          else {
+            if (passInput) { passInput.value = ''; passInput.style.borderColor = '#ff453a'; setTimeout(function(){ passInput.style.borderColor=''; }, 900); }
+            var hint = document.getElementById('qbmLockHint');
+            if (hint) hint.textContent = isRu ? 'Неверный пароль' : 'Wrong password';
+          }
+        }).catch(function() {});
+      }
+      if (unlockBtn) unlockBtn.onclick = tryUnlock;
+      if (passInput) passInput.onkeydown = function(e) { if (e.key === 'Enter') tryUnlock(); };
+    }).catch(function() { showBody(); });
+  } else {
+    showBody();
+  }
+
+  if (!_qbmReady) {
+    _qbmReady = true;
+    if (searchInput) searchInput.addEventListener('input', function() { renderList(searchInput.value); });
+    if (libBtn) libBtn.addEventListener('click', function() {
+      close();
+      createNewTab('Library.html#bookmarks');
+    });
+    document.addEventListener('click', function(e) {
+      if (panel.style.display === 'none') return;
+      if (panel.contains(e.target)) return;
+      var star = document.getElementById('urlBookmarkBtn');
+      if (star && star.contains(e.target)) return;
+      close();
+    });
+  }
+}
+
+// Window regained focus: collapse a stuck "revealed" eye — switching to
+// another app/window and back must not leave the bar showing the raw URL.
+window.addEventListener('focus', function() {
+  if (_urlBarRevealed && document.activeElement !== urlInput) {
+    _urlBarRevealed = false;
+    if (_urlBarFullUrl) setUrlBarDisplay(_urlBarFullUrl);
+  }
+});
+
+// Dialog: choose the bookmark NAME and the target FOLDER (folders come from
+// the bookmarks list — entries with folder === '__folder__'). If the URL is
+// bookmarked already, saving UPDATES it instead of adding a duplicate.
+function _openBookmarkDialog(url, defaultTitle) {
+  if (!window.electronAPI || !window.electronAPI.loadBookmarks) return;
+  window.electronAPI.loadBookmarks().then(function(bm) {
+    bm = bm || [];
+    var folders = bm.filter(function(b) { return b.folder === '__folder__'; });
+    var existing = bm.find(function(b) { return b.url === url && b.folder !== '__folder__'; });
+
+    var L = (window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru')
+      ? {
+          title: existing ? 'Изменить закладку' : 'Добавить закладку',
+          name: 'Название',
+          folder: 'Папка',
+          noFolder: 'Без папки',
+          save: 'Сохранить',
+          cancel: 'Отмена',
+          done: existing ? 'Закладка обновлена' : 'Закладка добавлена'
+        }
+      : {
+          title: existing ? 'Edit bookmark' : 'Add bookmark',
+          name: 'Name',
+          folder: 'Folder',
+          noFolder: 'No folder',
+          save: 'Save',
+          cancel: 'Cancel',
+          done: existing ? 'Bookmark updated' : 'Bookmark added'
+        };
+
+    // overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'bm-dialog-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;';
+    var card = document.createElement('div');
+    card.style.cssText =
+      'width:340px;max-width:90vw;padding:18px;border-radius:12px;background:var(--bg-secondary,#2d2d2d);' +
+      'border:1px solid var(--border-color,#3d3d3d);box-shadow:0 12px 40px rgba(0,0,0,.5);color:var(--text-primary,#fff);font-family:inherit;';
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    function closeDialog() {
+      try { document.removeEventListener('keydown', onKey); } catch(e) {}
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+    var onKey = function(e) { if (e.key === 'Escape') { e.preventDefault(); closeDialog(); } };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('mousedown', function(e) { if (e.target === overlay) closeDialog(); });
+
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:14px;font-weight:600;margin-bottom:14px;';
+    h.textContent = L.title + ' — ' + (function() { try { return new URL(url).hostname.replace(/^www\./, ''); } catch(e) { return url.slice(0, 24); } })();
+    card.appendChild(h);
+
+    function addLabel(text) {
+      var l = document.createElement('label');
+      l.style.cssText = 'display:block;font-size:11px;color:var(--text-secondary,#aaa);margin:10px 0 4px;';
+      l.textContent = text;
+      card.appendChild(l);
+      return l;
+    }
+    addLabel(L.name);
+    var nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = existing ? (existing.title || defaultTitle) : defaultTitle;
+    nameInput.style.cssText = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;background:var(--input-bg,rgba(0,0,0,.2));color:var(--text-primary,#fff);font-size:13px;outline:none;';
+    card.appendChild(nameInput);
+
+    if (folders.length > 0) {
+      addLabel(L.folder);
+      var sel = document.createElement('select');
+      sel.style.cssText = 'width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;background:var(--input-bg,rgba(0,0,0,.2));color:var(--text-primary,#fff);font-size:13px;outline:none;';
+      var optNone = document.createElement('option');
+      optNone.value = '';
+      optNone.textContent = L.noFolder;
+      sel.appendChild(optNone);
+      folders.forEach(function(f) {
+        var o = document.createElement('option');
+        o.value = f.id;
+        o.textContent = f.title || '—';
+        if (existing && existing.folder === f.id) o.selected = true;
+        sel.appendChild(o);
+      });
+      card.appendChild(sel);
+    }
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:16px;';
+    function mkBtn(text, primary) {
+      var b = document.createElement('button');
+      b.textContent = text;
+      b.style.cssText =
+        'padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;' +
+        (primary
+          ? 'border:none;background:var(--primary-color,#1da1f2);color:#fff;font-weight:600;'
+          : 'border:1px solid var(--border-color,#3d3d3d);background:transparent;color:var(--text-primary,#fff);');
+      return b;
+    }
+    var btnCancel = mkBtn(L.cancel, false);
+    btnCancel.addEventListener('click', closeDialog);
+    var btnSave = mkBtn(L.save, true);
+    btnSave.addEventListener('click', function() {
+      var title = (nameInput.value || '').trim() || defaultTitle;
+      var folderId = (typeof sel !== 'undefined' && sel) ? sel.value : '';
+      var done = function() {
+        closeDialog();
+        _bmUrlCache = null; // invalidate
+        _bmUrls();
+        var b = document.getElementById('urlBookmarkBtn');
+        if (b) _refreshBookmarkBtnState(url);
+        if (typeof _showToast === 'function') _showToast(' ' + L.done);
+      };
+      if (existing && window.electronAPI.updateBookmark) {
+        window.electronAPI.updateBookmark(existing.id, { title: title, folder: folderId }).then(done).catch(done);
+      } else {
+        window.electronAPI.addBookmark({ url: url, title: title, folder: folderId }).then(done).catch(done);
+      }
+    });
+    row.appendChild(btnCancel);
+    row.appendChild(btnSave);
+    card.appendChild(row);
+    setTimeout(function() { nameInput.focus(); nameInput.select(); }, 30);
+  }).catch(function() {});
 }
 
 // Preload path for webviews — loaded asynchronously once
@@ -333,14 +1160,18 @@ let webviewPreloadPath = '';
   if (window.electronAPI && window.electronAPI.getWebviewPreloadPath) {
     window.electronAPI.getWebviewPreloadPath().then(function(p) {
       webviewPreloadPath = p;
-      // Update all existing webviews with the preload path
+      // Update all existing webviews that were created BEFORE the path
+      // resolved (they shipped without the preload attribute).
       tabs.forEach(function(tab) {
-        if (tab.webview && webviewPreloadPath) {
-          tab.webview.setAttribute('preload', webviewPreloadPath);
-          // Reload to apply preload (only for internal pages)
-          if (tab.webview.src.indexOf('Settings.html') > -1 || tab.webview.src.indexOf('MainPage/index.html') > -1 || tab.webview.src.indexOf('ErrorPage/index.html') > -1) {
-            tab.webview.reload();
-          }
+        if (!tab.webview || !webviewPreloadPath) return;
+        if (tab.webview.getAttribute('preload') === webviewPreloadPath) return; // already has it
+        var src = '';
+        try { src = tab.webview.getAttribute('src') || tab.webview.src || ''; } catch(e) {}
+        tab.webview.setAttribute('preload', webviewPreloadPath);
+        // Reload to apply preload (only for internal pages; regular web
+        // tabs must not be reloaded by this startup patch-up).
+        if (_isInternalPageUrl(src)) {
+          try { tab.webview.reload(); } catch(e) {}
         }
       });
     }).catch(function() {});
@@ -362,8 +1193,8 @@ let webviewPreloadPath = '';
         case 'redo': wv.redo(); break;
         case 'selectAll': wv.selectAll(); break;
         case 'replaceMisspelling': wv.replaceMisspelling(action.text); break;
-        case 'goBack': if (wv.canGoBack()) wv.goBack(); break;
-        case 'goForward': if (wv.canGoForward()) wv.goForward(); break;
+        case 'goBack': tabGoBack(tab); break;
+        case 'goForward': tabGoForward(tab); break;
         case 'reload': wv.reload(); break;
         case 'print': if (canExec) wv.executeJavaScript('(function(){window.print();return 0})()').catch(function() {}); break;
         case 'viewSource': if (canExec) wv.executeJavaScript('window.location.href').then(function(url) {
@@ -383,17 +1214,17 @@ let webviewPreloadPath = '';
            break;
          }
         case 'zoomIn':
-          var zI = (_tabZoom[action.tabId] || 1) + 0.25;
+          var zI = (_tabZoom[action.tabId || activeTabId] || 1) + 0.25;
           if (zI > 3) zI = 3;
-          _tabZoom[action.tabId] = zI;
+          _tabZoom[action.tabId || activeTabId] = zI;
           if (canExec) wv.executeJavaScript('document.body.style.zoom=' + zI).catch(function() {}); break;
         case 'zoomOut':
-          var zO = (_tabZoom[action.tabId] || 1) - 0.25;
+          var zO = (_tabZoom[action.tabId || activeTabId] || 1) - 0.25;
           if (zO < 0.25) zO = 0.25;
-          _tabZoom[action.tabId] = zO;
+          _tabZoom[action.tabId || activeTabId] = zO;
           if (canExec) wv.executeJavaScript('document.body.style.zoom=' + zO).catch(function() {}); break;
         case 'zoomReset':
-          _tabZoom[action.tabId] = 1;
+          _tabZoom[action.tabId || activeTabId] = 1;
           if (canExec) wv.executeJavaScript('document.body.style.zoom=1').catch(function() {}); break;
         case 'translate':
           if (canExec) wv.executeJavaScript('window.location.href').then(function(url) {
@@ -408,15 +1239,13 @@ let webviewPreloadPath = '';
         case 'mediaPiP': if (canExec) wv.executeJavaScript('(function(){var v=document.querySelector("video");if(v&&v.requestPictureInPicture)v.requestPictureInPicture();return 0})()').catch(function() {}); break;
         case 'copyMediaUrl': if (window.electronAPI && window.electronAPI.contextMenuCopy) window.electronAPI.contextMenuCopy(action.url); break;
         case 'copyImage':
-          fetch(action.url).then(function(r) { return r.blob(); }).then(function(b) {
-            var reader = new FileReader();
-            reader.onload = function() {
-              if (window.electronAPI && window.electronAPI.contextMenuCopyImage) {
-                window.electronAPI.contextMenuCopyImage(reader.result);
-              }
-            };
-            reader.readAsDataURL(b);
-          }).catch(function() {});
+          // fetch() of remote URLs is blocked by the CSP — go through the
+          // main process which converts the image to a data: URL.
+          if (window.electronAPI && window.electronAPI.fetchAsDataUrl) {
+            window.electronAPI.fetchAsDataUrl(action.url).then(function(dataUrl) {
+              if (dataUrl && window.electronAPI.contextMenuCopyImage) window.electronAPI.contextMenuCopyImage(dataUrl);
+            }).catch(function() {});
+          }
           break;
         case 'duplicateTab':
           if (canExec) wv.executeJavaScript('window.location.href').then(function(url) {
@@ -451,7 +1280,7 @@ let webviewPreloadPath = '';
         case 'sleepTab':
           var sleepId = action.tabId;
           var sleepTab = tabs.find(function(t) { return t.id === sleepId; });
-          if (sleepTab && sleepTab.webview && sleepTab.isReady && !sleepTab._isSleeping && sleepId !== activeTabId) {
+          if (sleepTab && sleepTab.webview && sleepTab.isReady && !sleepTab._isSleeping && sleepId !== activeTabId && !_tabIsPlayingMedia(sleepTab)) {
             try {
               var sleepUrl2 = sleepTab.webview.getURL ? sleepTab.webview.getURL() : sleepTab.webview.src;
               if (sleepUrl2 && sleepUrl2 !== 'about:blank' && !isDomainNoSleep(sleepUrl2)) {
@@ -491,7 +1320,11 @@ let webviewPreloadPath = '';
           break;
         case 'elementZapper':
           if (canExecInWebview(wv)) {
-            wv.executeJavaScript('window.postMessage({__spzPickerStart:true},"*");return 1').catch(function() {});
+            try {
+              if (window.electronAPI && window.electronAPI.startElementPicker && wv.getWebContentsId) {
+                window.electronAPI.startElementPicker(wv.getWebContentsId());
+              }
+            } catch(e) {}
           }
           break;
         case 'pasteAndGo':
@@ -908,7 +1741,8 @@ function customPrompt(msg, def) {
     hid: 'HID devices',
     bluetooth: 'Bluetooth',
     idleDetection: 'Idle detection',
-    windowManagement: 'Window management'
+    windowManagement: 'Window management',
+    localNetworkAccess: 'Local network access'
   };
 
   var PERM_VERBS = {
@@ -925,7 +1759,8 @@ function customPrompt(msg, def) {
     pointerLock: 'lock your mouse pointer',
     persistentStorage: 'store data permanently',
     usb: 'access USB devices',
-    notifications: 'send notifications'
+    notifications: 'send notifications',
+    localNetworkAccess: 'access devices on your local network'
   };
 
   // Inline SVG icons keyed by the icon hint main.js sends.
@@ -940,6 +1775,7 @@ function customPrompt(msg, def) {
     pointer: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>',
     database: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
     usb: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3" r="1.5"/><path d="M12 6v9"/><path d="M9 9h6l-3 6-3-6z"/></svg>',
+    lan: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="6" height="6" rx="1"/><rect x="16" y="14" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M12 8v3"/><path d="M5 14v-1a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1"/><path d="M12 11v3"/></svg>',
     shield: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
   };
 
@@ -1106,11 +1942,28 @@ var _unifiedBar = false;
   if (window.electronAPI && window.electronAPI.getCustomizationSettings) {
     window.electronAPI.getCustomizationSettings().then(function(r) {
       _unifiedBar = !!(r && r.settings && r.settings.unifiedBar);
+      if (r && r.settings && typeof r.settings.urlDomainOnly !== 'undefined') {
+        _urlDomainOnly = !!r.settings.urlDomainOnly;
+      }
+      if (r && r.settings && typeof r.settings.tabPreviews !== 'undefined') {
+        _tabPreviews = !!r.settings.tabPreviews;
+      }
+      // Re-render the bar with the loaded display mode.
+      if (_urlBarFullUrl) setUrlBarDisplay(_urlBarFullUrl);
     }).catch(function(){});
   }
   if (window.electronAPI && window.electronAPI.onCustomizationUpdated) {
     window.electronAPI.onCustomizationUpdated(function(s) {
+      var changed = false;
       if (s && typeof s.unifiedBar !== 'undefined') _unifiedBar = !!s.unifiedBar;
+      if (s && typeof s.urlDomainOnly !== 'undefined') {
+        if (_urlDomainOnly !== !!s.urlDomainOnly) changed = true;
+        _urlDomainOnly = !!s.urlDomainOnly;
+      }
+      if (s && typeof s.tabPreviews !== 'undefined') _tabPreviews = !!s.tabPreviews;
+      if (changed && _urlBarFullUrl && document.activeElement !== urlInput) {
+        setUrlBarDisplay(_urlBarFullUrl);
+      }
     });
   }
 })();
@@ -1133,6 +1986,102 @@ function loadSuggestData() {
   }
 }
 loadSuggestData();
+
+// ===== Frequent sites + omnibox suggestion toggles =====
+// "Frequent" = origin visited >=5 times in the last 48h (counted in the main
+// process, see record-frequent-visit). Both sources are opt-out settings
+// (absent setting = enabled) and both can be cleared from Settings → Search.
+var _frequentSites = {};            // origin → visit count (last 48h)
+var _omniFrequentOn = true;         // omniboxFrequentSuggestions
+var _omniBookmarksOn = true;        // omniboxBookmarkSuggestions
+function loadFrequentSites() {
+  if (window.electronAPI && window.electronAPI.getFrequentSites) {
+    window.electronAPI.getFrequentSites().then(function(m) { _frequentSites = m || {}; }).catch(function() {});
+  }
+}
+function loadOmniSuggestToggles() {
+  if (!window.electronAPI || !window.electronAPI.getSecuritySetting) return;
+  window.electronAPI.getSecuritySetting('omniboxFrequentSuggestions').then(function(v) { _omniFrequentOn = (v !== false); }).catch(function() {});
+  window.electronAPI.getSecuritySetting('omniboxBookmarkSuggestions').then(function(v) { _omniBookmarksOn = (v !== false); }).catch(function() {});
+}
+loadFrequentSites();
+loadOmniSuggestToggles();
+
+// ===== Microphone-in-use tab badge =====
+// A page-world wrapper around navigator.mediaDevices.getUserMedia reports
+// capture start/stop through the __SPZIPC__ console transport; main relays
+// it back as 'tab-mic-state' and the TAB element shows a gently pulsing
+// 🎤 badge. Clicking the badge toggles the live audio tracks' .enabled
+// flag (mute/unmute without revoking the stream). See also 'micstate' in
+// main.js _handlePageIpc and .tab-mic styles in style.css.
+function _injectMicTracker(webview) {
+  if (!webview) return;
+  try {
+    webview.executeJavaScript(
+      '(function(){' +
+      'if(window.__spzMicPatched)return;' +
+      'window.__spzMicPatched=1;' +
+      'if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;' +
+      'var orig=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);' +
+      'window.__spzMicTracks=[];' +
+      'var liveAny=function(){try{return window.__spzMicTracks.some(function(t){return t.readyState==="live";});}catch(e){return false;}};' +
+      'var report=function(en){try{console.log("__SPZIPC__"+JSON.stringify({kind:"micstate",payload:{on:!!en,live:liveAny()}}));}catch(e){}};' +
+      'window.__spzMicToggle=function(){' +
+      ' var l=window.__spzMicTracks.filter(function(t){return t.readyState==="live";});' +
+      ' if(!l.length)return false;' +
+      ' var now=!l.some(function(t){return t.enabled;});' +
+      ' l.forEach(function(t){t.enabled=now;});' +
+      ' report(now);return now;};' +
+      'navigator.mediaDevices.getUserMedia=function(c){' +
+      ' return orig(c).then(function(s){' +
+      '  var at=s.getAudioTracks?s.getAudioTracks():[];' +
+      '  if(at.length){' +
+      '   at.forEach(function(t){window.__spzMicTracks.push(t);' +
+      '    t.addEventListener("ended",function(){' +
+      '     window.__spzMicTracks=window.__spzMicTracks.filter(function(x){return x!==t;});' +
+      '     if(!liveAny())report(false);});});' +
+      '   report(true);}' +
+      '  return s;});};' +
+      '})()',
+      false
+    ).catch(function() {});
+  } catch (_) {}
+}
+
+if (window.electronAPI && window.electronAPI.onTabMicState) {
+  window.electronAPI.onTabMicState(function (s) {
+    try {
+      if (!s || typeof s.wcId !== 'number') return;
+      var t = tabs.find(function (x) {
+        try { return x.webview && x.webview.getWebContentsId && x.webview.getWebContentsId() === s.wcId; }
+        catch (_) { return false; }
+      });
+      if (!t || !t.element) return;
+      var mic = t.element.querySelector('.tab-mic');
+      if (!mic) return;
+      // live = a capture exists; on = tracks are enabled (not muted by us)
+      mic.style.display = s.live ? '' : 'none';
+      mic.classList.toggle('mic-muted', s.live && s.on === false);
+    } catch (_) {}
+  });
+}
+// Live-apply toggle changes made in a Settings tab without a browser restart.
+if (window.electronAPI && window.electronAPI.onSecuritySettingsChanged && !window.__spzOmniTglHook) {
+  window.__spzOmniTglHook = true;
+  window.electronAPI.onSecuritySettingsChanged(function() {
+    loadOmniSuggestToggles();
+  });
+}
+
+// Live language switch for the browser CHROME: choosing Русский in the
+// setup wizard (or in Settings) used to translate only that page — the
+// shell UI (toolbar, menus, panels) stayed English until a restart.
+if (window.electronAPI && window.electronAPI.onLanguageChanged && !window.__spzLangHook) {
+  window.__spzLangHook = true;
+  window.electronAPI.onLanguageChanged(function(l) {
+    try { if (window.i18n && window.i18n.setLanguage) window.i18n.setLanguage(l); } catch(e) {}
+  });
+}
 
 if (window.electronAPI && window.electronAPI.onHistoryUpdated) {
   window.electronAPI.onHistoryUpdated(function() { loadSuggestData(); });
@@ -1180,12 +2129,45 @@ function updateSuggestions(query) {
     results.push({ title: title, url: url, icon: icon, type: type });
   }
 
-  _suggestBookmarks.forEach(function(bm) {
-    if (!bm.url || bm.folder === '__folder__') return;
-    if ((bm.title || '').toLowerCase().indexOf(q) !== -1 || (bm.url || '').toLowerCase().indexOf(q) !== -1) {
-      addResult(bm.title || bm.url, bm.url, '\u2605', 'bookmark');
+  // Bang keyword preview: "g query" etc. resolves through resolveLocalUrl()
+  // on Enter — show the target search up front so the user sees what the
+  // bang will do before pressing it.
+  var bangPrev = query.match(/^(g|d|b|y|w)\s+(.+)$/i);
+  if (bangPrev && !/^https?:\/\//i.test(query)) {
+    var _bangNames = { g: 'Google', d: 'DuckDuckGo', b: 'Bing', y: 'YouTube', w: 'Wikipedia' };
+    var _bangResolved = resolveLocalUrl(query);
+    if (_bangResolved && _bangResolved.indexOf('http') === 0) {
+      addResult(_bangNames[bangPrev[1].toLowerCase()] + ': ' + bangPrev[2], _bangResolved, '\uD83D\uDD0D', 'frequent');
     }
-  });
+  }
+
+  // Frequent sites (>=3 visits in the last 48h) — offered FIRST, before
+  // bookmarks and history. Matches when the typed text is a substring of the
+  // host or vice versa ("mai" → mail.ru, "github.com" → github.com).
+  if (_omniFrequentOn) {
+    var qF = q.replace(/^https?:\/\//, '');
+    Object.keys(_frequentSites)
+      .filter(function(origin) {
+        if ((_frequentSites[origin] || 0) < 3) return false;
+        var host = origin.replace(/^https?:\/\//, '').toLowerCase();
+        return host.indexOf(qF) !== -1 || qF.indexOf(host) !== -1;
+      })
+      .sort(function(a, b) { return _frequentSites[b] - _frequentSites[a]; })
+      .slice(0, 3)
+      .forEach(function(origin) {
+        var u = origin.indexOf('://') !== -1 ? origin : 'https://' + origin;
+        addResult(origin.replace(/^https?:\/\//, ''), u, '\uD83D\uDD25', 'frequent');
+      });
+  }
+
+  if (_omniBookmarksOn) {
+    _suggestBookmarks.forEach(function(bm) {
+      if (!bm.url || bm.folder === '__folder__') return;
+      if ((bm.title || '').toLowerCase().indexOf(q) !== -1 || (bm.url || '').toLowerCase().indexOf(q) !== -1) {
+        addResult(bm.title || bm.url, bm.url, '\u2605', 'bookmark');
+      }
+    });
+  }
 
   _suggestHistory.forEach(function(h) {
     if (!h.url) return;
@@ -1195,9 +2177,8 @@ function updateSuggestions(query) {
   });
 
   results.sort(function(a, b) {
-    if (a.type === 'bookmark' && b.type !== 'bookmark') return -1;
-    if (a.type !== 'bookmark' && b.type === 'bookmark') return 1;
-    return 0;
+    var rank = function(r) { return r.type === 'frequent' ? 0 : (r.type === 'bookmark' ? 1 : 2); };
+    return rank(a) - rank(b);
   });
   results = results.slice(0, 6);
 
@@ -1224,6 +2205,9 @@ function updateSuggestions(query) {
         item.addEventListener('mousedown', function(e) {
           e.preventDefault();
           urlInput.value = '';
+          // The chosen command "sends" the typed text — end the draft, or
+          // the old phrase would resurface on the next navigation.
+          _setUrlBarDraft(null);
           hideSuggestDropdown();
           urlInput.blur();
           if (typeof toggleQuickCommands === 'function') {
@@ -1253,6 +2237,51 @@ function updateSuggestions(query) {
     _suggestEl.appendChild(item);
     _suggestItems.push({ element: item, url: r.url });
   });
+
+  // ===== Open tabs switcher =====
+  // At the bottom of the dropdown: a divider + matching OPEN tabs, so the
+  // omnibox doubles as a quick tab search ("jump to the tab I already have")
+  // instead of opening a duplicate. Click/Enter switches to the tab.
+  try {
+    var openTabMatches = [];
+    tabs.forEach(function(t) {
+      if (!t || t.id === activeTabId) return;
+      var tUrl = '';
+      try { tUrl = (t.webview && t.webview.getURL) ? t.webview.getURL() : (t.webview ? t.webview.src : '') || (t.url || ''); } catch(_) {}
+      var tTitle = t.title || '';
+      if (!tUrl && !tTitle) return;
+      if (String(tTitle).toLowerCase().indexOf(q) !== -1 || String(tUrl).toLowerCase().indexOf(q) !== -1) {
+        openTabMatches.push({ id: t.id, title: tTitle || tUrl, url: tUrl || '' });
+      }
+    });
+    if (openTabMatches.length > 0) {
+      var _isRuTabs = false;
+      try { _isRuTabs = !!(window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru'); } catch(_) {}
+      var tabsHeader = document.createElement('div');
+      tabsHeader.className = 'url-suggestion-item qc-header';
+      tabsHeader.style.borderTop = '1px solid var(--border-color-alpha)';
+      tabsHeader.style.marginTop = '4px';
+      tabsHeader.innerHTML = '<span class="url-suggestion-icon">' + _icon('\uD83E\uDDE9') + '</span>' +
+        '<span class="url-suggestion-text" style="font-weight:600;font-size:11px;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.5px;">' +
+        (_isRuTabs ? 'Открытые вкладки' : 'Open tabs') + '</span>';
+      _suggestEl.appendChild(tabsHeader);
+      openTabMatches.slice(0, 3).forEach(function(mt) {
+        var item = document.createElement('div');
+        item.className = 'url-suggestion-item';
+        item.innerHTML = '<span class="url-suggestion-icon">' + _icon('\uD83E\uDDE9') + '</span>' +
+          '<span class="url-suggestion-text">' + escapeHtmlSimple(mt.title) + '</span>' +
+          '<span class="url-suggestion-url">' + escapeHtmlSimple(mt.url) + '</span>';
+        item.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          hideSuggestDropdown();
+          urlInput.blur();
+          try { setActiveTab(mt.id); } catch(_) {}
+        });
+        _suggestEl.appendChild(item);
+        _suggestItems.push({ element: item, url: '__tab__:' + mt.id, display: mt.url || mt.title });
+      });
+    }
+  } catch(_) {}
 
   if (_suggestItems.length > 0) showSuggestDropdown();
 
@@ -1287,6 +2316,9 @@ function highlightSuggestion(index) {
 }
 
 urlInput.addEventListener('input', function() {
+  // Real user edits only (programmatic .value writes fire no input event):
+  // the draft lives on THIS tab; clearing the field ends it manually.
+  _setUrlBarDraft(urlInput.value);
   updateSuggestions(urlInput.value.trim());
 });
 
@@ -1297,26 +2329,56 @@ urlInput.addEventListener('keydown', function(e) {
     e.preventDefault();
     _suggestIndex = Math.min(_suggestIndex + 1, _suggestItems.length - 1);
     highlightSuggestion(_suggestIndex);
-    if (_suggestItems[_suggestIndex]) {
-      urlInput.value = _suggestItems[_suggestIndex].url;
+    var _dn = _suggestItems[_suggestIndex];
+    if (_dn) {
+      // Internal entries (open-tab switcher) carry no usable URL — show the
+      // tab's address instead of the __tab__ marker.
+      var _dnV = (_dn.url.indexOf('__tab__:') === 0) ? (_dn.display || '') : _dn.url;
+      if (_dnV) { urlInput.value = _dnV; _setUrlBarDraft(urlInput.value); }
     }
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
-    _suggestIndex = Math.max(_suggestIndex - 1, -1);
+    _suggestIndex = Math.max(_suggestIndex - 1, _suggestItems.length - 1);
     if (_suggestIndex >= 0) {
       highlightSuggestion(_suggestIndex);
-      urlInput.value = _suggestItems[_suggestIndex].url;
+      var _up = _suggestItems[_suggestIndex];
+      var _upV = (_up && _up.url.indexOf('__tab__:') === 0) ? (_up.display || '') : (_up ? _up.url : '');
+      if (_upV) { urlInput.value = _upV; _setUrlBarDraft(urlInput.value); }
     } else {
       highlightSuggestion(-1);
     }
   } else if (e.key === 'Escape') {
     hideSuggestDropdown();
     _suggestIndex = -1;
+    // Escape cancels the draft — restore the page URL.
+    _setUrlBarDraft(null);
+    if (_urlBarFullUrl) { _urlBarRevealed = false; setUrlBarDisplay(_urlBarFullUrl); }
   } else if (e.key === 'Enter' && _suggestIndex >= 0 && _suggestItems[_suggestIndex]) {
     e.preventDefault();
-    navigateTo(_suggestItems[_suggestIndex].url);
+    // The plain-Enter handler registered later must not run afterwards: it
+    // would navigate a SECOND time (double load) or treat a ":command"
+    // dropdown entry as a search query.
+    e.stopImmediatePropagation();
+    var _sel = _suggestItems[_suggestIndex];
+    _setUrlBarDraft(null);
     hideSuggestDropdown();
     urlInput.blur();
+    if (_sel.url && _sel.url.indexOf('__tab__:') === 0) {
+      // Open-tabs switcher entry — jump to the tab instead of navigating.
+      // Tab ids are strings ('tab-…'), not numbers.
+      try { setActiveTab(_sel.url.slice(8)); } catch(_) {}
+    } else if (_sel.url && _sel.url.charAt(0) === ':') {
+      // Unified Command Bar entry — open Quick Commands instead of a
+      // navigation (mirrors the mouse-click path below).
+      urlInput.value = '';
+      if (typeof toggleQuickCommands === 'function') {
+        toggleQuickCommands();
+        var qi = document.getElementById('qcInput');
+        if (qi) { qi.value = _sel.url + ' '; qi.focus(); if (typeof renderQcList === 'function') renderQcList(qi.value); }
+      }
+    } else {
+      navigateTo(_sel.url);
+    }
   }
 });
 
@@ -1324,6 +2386,9 @@ urlInput.addEventListener('blur', function() {
   setTimeout(function() {
     hideSuggestDropdown();
     _suggestIndex = -1;
+    // An unsent draft stays visible after the blur — but only while its OWN
+    // tab is on screen; on any other tab the URL shows normally.
+    if (_urlBarDraftText() !== null) return;
     if (_urlBarFullUrl) {
       _urlBarRevealed = false;
       setUrlBarDisplay(_urlBarFullUrl);
@@ -1332,6 +2397,17 @@ urlInput.addEventListener('blur', function() {
 });
 
 urlInput.addEventListener('focus', function() {
+  // Continue editing the unsent draft first — but only if it belongs to the
+  // currently visible tab.
+  var _dtx = _urlBarDraftText();
+  if (_dtx !== null) {
+    urlInput.value = _dtx;
+    urlInput.select();
+    if (urlInput.value.trim().length >= 2) {
+      updateSuggestions(urlInput.value.trim());
+    }
+    return;
+  }
   // On an internal page (Settings/Library/etc.), reveal the friendly about:
   // alias when the user focuses the bar — they get a hint where they are
   // without ever seeing the raw filesystem path.
@@ -1349,8 +2425,10 @@ urlInput.addEventListener('focus', function() {
     }
     return;
   }
-  if (_urlBarSearchText && _urlBarSearchTabId === activeTabId && _urlBarFullUrl && _urlBarFullUrl.indexOf('http') === 0) {
-    urlInput.value = _urlBarSearchText;
+  var _fq = _searchQueryFromUrl(_urlBarFullUrl);
+  if (!_fq && _urlBarSearchTabId === activeTabId && _isSearchEnginePage(_urlBarFullUrl)) _fq = _urlBarSearchText;
+  if (!_urlBarRevealed && _fq) {
+    urlInput.value = _fq;
   } else if (_urlBarFullUrl && urlInput.value !== _urlBarFullUrl) {
     urlInput.value = _urlBarFullUrl;
   }
@@ -1360,12 +2438,100 @@ urlInput.addEventListener('focus', function() {
   }
 });
 
-// Load search engine setting
+// Load search engine setting. searchEngineUrl tracks the EFFECTIVE engine:
+// when Tor is active (and the user did not disable onion search engines),
+// engines with .onion mirrors are used through them (see
+// _effectiveSearchEngine in main.js). Refreshed on every proxy/settings
+// change and polled, so enabling Tor switches searches to .onion promptly.
 (function loadSearchEngine() {
-  if (window.electronAPI && window.electronAPI.getSearchEngine) {
-    window.electronAPI.getSearchEngine().then(function(url) {
-      if (url) searchEngineUrl = url;
-    }).catch(function() {});
+  // === Occasional "switch back to StartPOZI search" nudge ===
+  // If the user has chosen a different search engine, show a NON-intrusive
+  // suggestion at most once every ~2 months. The browser NEVER silently
+  // overrides the user's explicit search-engine choice — that would be a
+  // dark pattern unfitting a privacy browser; the user decides with one
+  // click.
+  var _SEARCH_NUDGE_KEY = 'startpozi-search-nudge-last';
+  var _SEARCH_NUDGE_INTERVAL_MS = 60 * 24 * 3600 * 1000; // ~2 months
+  var _searchNudgeShownThisSession = false;
+  // Do not bother the user during the first minute of a browsing session.
+  var _searchNudgeAllowedAt = Date.now() + 60000;
+  function _isStartpoziEngineUrl(url) {
+    try {
+      var h = new URL(url).hostname.toLowerCase();
+      return h === 'startpozi.com' || h.endsWith('.startpozi.com') ||
+             h === 'startpozi.netlify.app' ||
+             h === 'stpozb3hldo6gj2t7c5z57slmqitig2nb4sbeioiqfzdcm63ilcnhlid.onion';
+    } catch (e) { return false; }
+  }
+  function maybeShowSearchNudge() {
+    if (_searchNudgeShownThisSession) return;
+    if (Date.now() < _searchNudgeAllowedAt) return;
+    if (!searchEngineUrl || _isStartpoziEngineUrl(searchEngineUrl)) return;
+    var last = 0;
+    try { last = parseInt(localStorage.getItem(_SEARCH_NUDGE_KEY) || '0', 10) || 0; } catch (e) {}
+    if (Date.now() - last < _SEARCH_NUDGE_INTERVAL_MS) return;
+    _searchNudgeShownThisSession = true;
+    try { localStorage.setItem(_SEARCH_NUDGE_KEY, String(Date.now())); } catch (e) {}
+
+    var c = document.createElement('div');
+    c.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:99999;background:rgba(40,40,55,0.95);color:#fff;padding:14px 16px;border-radius:12px;font:13px/1.5 -apple-system,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:360px;border:1px solid rgba(102,126,234,.5);backdrop-filter:blur(20px);display:flex;flex-direction:column;gap:10px;';
+    var msg = document.createElement('div');
+    msg.textContent = 'You are using a third-party search engine. Switch back to the private StartPOZI search?';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+    var yes = document.createElement('button');
+    yes.textContent = 'Use StartPOZI';
+    yes.style.cssText = 'background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;';
+    var no = document.createElement('button');
+    no.textContent = 'Keep current';
+    no.style.cssText = 'background:none;color:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;';
+    row.appendChild(no); row.appendChild(yes);
+    c.appendChild(msg); c.appendChild(row);
+    document.body.appendChild(c);
+    var dismiss = function() { if (c.parentNode) c.remove(); };
+    var autoHide = setTimeout(dismiss, 30000);
+    no.addEventListener('click', dismiss);
+    yes.addEventListener('click', function() {
+      clearTimeout(autoHide);
+      dismiss();
+      if (window.electronAPI && window.electronAPI.setSearchEngine) {
+        window.electronAPI.setSearchEngine('https://startpozi.com/search.html?q=').then(function() {
+          searchEngineUrl = 'https://startpozi.com/search.html?q=';
+          if (typeof _showToast === 'function') _showToast('StartPOZI search enabled', 'search', null, 'info');
+        }).catch(function() {});
+      }
+    });
+  }
+  function reloadEngine() {
+    if (window.electronAPI && window.electronAPI.getEffectiveSearchEngine) {
+      window.electronAPI.getEffectiveSearchEngine().then(function(url) {
+        if (url) searchEngineUrl = url;
+        maybeShowSearchNudge();
+      }).catch(function() {});
+    } else if (window.electronAPI && window.electronAPI.getSearchEngine) {
+      window.electronAPI.getSearchEngine().then(function(url) {
+        if (url) searchEngineUrl = url;
+        maybeShowSearchNudge();
+      }).catch(function() {});
+    }
+  }
+  function reloadType() {
+    if (window.electronAPI && window.electronAPI.getSearchType) {
+      window.electronAPI.getSearchType().then(function(tp) {
+        if (tp) _searchType = tp;
+      }).catch(function() {});
+    }
+  }
+  reloadEngine();
+  reloadType();
+  setInterval(function() { reloadEngine(); }, 10000);
+  // Live-update when the engine/type/onion preference or the proxy state
+  // changes (no browser restart needed).
+  if (window.electronAPI && window.electronAPI.onSearchSettingsChanged) {
+    window.electronAPI.onSearchSettingsChanged(function() {
+      reloadEngine();
+      reloadType();
+    });
   }
 })();
 
@@ -1381,6 +2547,16 @@ urlInput.addEventListener('focus', function() {
     window.electronAPI.onThemeUpdated(function(theme) {
       currentTheme = theme;
       applyThemeToMainWindow(theme);
+      // Also refresh the accent color from settings (the setup wizard stores
+      // it alongside the theme).
+      if (window.electronAPI && window.electronAPI.getCustomizationSettings) {
+        window.electronAPI.getCustomizationSettings().then(function(c) {
+          if (c && c.accentColor) {
+            document.documentElement.style.setProperty('--accent-color', c.accentColor);
+            document.documentElement.style.setProperty('--accent', c.accentColor);
+          }
+        }).catch(function() {});
+      }
     });
   }
 })();
@@ -1541,6 +2717,13 @@ function applyWindowControls(style) {
   }
 }
 
+// macOS: park the window controls (the colored circles) on the LEFT edge of
+// the title bar — the native Mac placement users expect. Linux and Windows
+// keep them on the right as usual.
+if (window.electronAPI && window.electronAPI.platform === 'darwin') {
+  document.body.classList.add('os-mac');
+}
+
 function applyTabLayout(layout) {
   if (layout === 'vertical') {
     document.body.classList.add('vertical-tabs');
@@ -1555,6 +2738,49 @@ function applyVerticalTabWidth(px) {
   if (n > 400) n = 400;
   document.documentElement.style.setProperty('--vertical-tabs-width', n + 'px');
 }
+
+// ===== Vertical tabs: drag the panel edge to resize =====
+// Live width while dragging (CSS var only), persisted on mouseup via the
+// customization settings store (it merges, so a single key is safe). The
+// same limits as applyVerticalTabWidth apply; double-click resets to 180px.
+(function setupVerticalTabsResizer() {
+  var handle = document.getElementById('verticalTabsResizer');
+  if (!handle) return;
+  var dragging = false;
+  var pendingWidth = null;
+  handle.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    dragging = true;
+    pendingWidth = null;
+    e.preventDefault();
+    document.body.classList.add('vtabs-resizing');
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var n = Math.round(Math.min(400, Math.max(100, e.clientX)));
+    applyVerticalTabWidth(n);
+    pendingWidth = n;
+  });
+  function persist(n) {
+    if (!n) return;
+    if (window.electronAPI && window.electronAPI.saveCustomizationSettings) {
+      try {
+        window.electronAPI.saveCustomizationSettings({ verticalTabWidth: n });
+      } catch (e) {}
+    }
+  }
+  window.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('vtabs-resizing');
+    persist(pendingWidth);
+    pendingWidth = null;
+  });
+  handle.addEventListener('dblclick', function() {
+    applyVerticalTabWidth(180);
+    persist(180);
+  });
+})();
 
 function applyAutohideTopbar(on) {
   document.body.classList.toggle('chrome-autohide', !!on);
@@ -1667,7 +2893,7 @@ if (window.matchMedia) {
 // otherwise Google blocks sign-in ("This browser or app may not be secure").
 const platform = window.electronAPI ? window.electronAPI.platform : 'linux';
 // process.versions.chrome is available in the renderer with nodeIntegration via preload,
-// otherwise taken from navigator.userAgent (if already spoofed) or fallback 148.
+// or read from navigator.userAgent (if already spoofed) or fallback 148.
 let _chromeVer = '148.0.7778.96';
 try {
   if (typeof process !== 'undefined' && process.versions && process.versions.chrome) {
@@ -1681,14 +2907,14 @@ try {
 let userAgent = '';
 switch (platform) {
   case 'win32':
-    userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeVer + ' Safari/537.36';
+    userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36';
     break;
   case 'darwin':
-    userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeVer + ' Safari/537.36';
+    userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36';
     break;
   case 'linux':
   default:
-    userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeVer + ' Safari/537.36';
+    userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36';
     break;
 }
 
@@ -1710,6 +2936,28 @@ function _bustInternalCache(url) {
 
 function resolveLocalUrl(inputUrl) {
   if (!inputUrl) return inputUrl;
+
+  // Bang keywords: "g query" → Google, "d query" → DuckDuckGo, "b query" →
+  // Bing, "y query" → YouTube, "w query" → Wikipedia (matches the browser
+  // language). The single letter + SPACE can never be a real URL, so this
+  // is unambiguous. Also previewed live in the suggestion dropdown.
+  var bangM = String(inputUrl).match(/^\s*(g|d|b|y|w)\s+(.+)$/i);
+  if (bangM) {
+    var _bangQ = encodeURIComponent(bangM[2].trim());
+    var _wikiLang = 'en';
+    try {
+      if (window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru') _wikiLang = 'ru';
+    } catch (_) {}
+    var bangMap = {
+      g: 'https://www.google.com/search?q=',
+      d: 'https://duckduckgo.com/?q=',
+      b: 'https://www.bing.com/search?q=',
+      y: 'https://www.youtube.com/results?search_query=',
+      w: 'https://' + _wikiLang + '.wikipedia.org/w/index.php?search='
+    };
+    var bangUrl = bangMap[bangM[1].toLowerCase()];
+    if (bangUrl) return bangUrl + _bangQ;
+  }
 
   // about: URLs — friendly shortcuts to internal pages (Chrome-style).
   // about:blank is passed through untouched.
@@ -1737,7 +2985,11 @@ function resolveLocalUrl(inputUrl) {
       'about:backup':         'Settings.html#backup',
       'about:taskmanager':    'TaskManager.html',
       'about:tasks':          'TaskManager.html',
-      'about:viewer':         'Viewer.html'
+      'about:viewer':         'Viewer.html',
+      'about:themeeditor':    'ThemeEditor.html',
+      'about:editor':         'ThemeEditor.html',
+      'about:help':           'Help.html',
+      'about:helper':         'Help.html'
     };
     var lower = inputUrl.toLowerCase();
     if (aboutMap[lower]) {
@@ -1856,14 +3108,20 @@ function createNewTab(url, lazy, opts) {
     }
   }
 
-  const tabId = 'tab-' + Date.now();
+  // Unique tab id: Date.now() alone collides when tabs are created in a
+  // tight loop (session restore does exactly that — several tabs per ms).
+  // A collision breaks closeTab/find() (first match wins → wrong tab) and
+  // mixes up per-tab state maps. Counter + random suffix = collision-proof.
+  const tabId = 'tab-' + Date.now() + '-' + (++_tabIdSeq) + '-' + Math.random().toString(36).slice(2, 7);
   const tabsBar = document.querySelector('.tabs-bar');
   const browserContent = document.querySelector('.browser-content');
 
   const tabElement = document.createElement('div');
   tabElement.className = 'tab';
   tabElement.dataset.tabId = tabId;
-  tabElement.innerHTML = '<div class="tab-favicon-placeholder"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><span class="tab-title">New tab</span><button class="tab-audio" title="Sound" style="display:none"></button><button class="tab-close" title="Close tab">×</button>';
+  tabElement.setAttribute('role', 'tab');
+  tabElement.setAttribute('aria-label', 'New tab');
+  tabElement.innerHTML = '<div class="tab-favicon-placeholder"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><span class="tab-title">New tab</span><button class="tab-mic" title="Microphone in use — click to mute/unmute" style="display:none"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button><button class="tab-audio" title="Sound" style="display:none"></button><button class="tab-close" title="Close tab">×</button>';
 
   tabsBar.insertBefore(tabElement, document.getElementById('newTabBtn'));
   setTimeout(function() { try { tabElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }); } catch(e) {} }, 50);
@@ -1908,7 +3166,7 @@ function createNewTab(url, lazy, opts) {
   }
 
   if (isLazy) {
-    tabElement.querySelector('.tab-title').textContent = tabData.title;
+    tabElement.querySelector('.tab-title').textContent = tabData.title; try { tabElement.setAttribute('aria-label', tabData.title || 'New tab'); } catch(e) {}
     webview.src = 'about:blank';
   } else {
     webview.src = url;
@@ -1919,9 +3177,16 @@ function createNewTab(url, lazy, opts) {
   // event emitted before this method can be called" errors
   webview.addEventListener('dom-ready', function() {
     tabData.isReady = true;
-    // Set user agent once the webview is ready (was formerly in will-attach-webview/did-start-navigation)
+    // Set user agent once the webview is ready — but NOT on login pages:
+    // there the main process applies the Firefox profile via CDP, and this
+    // call would reset it back to Chrome after the override.
     try {
-      if (webview.setUserAgent) {
+      var domUrl = '';
+      try { domUrl = webview.getURL ? webview.getURL() : (webview.src || ''); } catch (e0) {}
+      var domHost = '';
+      try { domHost = new URL(domUrl).hostname; } catch (e1) {}
+      var isAuthHost = /(^|\.)accounts\.google\.com$|(^|\.)myaccount\.google\.com$|(^|\.)passwords\.google\.com$|(^|\.)signin\.google\.com$|(^|\.)pay\.google\.com$|(^|\.)wallet\.google\.com$|(^|\.)accounts\.youtube\.com$|(^|\.)appleid\.apple\.com$|(^|\.)login\.live\.com$|(^|\.)login\.microsoftonline\.com$/.test(domHost);
+      if (webview.setUserAgent && !isAuthHost) {
         webview.setUserAgent(userAgent);
       }
     } catch(e) {
@@ -1936,6 +3201,39 @@ function createNewTab(url, lazy, opts) {
     try { _syncEcoForTab(tabData); } catch(e) {}
     // data-saver: after navigation the engine in preload is reinstalled, re-send state.
     try { _syncDataSaverForTab(tabData); } catch(e) {}
+  });
+
+  // ===== Renderer-crash recovery =====
+  // A crashed guest renderer leaves the webview permanently WHITE (the
+  // classic "some sites just show a blank page" bug). Recover: reload once
+  // automatically; if it crashes again, load the built-in error page with a
+  // Retry button instead of crash-looping.
+  var _crashReloadedFor = null;
+  webview.addEventListener('render-process-gone', function(e) {
+    try {
+      if (webview.isDestroyed && webview.isDestroyed()) return;
+      var reason = (e && e.reason) || 'unknown';
+      if (reason === 'clean-exit') return;
+      var curUrl = '';
+      try { curUrl = webview.getURL ? webview.getURL() : (webview.src || tabData.lastUrl || ''); } catch(_) {}
+      console.warn('[tab] renderer gone (' + reason + '):', curUrl);
+      if (window.electronAPI && window.electronAPI.addConsoleLog) {
+        try { window.electronAPI.addConsoleLog('[StartPOZI] Page renderer crashed (' + reason + '), recovering: ' + curUrl); } catch(_) {}
+      }
+      if (curUrl && curUrl !== _crashReloadedFor) {
+        // First crash for this URL — silent reload.
+        _crashReloadedFor = curUrl;
+        try { webview.reload(); } catch(_) {
+          try { webview.src = curUrl; } catch(_2) {}
+        }
+      } else if (curUrl) {
+        // Crashed twice in a row — show the friendly error page.
+        _crashReloadedFor = null;
+        var errUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/index.html?code=CRASHED&url=' +
+          encodeURIComponent(curUrl) + '&desc=The%20page%20renderer%20process%20crashed%20(' + encodeURIComponent(reason) + ')';
+        try { webview.src = errUrl; } catch(_) {}
+      }
+    } catch (_) {}
   });
 
   function injectCosmetics(wv, pageUrl) {
@@ -2083,6 +3381,11 @@ function createNewTab(url, lazy, opts) {
 
   webview.addEventListener('did-fail-load', function(e) {
     if (!e || e.isMainFrame === false) return;
+    // A failed main-frame navigation also ends the draft (same rule as
+    // did-navigate) — the error page must show the address, not stale text.
+    if (tabId !== activeTabId || document.activeElement !== urlInput) {
+      if (tabData.urlDraft) tabData.urlDraft = null;
+    }
     var errCode = e.errorCode || -1;
     var errDesc = e.errorDescription || '';
     var failedUrl = e.validatedURL || (tabData && (tabData.lastUrl || tabData.pendingUrl)) || '';
@@ -2151,34 +3454,62 @@ function createNewTab(url, lazy, opts) {
   // reason to be http-only.
   function _isLocalHostname(h) {
     if (!h) return true;
+    // 172.16.0.0 – 172.31.255.255 is private; anything else in 172.x is
+    // PUBLIC (the old `indexOf('172.2')===0` check whitelisted 172.2.x.x
+    // and even 172.2xx.x.x — strangers' addresses bypassed the HTTP warning).
     return h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
            h.indexOf('127.') === 0 || h.indexOf('192.168.') === 0 ||
-           h.indexOf('10.') === 0 || h.indexOf('172.16.') === 0 ||
-           h.indexOf('172.17.') === 0 || h.indexOf('172.18.') === 0 ||
-           h.indexOf('172.19.') === 0 || h.indexOf('172.2') === 0 ||
-           h.indexOf('172.30.') === 0 || h.indexOf('172.31.') === 0 ||
+           h.indexOf('10.') === 0 || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(h) ||
            h.endsWith('.local') || h.endsWith('.onion') || h.endsWith('.lan');
   }
   webview.addEventListener('did-start-navigation', function(e) {
     if (!e || e.isMainFrame === false) return;
     var target = e && e.url;
-    if (!target || target.indexOf('http://') !== 0) return;
-    var host = '';
-    try { host = new URL(target).hostname; } catch(_) {}
-    if (_isLocalHostname(host)) return;
-    // Async consent check.
-    if (window.electronAPI && window.electronAPI.getHttpConsent) {
-      window.electronAPI.getHttpConsent(host).then(function(allowed) {
-        if (allowed) return;
-        // No prior consent — switch the webview to the security page.
-        // NOTE: do not call webview.stop() here. Setting .src to a different
-        // URL already cancels the in-flight navigation; calling stop() right
-        // before it leaves the page in a half-loaded state ("about:blank").
+    if (!target) return;
+    if (target.indexOf('http://') === 0) {
+      var host = '';
+      try { host = new URL(target).hostname; } catch(_) {}
+      if (_isLocalHostname(host)) return;
+      // Async consent check.
+      if (window.electronAPI && window.electronAPI.getHttpConsent) {
+        window.electronAPI.getHttpConsent(host).then(function(allowed) {
+          if (allowed) return;
+          // No prior consent — switch the webview to the security page.
+          // NOTE: do not call webview.stop() here. Setting .src to a different
+          // URL already cancels the in-flight navigation; calling stop() right
+          // before it leaves the page in a half-loaded state ("about:blank").
+          tabData._lastFailedUrl = target;
+          var secUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
+            '?url=' + encodeURIComponent(target) +
+            '&reason=http';
+          webview.src = secUrl;
+          if (tabId === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(target); }
+        }).catch(function() {});
+      }
+      return;
+    }
+    // Suspect https host — a certificate problem was recorded for it this
+    // session and the user has not accepted an exception yet. Warn BEFORE
+    // the page loads, exactly like the plain-http flow above. The check is
+    // async: on the very first visit the host usually becomes suspect only
+    // during the TLS handshake (the verify proc holds the verdict), and the
+    // global 'suspect-certs-changed' listener (see setupSuspectCertSwap)
+    // swaps the tab to the security page at that moment.
+    if (target.indexOf('https://') === 0 && window.electronAPI && window.electronAPI.checkCertWarning) {
+      var certHost = '';
+      try { certHost = new URL(target).hostname; } catch(_) {}
+      if (!certHost) return;
+      window.electronAPI.checkCertWarning(certHost).then(function(res) {
+        if (!res || !res.warn) return;
+        try { if (webview.isDestroyed && webview.isDestroyed()) return; } catch(_) { return; }
+        var cur = '';
+        try { cur = webview.src || ''; } catch(_) {}
+        if (cur !== target) return; // user navigated elsewhere meanwhile
         tabData._lastFailedUrl = target;
-        var secUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
+        var certSecUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
           '?url=' + encodeURIComponent(target) +
-          '&reason=http';
-        webview.src = secUrl;
+          '&reason=' + encodeURIComponent(res.reason || 'unknown');
+        webview.src = certSecUrl;
         if (tabId === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(target); }
       }).catch(function() {});
     }
@@ -2186,6 +3517,7 @@ function createNewTab(url, lazy, opts) {
 
   webview.addEventListener('enter-html-full-screen', function() {
     _fullscreenTabId = tabId;
+    document.body.classList.add('html-fullscreen');
     var tb = document.querySelector('.titlebar'); if (tb) tb.style.display = 'none';
     var nb = document.querySelector('.navbar'); if (nb) nb.style.display = 'none';
     var tbs = document.querySelector('.tabs-bar'); if (tbs) tbs.style.display = 'none';
@@ -2193,6 +3525,7 @@ function createNewTab(url, lazy, opts) {
 
   webview.addEventListener('leave-html-full-screen', function() {
     if (_fullscreenTabId === tabId) _fullscreenTabId = null;
+    document.body.classList.remove('html-fullscreen');
     var tb = document.querySelector('.titlebar'); if (tb) tb.style.display = '';
     var nb = document.querySelector('.navbar'); if (nb) nb.style.display = '';
     var tbs = document.querySelector('.tabs-bar'); if (tbs) tbs.style.display = '';
@@ -2209,6 +3542,11 @@ function createNewTab(url, lazy, opts) {
   });
 
   webview.addEventListener('did-start-loading', function() {
+    tabData.isLoading = true;
+    // A background tab that starts a NEW navigation must be unfrozen
+    // immediately: freezing mid-load (eco-freeze pauses rAF) stalled pages
+    // — the user switched tabs and the still-loading page never finished.
+    try { if (tabData._ecoFrozen) _ecoSetTab(tabData, false); } catch(e) {}
     if (tabId === activeTabId) {
       reloadBtn.textContent = '×';
       reloadBtn.title = 'Stop';
@@ -2225,7 +3563,7 @@ function createNewTab(url, lazy, opts) {
         var domain;
         try { domain = new URL(tabData.lastUrl).hostname; } catch(e) {}
         if (domain) {
-          var favSrc = 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=32';
+          var favSrc = spzFaviconUrl(domain);
           var ph = tabElement.querySelector('.tab-favicon-placeholder');
           if (ph) {
             var img = document.createElement('img');
@@ -2241,6 +3579,10 @@ function createNewTab(url, lazy, opts) {
   });
 
   webview.addEventListener('did-stop-loading', function() {
+    tabData.isLoading = false;
+    // Load finished — re-evaluate eco-freeze (freeze again if the tab is in
+    // the background and no longer loading).
+    try { _syncEcoForTab(tabData); } catch(e) {}
     if (tabId === activeTabId) {
       reloadBtn.textContent = '↻';
       reloadBtn.title = 'Reload';
@@ -2249,7 +3591,47 @@ function createNewTab(url, lazy, opts) {
   });
 
   webview.addEventListener('did-navigate', function(e) {
+    // A committed navigation ends the omnibox draft on this tab (unless the
+    // user is editing the bar RIGHT NOW): unsent text must not outlive the
+    // page it was typed on. Without this, a query typed into the omnibox but
+    // submitted elsewhere (the start-page search field, a QC command click,
+    // session-restore leftovers) kept showing in the bar on every later
+    // site — including pages reached by clicking a search result.
+    if (tabId !== activeTabId || document.activeElement !== urlInput) {
+      if (tabData.urlDraft) tabData.urlDraft = null;
+    }
     if (e.url && e.url !== 'about:blank' && e.url.indexOf('file://') !== 0) tabData.lastUrl = e.url;
+    // Per-tab navigation history (for the Back/Forward right-click menus and
+    // the back/forward fallback after sleep/restart).
+    if (e.url && e.url.indexOf('http') === 0) {
+      try {
+        var nh = tabData.navHistory || (tabData.navHistory = []);
+        if (typeof tabData.navIndex !== 'number' || tabData.navIndex > nh.length - 1) tabData.navIndex = nh.length - 1;
+        // Walking within history (webview goBack/goForward or the fallback
+        // navigation) — move the index instead of truncating the chain.
+        // e.url === current entry: a reload or the initial load of a restored
+        // tab — keep the position, especially keep the forward branch intact
+        // (the user may have quit while in the middle of the history).
+        var curU = nh[tabData.navIndex] ? nh[tabData.navIndex].url : null;
+        var prevU = tabData.navIndex > 0 ? nh[tabData.navIndex - 1].url : null;
+        var nextU = tabData.navIndex < nh.length - 1 ? nh[tabData.navIndex + 1].url : null;
+        if (e.url === prevU) {
+          tabData.navIndex--;
+        } else if (e.url === nextU) {
+          tabData.navIndex++;
+        } else if (e.url !== curU) {
+          // Navigating after going back drops the forward branch.
+          if (tabData.navIndex < nh.length - 1) nh = nh.slice(0, tabData.navIndex + 1);
+          var lastE = nh[nh.length - 1];
+          if (!lastE || lastE.url !== e.url) {
+            nh.push({ url: e.url, title: '' });
+            if (nh.length > 30) nh.shift();
+          }
+          tabData.navHistory = nh;
+          tabData.navIndex = nh.length - 1;
+        }
+      } catch (_) {}
+    }
     // ===== File viewers =====
     // Navigating to a local .json/.md/.ttf/... file redirects to the built-in
     // Viewer.html instead of the raw download / broken render.
@@ -2271,7 +3653,10 @@ function createNewTab(url, lazy, opts) {
     }
     if (tabId === activeTabId) {
       _urlBarRevealed = false;
-      if (_urlBarSearchTabId !== activeTabId || !e.url || e.url.indexOf('http') !== 0) {
+      // Leaving the search engine (e.g. following a result link) must drop
+      // the remembered query text — otherwise the omnibox kept showing the
+      // old search phrase on every subsequent site with a ?q= param.
+      if (!_isSearchEnginePage(e.url)) {
         _urlBarSearchText = '';
         _urlBarSearchTabId = null;
       }
@@ -2287,20 +3672,43 @@ function createNewTab(url, lazy, opts) {
     }
     updateNavButtons();
     if (e.url && e.url.indexOf('file://') !== 0) {
-      if (window.electronAPI && window.electronAPI.addHistory) {
+      // Privacy: incognito tabs never write to the shared on-disk history.
+      if (!tabData.isIncognito && window.electronAPI && window.electronAPI.addHistory) {
         window.electronAPI.addHistory({ url: e.url, title: tabData.title });
       }
+      // Frequent-sites counter for the omnibox (48h rolling window, per
+      // origin). Incognito never records; the main process also gates on the
+      // Settings toggle and prunes the map itself. The local map is bumped
+      // OPTIMISTICALLY — reloading the whole map per navigation caused an
+      // extra full-settings clone round-trip on every page load.
+      if (!tabData.isIncognito && window.electronAPI && window.electronAPI.recordFrequentVisit) {
+        try {
+          var _freqOrigin = '';
+          try { _freqOrigin = new URL(e.url).origin; } catch (_) {}
+          if (_freqOrigin) _frequentSites[_freqOrigin] = (_frequentSites[_freqOrigin] || 0) + 1;
+          window.electronAPI.recordFrequentVisit(e.url).catch(function() {});
+        } catch(_) {}
+      }
       injectCosmetics(webview, e.url);
+      try { _injectMicTracker(webview); } catch(_) {}
       injectPiP(tabData);
       if (_eqState.enabled) eqInject(tabData);
       _sbLastVid[tabData.id] = null;
       injectSponsorBlock(tabData);
       injectCookieBannerBlocker(tabData);
-      autoSaveTabs();
+      // Debounced session save (2 s of quiet) — an immediate save per
+      // navigation used to hammer settings.json on every page load.
+      _scheduleTabSave();
+      // Refresh the shield counter as soon as the new page is in place.
+      try { if (window._updateAbShield) window._updateAbShield(); } catch(e) {}
     }
   });
 
   webview.addEventListener('did-navigate-in-page', function(e) {
+    // Same rule as did-navigate: SPA pushState/hash changes end the draft.
+    if (tabId !== activeTabId || document.activeElement !== urlInput) {
+      if (tabData.urlDraft) tabData.urlDraft = null;
+    }
     if (e.isMainFrame && e.url && e.url.indexOf('file://') !== 0) tabData.lastUrl = e.url;
     // Session Guard: check duplicates during SPA navigation (hash/history.pushState)
     if (e.isMainFrame && e.url && e.url.indexOf('http') === 0) {
@@ -2308,6 +3716,10 @@ function createNewTab(url, lazy, opts) {
     }
     if (tabId === activeTabId) {
       _urlBarRevealed = false;
+      if (!_isSearchEnginePage(e.url)) {
+        _urlBarSearchText = '';
+        _urlBarSearchTabId = null;
+      }
       if (_isInternalPageUrl(e.url)) {
         setUrlBarDisplay(e.url);
       } else {
@@ -2317,10 +3729,12 @@ function createNewTab(url, lazy, opts) {
     }
     updateNavButtons();
     if (e.url && e.url.indexOf('file://') !== 0 && e.isMainFrame) {
-      if (window.electronAPI && window.electronAPI.addHistory) {
+      // Privacy: incognito tabs never write to the shared on-disk history.
+      if (!tabData.isIncognito && window.electronAPI && window.electronAPI.addHistory) {
         window.electronAPI.addHistory({ url: e.url, title: tabData.title });
       }
       injectCosmetics(webview, e.url);
+      try { _injectMicTracker(webview); } catch(_) {}
       injectSponsorBlock(tabData);
       injectCookieBannerBlocker(tabData);
     }
@@ -2338,10 +3752,16 @@ function createNewTab(url, lazy, opts) {
   webview.addEventListener('page-title-updated', function(e) {
     if (e.title) {
       tabData.title = e.title;
+      // Keep the navigation-history entry title in sync (Back/Forward menu).
+      try {
+        if (tabData.navHistory && tabData.navHistory[tabData.navIndex]) {
+          tabData.navHistory[tabData.navIndex].title = e.title;
+        }
+      } catch (e3) {}
       var u = '';
       try { u = webview.getURL ? webview.getURL() : (webview.src || ''); } catch(e2) { u = webview.src || ''; }
       if (u && u !== 'about:blank' && u.indexOf('file://') !== 0) tabData.lastUrl = u;
-      tabElement.querySelector('.tab-title').textContent = e.title;
+      tabElement.querySelector('.tab-title').textContent = e.title; try { tabElement.setAttribute('aria-label', e.title || 'New tab'); } catch(e2) {}
     }
   });
 
@@ -2392,6 +3812,18 @@ function createNewTab(url, lazy, opts) {
 
   // Tab click handler
   tabElement.addEventListener('click', function(e) {
+    // Microphone badge click: mute/unmute the tab's live audio tracks
+    // without killing the stream (the page keeps its permission, the
+    // capture just goes silent). Falls through to nothing else.
+    var micEl = e.target.closest('.tab-mic');
+    if (micEl) {
+      e.stopPropagation();
+      e.preventDefault();
+      try {
+        webview.executeJavaScript('window.__spzMicToggle ? window.__spzMicToggle() : 0', false).catch(function() {});
+      } catch (_) {}
+      return;
+    }
     if (!e.target.closest('.tab-close')) {
       setActiveTab(tabId);
     }
@@ -2521,6 +3953,7 @@ function createNewTab(url, lazy, opts) {
   });
 
   tabElement.addEventListener('mouseenter', function() {
+    if (!_tabPreviews) return;
     clearTimeout(_tabPreviewTimer);
     _tabPreviewTimer = setTimeout(function() {
       showTabPreview(tabId);
@@ -2528,6 +3961,13 @@ function createNewTab(url, lazy, opts) {
   });
 
   tabElement.addEventListener('mouseleave', function() {
+    clearTimeout(_tabPreviewTimer);
+    hideTabPreview();
+  });
+
+  // Clicking a tab = switching to it — the hover preview must not linger
+  // over the navbar/content after the switch.
+  tabElement.addEventListener('mousedown', function() {
     clearTimeout(_tabPreviewTimer);
     hideTabPreview();
   });
@@ -2598,10 +4038,28 @@ function createNewTab(url, lazy, opts) {
     });
     resetTabSleepTimer(tabId);
 
-    if (tab.pendingUrl) {
-      var loadUrl = tab.pendingUrl;
+    var loadUrl = '';
+    if (tab.pendingUrl && tab.pendingUrl !== 'about:blank') {
+      loadUrl = tab.pendingUrl;
       tab.pendingUrl = null;
       tab.webview.src = loadUrl;
+      // Wake insurance: if the webview was not attached to the DOM yet, the
+      // src assignment can be silently dropped and the tab stays a white
+      // page with an empty omnibox forever. Re-check shortly and load once
+      // more if nothing ever started.
+      (function(u, t) {
+        setTimeout(function() {
+          try {
+            var cur = t.webview && t.webview.getURL ? t.webview.getURL() : '';
+            var loading = false;
+            try { loading = t.webview.isLoading && t.webview.isLoading(); } catch (e0) {}
+            if ((!cur || cur === 'about:blank') && !loading) t.webview.loadURL(u);
+          } catch (e) {}
+        }, 1800);
+      })(loadUrl, tab);
+    } else if (tab.pendingUrl === 'about:blank') {
+      // Corrupted by an old sleep bug — drop it so nothing reloads blank.
+      tab.pendingUrl = null;
     }
 
     if (_splitActive) {
@@ -2620,14 +4078,26 @@ function createNewTab(url, lazy, opts) {
     } catch(e) {
       currentUrl = tab.webview.src || '';
     }
+    // Lazy/sleeping tabs still sit on about:blank at this moment (the src
+    // assignment above has not committed yet) — resolve the REAL destination
+    // through the fallback chain, otherwise the omnibox showed about:blank
+    // or stayed empty right after switching to a restored tab.
+    if (!currentUrl || currentUrl === 'about:blank') currentUrl = loadUrl || '';
+    if (!currentUrl || currentUrl === 'about:blank') currentUrl = tab._sleepUrl || '';
+    if (!currentUrl || currentUrl === 'about:blank') currentUrl = tab.lastUrl || '';
     if (currentUrl.indexOf('Settings.html') > -1 || currentUrl.indexOf('MainPage/index.html') > -1 || currentUrl.indexOf('ErrorPage/index.html') > -1) {
-      setUrlBarDisplay('');
+      // Pass the REAL url: setUrlBarDisplay's internal-page branch clears
+      // the visible text itself, and MainPage needs the real url to show
+      // the bookmark star (quick bookmarks panel). Passing '' broke both.
+      setUrlBarDisplay(currentUrl || '');
     } else {
       _urlBarRevealed = false;
       setUrlBarDisplay(currentUrl);
     }
     updateNavButtons();
     updateUrlIcon(currentUrl);
+    // Shield status/badge belong to the visible tab — refresh immediately.
+    try { if (window._updateAbShield) window._updateAbShield(); } catch(e) {}
 
     var zoom = _tabZoom[tabId] || 1;
     if (zoom !== 1 && canExecInWebview(tab.webview)) {
@@ -2677,11 +4147,27 @@ function closeTab(tabId) {
   tab.element.remove();
   tab.webview.remove();
 
+  // If the closed tab was in HTML-fullscreen, the guest is gone and will
+  // never fire leave-html-full-screen — restore the chrome here or the
+  // window stays without titlebar/tab bar until restart.
+  if (_fullscreenTabId === tabId) {
+    _fullscreenTabId = null;
+    document.body.classList.remove('html-fullscreen');
+    var tb = document.querySelector('.titlebar'); if (tb) tb.style.display = '';
+    var nb = document.querySelector('.navbar'); if (nb) nb.style.display = '';
+    var tbs = document.querySelector('.tabs-bar'); if (tbs) tbs.style.display = '';
+  }
+
   delete _tabPreviewCache[tabId];
   delete _tabAudioPlaying[tabId];
   delete _tabMuted[tabId];
   delete _tabZoom[tabId];
+  delete _qrFoundData[tabId];
+  delete _sbLastVid[tabId];
+  if (_tabCloseTimers[tabId]) { clearTimeout(_tabCloseTimers[tabId]); delete _tabCloseTimers[tabId]; }
+  if (_tabCloseAt[tabId]) { delete _tabCloseAt[tabId]; try { _setTabCloseIndicator(tabId, 0); } catch(e) {} }
   if (_tabSleepTimers[tabId]) { clearTimeout(_tabSleepTimers[tabId]); delete _tabSleepTimers[tabId]; }
+  if (tab._sbPollId) { clearInterval(tab._sbPollId); tab._sbPollId = null; }
   stopLoadingBar(tabId);
 
   // Remove from array
@@ -2700,8 +4186,8 @@ function updateNavButtons() {
   const tab = tabs.find(function(t) { return t.id === activeTabId; });
   if (tab && tab.isReady) {
     try {
-      var canBack = tab.webview.canGoBack();
-      var canForward = tab.webview.canGoForward();
+      var canBack = _tabCanBack(tab);
+      var canForward = _tabCanForward(tab);
       backBtn.style.opacity = canBack ? '1' : '0.5';
       forwardBtn.style.opacity = canForward ? '1' : '0.5';
       backBtn.style.cursor = canBack ? 'pointer' : 'default';
@@ -2717,6 +4203,48 @@ function updateNavButtons() {
     forwardBtn.style.opacity = '1';
     backBtn.style.cursor = 'pointer';
     forwardBtn.style.cursor = 'pointer';
+  }
+}
+
+// ===== Back/Forward with navHistory fallback =====
+// The webview's OWN history is wiped by loadURL('about:blank') (tab sleep)
+// and by session restore — after that the arrows went dead even though the
+// user had just been browsing. navHistory keeps the chain, so when the
+// webview cannot go back/forward we navigate through navHistory instead.
+function _tabCanBack(tab) {
+  if (!tab) return false;
+  try { if (tab.webview && tab.webview.canGoBack && tab.webview.canGoBack()) return true; } catch(e) {}
+  return !!(tab.navHistory && typeof tab.navIndex === 'number' && tab.navIndex > 0);
+}
+function _tabCanForward(tab) {
+  if (!tab) return false;
+  try { if (tab.webview && tab.webview.canGoForward && tab.webview.canGoForward()) return true; } catch(e) {}
+  return !!(tab.navHistory && typeof tab.navIndex === 'number' && tab.navIndex < tab.navHistory.length - 1);
+}
+function tabGoBack(tab) {
+  if (!tab || !tab.webview) return;
+  try { if (tab.webview.canGoBack && tab.webview.canGoBack()) { tab.webview.goBack(); return; } } catch(e) {}
+  if (tab.navHistory && typeof tab.navIndex === 'number' && tab.navIndex > 0) {
+    var u = tab.navHistory[tab.navIndex - 1].url;
+    if (u) {
+      // Do NOT decrement navIndex here — the did-navigate neighbor-match
+      // moves it when this navigation commits.
+      tab.pendingUrl = u;
+      try { tab.webview.src = u; } catch(e0) {}
+      if (tab.id === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(u); }
+    }
+  }
+}
+function tabGoForward(tab) {
+  if (!tab || !tab.webview) return;
+  try { if (tab.webview.canGoForward && tab.webview.canGoForward()) { tab.webview.goForward(); return; } } catch(e) {}
+  if (tab.navHistory && typeof tab.navIndex === 'number' && tab.navIndex < tab.navHistory.length - 1) {
+    var u2 = tab.navHistory[tab.navIndex + 1].url;
+    if (u2) {
+      tab.pendingUrl = u2;
+      try { tab.webview.src = u2; } catch(e1) {}
+      if (tab.id === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(u2); }
+    }
   }
 }
 
@@ -2900,6 +4428,10 @@ function updateTabAudioIcon(tabId) {
 var _tabPreviewEl = null;
 var _tabPreviewCache = {};
 var _tabPreviewCaptureTimer = null;
+// "Tab hover preview" (Settings → Customization → Tabs). Default ON.
+// (Hides instantly on tab click and stays inside the window — see
+// showTabPreview / the tab mousedown handler.)
+var _tabPreviews = true;
 
 function cacheTabPreview(tabId) {
   var tab = tabs.find(function(t) { return t.id === tabId; });
@@ -2929,6 +4461,7 @@ function stopTabPreviewCapture() {
 }
 
 function showTabPreview(tabId) {
+  if (!_tabPreviews) return;
   var cached = _tabPreviewCache[tabId];
   if (!cached) {
     var tab = tabs.find(function(t) { return t.id === tabId; });
@@ -2950,7 +4483,9 @@ function showTabPreview(tabId) {
   if (tab) {
     var rect = tab.element.getBoundingClientRect();
     _tabPreviewEl.style.top = (rect.bottom + 4) + 'px';
-    _tabPreviewEl.style.left = Math.max(4, rect.left) + 'px';
+    // Keep the card inside the window: hovering a tab near the right edge
+    // used to push the preview half off-screen.
+    _tabPreviewEl.style.left = Math.max(4, Math.min(rect.left, (window.innerWidth || 1280) - 296)) + 'px';
   }
   _tabPreviewEl.classList.add('tab-preview-visible');
 }
@@ -2966,6 +4501,9 @@ startTabPreviewCapture();
 // Navigation functions
 function navigateTo(url, tabId) {
   if (typeof tabId === 'undefined') tabId = activeTabId;
+  // Any deliberate navigation from the omnibox (Enter, a suggestion click,
+  // Quick Commands) sends the text — the draft must not survive it.
+  _setUrlBarDraft(null);
   var tab = tabs.find(function(t) { return t.id === tabId; });
   if (!tab) {
     // No regular tab matches — an incognito tab is on screen (a dedicated
@@ -3062,7 +4600,7 @@ function navigateTo(url, tabId) {
     if (/^localhost/i.test(url) || /^127\./.test(url) || /^192\.168\./.test(url) || /^10\./.test(url) || /^172\.(1[6-9]|2[0-9]|3[01])\./.test(url)) {
       finalUrl = 'http://' + url;
     } else {
-      finalUrl = searchEngineUrl + encodeURIComponent(url);
+      finalUrl = buildSearchUrl(url);
     }
   } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
     finalUrl = 'https://' + url;
@@ -3103,6 +4641,10 @@ function navigateTo(url, tabId) {
 urlInput.addEventListener('keydown', function(e) {
   if (e.key === 'Enter') {
     var raw = urlInput.value.trim();
+    // Enter SENDS the text — the draft ends here and the bar reverts to
+    // the page URL. Without this the typed text haunted every overlay
+    // (Quick Commands, tab search) and every later state of the bar.
+    _setUrlBarDraft(null);
     var isSearch = !raw.includes('.') || raw.includes(' ');
     if (isSearch) { _urlBarSearchText = raw; _urlBarSearchTabId = activeTabId; }
     else { _urlBarSearchText = ''; _urlBarSearchTabId = null; }
@@ -3110,8 +4652,14 @@ urlInput.addEventListener('keydown', function(e) {
       e.preventDefault();
       doMultiSearch(raw);
     } else {
-      navigateTo(urlInput.value, activeTabId);
+      // Trimmed value: leading/trailing spaces must not end up URL-encoded
+      // into the search query.
+      navigateTo(raw, activeTabId);
     }
+  } else if (e.key === 'Escape' && _urlBarDraftText() !== null) {
+    // Escape with the suggestions closed: cancel the draft, restore the URL.
+    _setUrlBarDraft(null);
+    if (_urlBarFullUrl) { _urlBarRevealed = false; setUrlBarDisplay(_urlBarFullUrl); }
   }
 });
 
@@ -3125,6 +4673,10 @@ document.getElementById('urlRevealBtn').addEventListener('mousedown', function(e
     _urlBarRevealed = true;
     urlInput.value = _urlBarFullUrl;
     this.classList.add('revealed');
+    // Make the revealed URL instantly copyable: move focus + select all,
+    // so Ctrl+C works right away (previously the field was never focused
+    // and clicking into it re-collapsed the reveal).
+    try { urlInput.focus(); urlInput.select(); } catch(_) {}
   }
 });
 
@@ -3156,13 +4708,28 @@ settingsBtn.addEventListener('click', function() {
     else if (api.windowClose) api.windowClose();
   });
 
-  // Reflect maximize/restore state on the green button.
+  // Reflect maximize/restore state on the green button, and square the
+  // window corners in native fullscreen (F11) — rounding over a full screen
+  // clips page content and looks wrong.
   if (api.onWindowStateChanged) {
     api.onWindowStateChanged(function(state) {
       if (!state) return;
       if (state.maximized) document.body.classList.add('win-maximized');
       else document.body.classList.remove('win-maximized');
+      if (state.fullscreen) document.body.classList.add('win-fullscreen');
+      else document.body.classList.remove('win-fullscreen');
     });
+  }
+  // Startup sync: the maximize/fullscreen events can fire while this
+  // renderer was still loading (window created already maximized/fullscreen)
+  // — the listener above never saw them, so rounded corners stayed painted
+  // over the full screen. Ask the main process for the CURRENT state once.
+  if (api.getWindowState) {
+    api.getWindowState().then(function(state) {
+      if (!state) return;
+      if (state.maximized) document.body.classList.add('win-maximized');
+      if (state.fullscreen) document.body.classList.add('win-fullscreen');
+    }).catch(function() {});
   }
   // Reflect focus/blur: gray-out the circles when the window is inactive.
   if (api.onWindowFocusChanged) {
@@ -3230,8 +4797,18 @@ settingsBtn.addEventListener('click', function() {
     _ahHotspot.addEventListener('mouseenter', _ahReveal);
     _ahHotspot.addEventListener('mousemove', _ahReveal); // safety net
   }
+  // Left-edge hotspot — same reveal path for the collapsed vertical sidebar.
+  var _ahLeftHotspot = document.getElementById('autohideLeftHotspot');
+  if (_ahLeftHotspot) {
+    _ahLeftHotspot.addEventListener('mouseenter', _ahReveal);
+    _ahLeftHotspot.addEventListener('mousemove', _ahReveal);
+  }
   _ahBindHover(_ahTitlebar);
   _ahBindHover(_ahNavbar);
+  // In vertical mode the sidebar collapses with the chrome and reappears on
+  // reveal — keep it open while the cursor is on it. (In horizontal mode the
+  // tabs-bar lives inside the collapsed titlebar, so this is a no-op there.)
+  _ahBindHover(document.querySelector('.tabs-bar'));
   // Window blur / minimize → hide immediately (so the chrome doesn't stay
   // floating over a backgrounded window).
   if (api.onWindowFocusChanged) {
@@ -3265,7 +4842,11 @@ settingsBtn.addEventListener('click', function() {
     if (htc) htc.className = 'hm-check' + (_hoverTranslateSettings.enabled ? ' active' : '');
   }
 
-  // Hide menu items whose buttons are already on the toolbar.
+  // Hide menu items whose buttons are already on the toolbar, and items the
+  // user removed from the custom menu layout. Membership (hmMembers below)
+  // is AUTHORITATIVE state — never derived from style.display: dedup-hidden
+  // items must stay members, so when their toolbar button is later removed
+  // they reappear in the menu.
   function updateHmVisibility() {
     try {
       var tbs = (typeof _getToolbarButtons === 'function') ? _getToolbarButtons() : (_currentToolbarButtons || _defaultToolbarButtons || []);
@@ -3292,10 +4873,15 @@ settingsBtn.addEventListener('click', function() {
         hmIncognito:  'incognito',
         hmBreakLoupe: 'breakLoupe'
       };
-      Object.keys(HMMAP).forEach(function(hmId) {
-        var el = document.getElementById(hmId);
-        if (!el) return;
-        el.style.display = (tbs.indexOf(HMMAP[hmId]) !== -1) ? 'none' : '';
+      Array.prototype.forEach.call(hmMenu.children, function(ch) {
+        var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+        if (!key || key === 'hmCustomizePanel') return;
+        if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return;
+        if (HM_DEFAULT_ORDER.indexOf(key) === -1) return; // not a catalog item
+        var member = hmMembers.indexOf(key) !== -1;
+        var tb = HMMAP[key];
+        var onToolbar = tb && tbs.indexOf(tb) !== -1;
+        ch.style.display = (member && !onToolbar) ? '' : 'none';
       });
     } catch(e) { /* never break the renderer over a missing item */ }
   }
@@ -3303,12 +4889,16 @@ settingsBtn.addEventListener('click', function() {
 
   hmBtn.addEventListener('click', function(e) {
     e.stopPropagation();
+    // While the in-shell menu customize mode is active the menu must stay
+    // open — it is the editing canvas.
+    if (window._menuCustomizeModeActive && window._menuCustomizeModeActive()) return;
     var isOpen = hmMenu.classList.contains('open');
     if (isOpen) { hmMenu.classList.remove('open'); }
     else { updateHmChecks(); updateHmVisibility(); hmMenu.classList.add('open'); }
   });
 
   document.addEventListener('click', function(e) {
+    if (window._menuCustomizeModeActive && window._menuCustomizeModeActive()) return;
     if (!hmMenu.contains(e.target) && e.target !== hmBtn) hmMenu.classList.remove('open');
   });
 
@@ -3339,6 +4929,7 @@ settingsBtn.addEventListener('click', function() {
   }
 
   bind('hmSettings', function() { createNewTab('Settings.html'); });
+  bind('hmHelp', function() { createNewTab('Help.html'); });
   bind('hmLibrary', function() { createNewTab('Library.html'); });
   bind('hmBookmarks', function() { createNewTab('Library.html#bookmarks'); });
   bind('hmHistory', function() { createNewTab('Library.html#history'); });
@@ -3346,7 +4937,26 @@ settingsBtn.addEventListener('click', function() {
   bind('hmAutofill', function() { createNewTab('Library.html#passwords'); });
   bind('hmScripts', function() { createNewTab('Settings.html#scripts'); });
   bind('hmAdblock', function() { _openPanelUnderHamburger('adblockPanel', null); });
+  // Dark mode — the classic quick toggle with a checkmark. The Light/Dark
+  // mode switch lives INSIDE the Dark Reader panel (toolbar button);
+  // right-click this item opens the panel when the button is unpinned.
   bind('hmDark', function() { toggleForceDark(); });
+  var _hmDarkEl = document.getElementById('hmDark');
+  if (_hmDarkEl) {
+    _hmDarkEl.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      var panel = document.getElementById('darkReaderPanel');
+      if (!panel) return;
+      Object.keys(_POPUP_BTN_MAP).forEach(function(oid) {
+        if (oid === 'darkReaderPanel') return;
+        var o = document.getElementById(oid);
+        if (o) o.classList.remove('open');
+      });
+      panel.classList.add('open');
+      if (window._drSyncPanel) { try { window._drSyncPanel(); } catch(e0) {} }
+      _openPanelUnderHamburger('darkReaderPanel', null);
+    });
+  }
   bind('hmReader', function() { if (window._toggleReader) window._toggleReader(); });
   bind('hmTts', function() { if (window._ttsToggle) window._ttsToggle(); });
   bind('hmMedia', function() { _openPanelUnderHamburger('mediaPanel', (typeof toggleMediaPanel === 'function') ? toggleMediaPanel : null); });
@@ -3363,7 +4973,288 @@ settingsBtn.addEventListener('click', function() {
   bind('hmIncognito', function() { if (typeof window.startIncognitoMode === 'function') window.startIncognitoMode(); });
   bind('hmBreakLoupe', function() { clickBtn('breakLoupeBtn'); });
 
+  // ===== Custom menu contents (in-shell customize mode, see the
+  // menuCustomizeMode IIFE below). hmMembers is the AUTHORITATIVE item
+  // membership (order = list order). Visibility = member AND no toolbar
+  // twin (updateHmVisibility above) — never the other way round, so a
+  // dedup-hidden member reappears in the menu as soon as its button leaves
+  // the toolbar.
+  var HM_DEFAULT_ORDER = ['hmSettings','hmHelp','hmDivider1','hmLibrary','hmBookmarks','hmHistory','hmDownloads','hmAutofill','hmAdblock','hmScripts','hmDivider2','hmDark','hmReader','hmTts','hmMedia','hmEq','hmHoverTr','hmDivider3','hmQr','hmSplit','hmScreenshot','hmFindAll','hmAutoscroll','hmNewWindow','hmIncognito','hmBreakLoupe'];
+  var hmMembers = HM_DEFAULT_ORDER.slice(); // ids currently IN the menu
+  window._applyMenuLayout = function(items) {
+    if (!Array.isArray(items) || !items.length) return;
+    // Sanitize: known catalog ids only, first occurrence wins.
+    var seen = {};
+    hmMembers = [];
+    items.forEach(function(id) {
+      if (HM_DEFAULT_ORDER.indexOf(id) !== -1 && !seen[id]) { seen[id] = true; hmMembers.push(id); }
+    });
+    var byId = {};
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return; // customize panel etc.
+      var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+      if (key && !byId[key]) byId[key] = ch;
+    });
+    hmMembers.forEach(function(id) {
+      var el = byId[id];
+      if (!el) return;
+      el.style.display = '';
+      hmMenu.appendChild(el);
+    });
+    // Non-members stay hidden (members' toolbar dedup is applied by
+    // updateHmVisibility — but NOT while the customize mode is open: the
+    // editor must show the full membership, hidden twins included).
+    Object.keys(byId).forEach(function(k) {
+      if (hmMembers.indexOf(k) === -1) byId[k].style.display = 'none';
+    });
+    if (!(window._menuCustomizeModeActive && window._menuCustomizeModeActive())) {
+      try { updateHmVisibility(); } catch(e) {}
+    }
+  };
+  // Current membership in DOM order (authoritative — includes items that
+  // are temporarily hidden because their button is on the toolbar).
+  window._hmGetLayout = function() {
+    var order = [];
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return;
+      var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+      if (key && key !== 'hmCustomizePanel') order.push(key);
+    });
+    return order.filter(function(k) { return hmMembers.indexOf(k) !== -1; });
+  };
+  if (window.electronAPI && window.electronAPI.getMenuItems) {
+    window.electronAPI.getMenuItems().then(function(r) {
+      if (r && r.success && Array.isArray(r.items)) window._applyMenuLayout(r.items);
+    }).catch(function() {});
+  }
+  if (window.electronAPI && window.electronAPI.onMenuItemsChanged) {
+    window.electronAPI.onMenuItemsChanged(function(items) { window._applyMenuLayout(items); });
+  }
+  // Default order kept for external callers (reset, editors).
+  window._hmDefaultOrder = HM_DEFAULT_ORDER.slice();
+
   try { updateHmVisibility(); } catch(e) {}
+})();
+
+// ===== In-shell hamburger menu customize mode =====
+// Opened from Settings → "Open menu customization" (startpozi://customize-menu
+// → toggle-menu-customize-mode — the exact same flow as the toolbar's
+// customize mode). The LIVE menu becomes the editing canvas: drag items to
+// reorder, double-click (or drop onto the pool) to remove, drag chips from
+// the in-menu pool to add back. Every change applies and saves immediately
+// (menu-items-changed keeps other windows in sync).
+(function() {
+  var hmMenu = document.getElementById('hamburgerMenu');
+  var panel = document.getElementById('hmCustomizePanel');
+  var pool = document.getElementById('hmCustPool');
+  if (!hmMenu || !panel || !pool || !window._applyMenuLayout || !window._hmGetLayout) return;
+
+  var active = false;
+  var dragId = null, dragFromPool = false;
+  var attached = []; // listeners to detach on close
+
+  window._menuCustomizeModeActive = function() { return active; };
+
+  function on(el, type, fn, capture) {
+    el.addEventListener(type, fn, capture);
+    attached.push({ el: el, type: type, fn: fn, capture: !!capture });
+  }
+  function hmKeyOf(el) { return el.id || (el.getAttribute && el.getAttribute('data-hm-id')); }
+  function isCatalogEl(el) {
+    return el && el.nodeType === 1 && el !== panel &&
+      !(el.getAttribute && el.getAttribute('data-hm-skip')) && hmKeyOf(el);
+  }
+  function applyAndSave(list) {
+    window._applyMenuLayout(list);
+    if (window.electronAPI && window.electronAPI.saveMenuItems) {
+      window.electronAPI.saveMenuItems(list).catch(function() {});
+    }
+  }
+
+  function clearDropHints() {
+    hmMenu.classList.remove('hm-drag-over');
+    hmMenu.querySelectorAll('.hm-drop-before,.hm-drop-after').forEach(function(el) {
+      el.classList.remove('hm-drop-before', 'hm-drop-after');
+    });
+  }
+
+  // ---- pool (items missing from the current layout) ----
+  function chipHtml(key) {
+    if (key.indexOf('hmDivider') === 0) {
+      return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/></svg><span>Separator</span>';
+    }
+    var src = hmMenu.querySelector('#' + key + ' .hm-icon');
+    var label = key;
+    if (src && src.parentNode) label = (src.parentNode.textContent || '').trim() || key;
+    return (src ? src.innerHTML : '') + '<span>' + label + '</span>';
+  }
+  function refreshPool() {
+    pool.innerHTML = '';
+    var layout = window._hmGetLayout();
+    (window._hmDefaultOrder || []).forEach(function(key) {
+      if (layout.indexOf(key) !== -1) return;
+      var chip = document.createElement('div');
+      chip.className = 'hm-cust-chip';
+      chip.innerHTML = chipHtml(key);
+      chip.draggable = true;
+      chip.addEventListener('dragstart', function(e) {
+        dragId = key; dragFromPool = true;
+        e.dataTransfer.setData('text/plain', key);
+        e.dataTransfer.setData('application/x-startpozi-ui-drag', '1');
+        e.dataTransfer.effectAllowed = 'move';
+        chip.classList.add('dragging');
+      });
+      chip.addEventListener('dragend', function() { chip.classList.remove('dragging'); dragId = null; clearDropHints(); });
+      chip.addEventListener('dblclick', function() {
+        var list = window._hmGetLayout();
+        list.push(key);
+        applyAndSave(list);
+        refreshPool();
+      });
+      pool.appendChild(chip);
+    });
+  }
+
+  function insertIntoMenu(key, beforeKey) {
+    var list = window._hmGetLayout().filter(function(k) { return k !== key; });
+    if (beforeKey) {
+      var idx = list.indexOf(beforeKey);
+      if (idx !== -1) { list.splice(idx, 0, key); } else { list.push(key); }
+    } else {
+      list.push(key);
+    }
+    applyAndSave(list);
+    refreshPool();
+  }
+  function removeFromMenu(key) {
+    applyAndSave(window._hmGetLayout().filter(function(k) { return k !== key; }));
+    refreshPool();
+  }
+
+  function openMenuCustomizeMode() {
+    active = true;
+    panel.style.display = '';
+    hmMenu.classList.add('open');
+    hmMenu.classList.add('hm-customizing');
+    // While editing, show the FULL membership — including items temporarily
+    // hidden by the toolbar dedup: they are menu members, the pool only
+    // holds true non-members.
+    var mem = window._hmGetLayout();
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+      if (!key || key === 'hmCustomizePanel') return;
+      if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return;
+      if (window._hmDefaultOrder.indexOf(key) === -1) return;
+      ch.style.display = mem.indexOf(key) !== -1 ? '' : 'none';
+    });
+    // While editing, clicks on menu items must NOT run their actions.
+    on(hmMenu, 'click', function(e) {
+      if (!active) return;
+      if (e.target.closest && e.target.closest('.hm-item')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+    // Live items: drag to reorder, dblclick to remove.
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (!isCatalogEl(ch)) return;
+      ch.draggable = true;
+      on(ch, 'dragstart', function(e) {
+        dragId = hmKeyOf(ch); dragFromPool = false;
+        e.dataTransfer.setData('text/plain', dragId);
+        e.dataTransfer.setData('application/x-startpozi-ui-drag', '1');
+        e.dataTransfer.effectAllowed = 'move';
+        ch.classList.add('dragging');
+      });
+      on(ch, 'dragend', function() { ch.classList.remove('dragging'); dragId = null; clearDropHints(); });
+      on(ch, 'dblclick', function() { removeFromMenu(hmKeyOf(ch)); });
+    });
+    // The menu is the reorder drop zone.
+    on(hmMenu, 'dragover', function(e) {
+      if (!active || !dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      hmMenu.classList.add('hm-drag-over');
+      clearDropHints();
+      var it = e.target.closest && e.target.closest('.hm-item');
+      if (it) {
+        var r = it.getBoundingClientRect();
+        it.classList.add(e.clientY < r.top + r.height / 2 ? 'hm-drop-before' : 'hm-drop-after');
+      }
+    });
+    on(hmMenu, 'drop', function(e) {
+      if (!active || !dragId) return;
+      e.preventDefault();
+      clearDropHints();
+      var key = dragId;
+      dragId = null; dragFromPool = false;
+      var it = e.target.closest && e.target.closest('.hm-item');
+      var beforeKey = null;
+      if (it) {
+        var itKey = hmKeyOf(it);
+        var r = it.getBoundingClientRect();
+        var after = e.clientY >= r.top + r.height / 2;
+        var list = window._hmGetLayout();
+        var idx = list.indexOf(itKey);
+        if (idx !== -1) beforeKey = after ? (list[idx + 1] || null) : itKey;
+      }
+      insertIntoMenu(key, beforeKey);
+    });
+    on(hmMenu, 'dragleave', function(e) {
+      if (!hmMenu.contains(e.relatedTarget)) { hmMenu.classList.remove('hm-drag-over'); clearDropHints(); }
+    });
+    // Dropping an item onto the pool removes it from the menu.
+    on(pool, 'dragover', function(e) { if (active && dragId) { e.preventDefault(); pool.style.outline = '1px dashed #3b7dd8'; } });
+    on(pool, 'dragleave', function() { pool.style.outline = ''; });
+    on(pool, 'drop', function(e) {
+      e.preventDefault();
+      pool.style.outline = '';
+      if (!active || !dragId) return;
+      var key = dragId;
+      dragId = null; dragFromPool = false;
+      removeFromMenu(key);
+    });
+    // Panel controls.
+    var doneBtn = document.getElementById('hmCustDone');
+    var resetBtn = document.getElementById('hmCustReset');
+    if (doneBtn) doneBtn.onclick = closeMenuCustomizeMode;
+    if (resetBtn) resetBtn.onclick = function() {
+      applyAndSave((window._hmDefaultOrder || []).slice());
+      refreshPool();
+    };
+    refreshPool();
+  }
+
+  function closeMenuCustomizeMode() {
+    active = false;
+    attached.splice(0).forEach(function(a) {
+      try { a.el.removeEventListener(a.type, a.fn, a.capture); } catch(e) {}
+    });
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (isCatalogEl(ch)) ch.draggable = false;
+    });
+    panel.style.display = 'none';
+    pool.style.outline = '';
+    hmMenu.classList.remove('hm-customizing', 'hm-drag-over');
+    clearDropHints();
+    hmMenu.classList.remove('open');
+    // Re-assert the toolbar-dedup rules on the final layout.
+    if (window._updateHmVisibility) { try { window._updateHmVisibility(); } catch(e) {} }
+  }
+
+  window._toggleMenuCustomizeMode = function() {
+    if (active) closeMenuCustomizeMode();
+    else openMenuCustomizeMode();
+  };
+
+  if (window.electronAPI && window.electronAPI.onToggleMenuCustomizeMode) {
+    window.electronAPI.onToggleMenuCustomizeMode(function() {
+      window._toggleMenuCustomizeMode();
+    });
+  }
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && active) closeMenuCustomizeMode();
+  });
 })();
 
 // Site info panel (lock icon)
@@ -3397,7 +5288,33 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
     panel.classList.add('open');
     return;
   }
-  window.electronAPI.getSitePermissions().then(function(perms) {
+  // ===== Extended Site Info =====
+  // Three parallel data sources, no external APIs involved:
+  //  - per-site permissions (existing IPC, settings.json)
+  //  - connection + TLS certificate details (CDP cache in main — real data
+  //    from the page's own connection, no extra request is made)
+  //  - page facts (title, render mode, charset, referrer, last-modified,
+  //    meta tags) read straight from the live DOM via executeJavaScript.
+  var wcId = -1;
+  try { if (tab && tab.webview && tab.webview.getWebContentsId) wcId = tab.webview.getWebContentsId(); } catch(_) {}
+  var secPromise = (wcId !== -1 && window.electronAPI && window.electronAPI.getPageSecurityInfo)
+    ? window.electronAPI.getPageSecurityInfo(wcId).catch(function() { return null; })
+    : Promise.resolve(null);
+  var pagePromise = (tab && tab.webview && tab.webview.executeJavaScript)
+    ? tab.webview.executeJavaScript('(function(){try{var m=document.querySelectorAll("meta"),metas=[];' +
+        'for(var i=0;i<m.length&&metas.length<10;i++){var n=m[i].getAttribute("name")||m[i].getAttribute("property")||m[i].getAttribute("http-equiv");' +
+        'if(n)metas.push([n,m[i].getAttribute("content")||""]);}' +
+        'return JSON.stringify({title:document.title,mode:document.compatMode,charset:document.characterSet,' +
+        'referrer:document.referrer,lastModified:document.lastModified,htmlSize:document.documentElement.outerHTML.length,metas:metas});' +
+        '}catch(e){return "null";}})()', true)
+        .then(function(r) { try { return JSON.parse(r); } catch(_) { return null; } })
+        .catch(function() { return null; })
+    : Promise.resolve(null);
+
+  Promise.all([window.electronAPI.getSitePermissions(), secPromise, pagePromise]).then(function(res) {
+    var perms = res[0];
+    var sec = res[1] || {};
+    var page = res[2];
     var sitePerms = (perms && perms[domain]) || {};
     // camelCase keys match what _normalisePermKey in main.js produces.
     var permTypes = [
@@ -3413,18 +5330,150 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
       { key: 'openExternal', label: 'External links' },
       { key: 'persistentStorage', label: 'Persistent storage' }
     ];
-    var html = '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Site permissions. Changes apply on next request or reload.</div>';
+    // ===== Connection + certificate + page details (extended panel) =====
+    var isRu = false;
+    try { isRu = !!(window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru'); } catch(_) {}
+    var siL = isRu ? {
+      connSecure: 'Вы подключены к сайту по защищённому соединению',
+      connInsecure: 'Соединение не защищено. Данные могут быть перехвачены третьими лицами.',
+      connInternal: 'Локальная или внутренняя страница',
+      tlsTitle: 'SSL-сертификат',
+      tlsLine: 'Протокол',
+      issuedTo: 'Кому выдано',
+      issuer: 'Кем выдано',
+      valid: 'Срок действия',
+      certUnavailable: 'Подробности сертификата недоступны для этой страницы (защита от детекта на страницах входа)',
+      clearBtn: 'Удалить cookie и данные сайта',
+      clearDone: 'Данные сайта удалены',
+      clearFail: 'Не удалось удалить данные',
+      detailsToggle: 'Подробнее о странице',
+      fTitle: 'Заголовок', fAddress: 'Адрес', fType: 'Тип',
+      fRender: 'Тип визуализации', fEncoding: 'Кодировка текста', fSize: 'Размер',
+      fReferrer: 'Ссылающийся URL', fModified: 'Последнее изменение', fMeta: 'Мета теги',
+      renderStandards: 'Режим соответствия стандартам', renderQuirks: 'Режим совместимости (quirks)',
+      metaNone: 'нет', permsHint: 'Разрешения сайта. Изменения применятся при следующем запросе или перезагрузке.',
+      reload: 'Перезагрузить страницу',
+      netTitle: 'Сторонние запросы', netEmpty: 'Сторонних запросов не замечено',
+      netBlock: 'Блокировать', netAllow: 'Разрешить', netReqs: 'запр.',
+      netHint: 'Домены, к которым обращался этот сайт. Блокировка применяется сразу (для новых запросов).'
+    } : {
+      connSecure: 'You are connected to this site over a secure connection',
+      connInsecure: 'Connection is not secure. Data can be intercepted by third parties.',
+      connInternal: 'Local or internal page',
+      tlsTitle: 'SSL certificate',
+      tlsLine: 'Protocol',
+      issuedTo: 'Issued to',
+      issuer: 'Issuer',
+      valid: 'Valid',
+      certUnavailable: 'Certificate details unavailable on this page (login-page anti-detection)',
+      clearBtn: 'Delete cookies and site data',
+      clearDone: 'Site data deleted',
+      clearFail: 'Failed to delete site data',
+      detailsToggle: 'More page details',
+      fTitle: 'Title', fAddress: 'Address', fType: 'Type',
+      fRender: 'Render mode', fEncoding: 'Text encoding', fSize: 'Size',
+      fReferrer: 'Referring URL', fModified: 'Last modified', fMeta: 'Meta tags',
+      renderStandards: 'Standards compliance mode', renderQuirks: 'Quirks mode',
+      metaNone: 'none', permsHint: 'Site permissions. Changes apply on next request or reload.',
+      reload: 'Reload page',
+      netTitle: 'Third-party requests', netEmpty: 'No third-party requests observed',
+      netBlock: 'Block', netAllow: 'Allow', netReqs: 'reqs',
+      netHint: 'Domains this site has contacted. Blocking applies immediately (to new requests).'
+    };
+    function _fmtTs(secVal) {
+      var n = Number(secVal);
+      if (!isFinite(n) || n <= 0) return '—';
+      try { return new Date(n * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+      catch(_) { return new Date(n * 1000).toDateString(); }
+    }
+    function _fmtSize(bytes) {
+      if (typeof bytes !== 'number' || !isFinite(bytes) || bytes <= 0) return null;
+      if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB (' + bytes.toLocaleString() + ' B)';
+      return (bytes / 1024).toFixed(1) + ' KB (' + bytes.toLocaleString() + ' B)';
+    }
+
+    var isHttps = /^https:/i.test(url);
+    var html = '';
+    // Connection state banner.
+    html += '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;padding:8px 10px;border-radius:8px;border:1px solid ' +
+      (isHttps ? 'rgba(46,164,79,0.35)' : 'rgba(220,68,55,0.4)') + ';background:' +
+      (isHttps ? 'rgba(46,164,79,0.08)' : 'rgba(220,68,55,0.08)') + ';">';
+    html += '<span style="font-size:14px;line-height:1.3;display:inline-flex;align-items:center;">' + _icon(isHttps ? '\uD83D\uDD12' : '\u26A0') + '</span>';
+    html += '<span style="font-size:12px;line-height:1.45;">' + (isHttps ? siL.connSecure : siL.connInsecure) + '</span></div>';
+    // Certificate block (real details from the page's own TLS handshake).
+    html += '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-secondary);margin:2px 0 6px;">' + siL.tlsTitle + '</div>';
+    var cert = sec && sec.cert;
+    if (cert) {
+      function _siRow(label, val) {
+        return '<div style="display:flex;gap:8px;margin-bottom:3px;font-size:11px;"><span style="color:var(--text-secondary);min-width:96px;flex-shrink:0;">' + label + '</span>' +
+          '<span style="word-break:break-all;">' + escapeHtmlSimple(val) + '</span></div>';
+      }
+      var tlsParts = [cert.protocol, cert.keyExchange, cert.keyExchangeGroup, cert.cipher].filter(Boolean);
+      if (tlsParts.length) html += _siRow(siL.tlsLine, tlsParts.join(' · '));
+      var sanHost = '';
+      try {
+        if (cert.sanList && cert.sanList.length) {
+          // CDP sanList entries are objects: { dnsName, ip } — not strings.
+          for (var si = 0; si < cert.sanList.length; si++) {
+            var se = cert.sanList[si] || {};
+            var s = se.dnsName || se.ip || '';
+            if (!s) continue;
+            if (domain && String(s).toLowerCase().indexOf(domain.toLowerCase()) !== -1) { sanHost = String(s); break; }
+            if (!sanHost) sanHost = String(s);
+          }
+        }
+      } catch(_) {}
+      html += _siRow(siL.issuedTo, cert.subjectName || sanHost || domain);
+      html += _siRow(siL.issuer, cert.issuer || '—');
+      if (cert.validFrom || cert.validTo) {
+        html += _siRow(siL.valid, _fmtTs(cert.validFrom) + ' — ' + _fmtTs(cert.validTo));
+      }
+    } else if (isHttps) {
+      html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;line-height:1.4;">' + siL.certUnavailable + '</div>';
+    }
+    // One-click site data wipe (cookies + storages + caches of this origin,
+    // in THIS tab's session — container and incognito partitions included).
+    html += '<button id="siClearDataBtn" style="width:100%;margin:6px 0 4px;padding:7px;border-radius:6px;border:1px solid rgba(220,68,55,0.45);background:rgba(220,68,55,0.08);color:var(--text-color);cursor:pointer;font-size:12px;">' + siL.clearBtn + '</button>';
+    // Collapsible page details (Firefox Page-Info style).
+    html += '<div id="siDetailsToggle" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-color);cursor:pointer;padding:6px 2px;user-select:none;-webkit-user-select:none;"><span id="siDetailsArrow" style="display:inline-block;transition:transform .12s;">\u25B8</span>' + siL.detailsToggle + '</div>';
+    html += '<div id="siDetailsBody" style="display:none;margin:4px 0 10px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-color);">';
+    function _siDetail(label, val) {
+      return '<div style="display:flex;gap:8px;margin-bottom:3px;font-size:11px;"><span style="color:var(--text-secondary);min-width:110px;flex-shrink:0;">' + label + '</span>' +
+        '<span style="word-break:break-all;">' + escapeHtmlSimple(val) + '</span></div>';
+    }
+    var renderMode = page && page.mode === 'BackCompat' ? siL.renderQuirks : (page && page.mode ? siL.renderStandards : '—');
+    var sizeStr = _fmtSize(sec && sec.encodedDataLength) || (page && page.htmlSize ? page.htmlSize.toLocaleString() + ' chars' : '—');
+    var lastMod = (sec && sec.lastModified) || (page && page.lastModified) || '—';
+    html += _siDetail(siL.fTitle, (page && page.title) || (tab && tab.title) || '—');
+    html += _siDetail(siL.fAddress, url);
+    html += _siDetail(siL.fType, (sec && sec.mimeType) || '—');
+    html += _siDetail(siL.fRender, renderMode);
+    html += _siDetail(siL.fEncoding, (page && page.charset) || '—');
+    html += _siDetail(siL.fSize, sizeStr);
+    html += _siDetail(siL.fReferrer, (page && page.referrer) || '—');
+    html += _siDetail(siL.fModified, lastMod);
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin:6px 0 3px;">' + siL.fMeta + ':</div>';
+    if (page && page.metas && page.metas.length) {
+      page.metas.forEach(function(mm) {
+        html += '<div style="font-size:11px;margin-bottom:2px;word-break:break-all;"><b style="font-weight:600;">' + escapeHtmlSimple(mm[0]) + ':</b> ' + escapeHtmlSimple(String(mm[1]).slice(0, 200)) + '</div>';
+      });
+    } else {
+      html += '<div style="font-size:11px;color:var(--text-secondary);">' + siL.metaNone + '</div>';
+    }
+    html += '</div>';
+
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin:4px 0 10px;">' + siL.permsHint + '</div>';
     // Hard toggles: JavaScript and cookies (enforced in the main process;
     // changing JavaScript requires a reload to take effect).
     var jsSel = sitePerms.javascript === undefined ? 'default' : (sitePerms.javascript ? 'allow' : 'block');
     var ckSel = sitePerms.cookies === undefined ? 'default' : (sitePerms.cookies ? 'allow' : 'block');
     html += '<div class="si-perm-row"><span class="si-perm-label">JavaScript</span>';
-    html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="javascript" onchange="window._changeSitePerm(this)">';
+    html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="javascript">';
     html += '<option value="default"' + (jsSel === 'default' ? ' selected' : '') + '>Enabled (default)</option>';
     html += '<option value="block"' + (jsSel === 'block' ? ' selected' : '') + '>Blocked</option>';
     html += '</select></div>';
     html += '<div class="si-perm-row"><span class="si-perm-label">Cookies</span>';
-    html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="cookies" onchange="window._changeSitePerm(this)">';
+    html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="cookies">';
     html += '<option value="default"' + (ckSel === 'default' ? ' selected' : '') + '>Allowed (default)</option>';
     html += '<option value="allow"' + (ckSel === 'allow' ? ' selected' : '') + '>Allowed always</option>';
     html += '<option value="block"' + (ckSel === 'block' ? ' selected' : '') + '>Blocked</option>';
@@ -3434,7 +5483,7 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
       var selVal = val === undefined ? 'default' : (val ? 'allow' : 'block');
       html += '<div class="si-perm-row">';
       html += '<span class="si-perm-label">' + pt.label + '</span>';
-      html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="' + pt.key + '" onchange="window._changeSitePerm(this)">';
+      html += '<select class="si-perm-select" data-domain="' + escapeHtmlSimple(domain) + '" data-perm="' + pt.key + '">';
       html += '<option value="default"' + (selVal === 'default' ? ' selected' : '') + '>Ask (default)</option>';
       html += '<option value="allow"' + (selVal === 'allow' ? ' selected' : '') + '>Allow</option>';
       html += '<option value="block"' + (selVal === 'block' ? ' selected' : '') + '>Block</option>';
@@ -3467,9 +5516,106 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
     html += '</select>';
     html += '</div>';
 
-    html += '<button onclick="window._reloadAfterPerm()" style="width:100%;margin-top:10px;padding:7px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-color);color:var(--text-color);cursor:pointer;font-size:12px;">Reload page</button>';
+    // Third-party requests (Network insight) — collapsible, loaded lazily.
+    html += '<div id="siNetToggle" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-color);cursor:pointer;padding:6px 2px;margin-top:4px;user-select:none;-webkit-user-select:none;"><span id="siNetArrow" style="display:inline-block;transition:transform .12s;">\u25B8</span>' + siL.netTitle + '</div>';
+    html += '<div id="siNetBody" style="display:none;margin:4px 0 10px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-color);">';
+    html += '<div id="siNetRows" style="font-size:11px;color:var(--text-secondary);">…</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">' + siL.netHint + '</div>';
+    html += '</div>';
+
+    html += '<button id="siReloadBtn" style="width:100%;margin-top:10px;padding:7px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-color);color:var(--text-color);cursor:pointer;font-size:12px;">' + siL.reload + '</button>';
     body.innerHTML = html;
     panel.classList.add('open');
+
+    // Wire select handlers via addEventListener: the chrome CSP (script-src
+    // 'self', no unsafe-inline) silently blocks inline onchange= attributes —
+    // the old inline handlers never fired.
+    body.querySelectorAll('select.si-perm-select').forEach(function(sel) {
+      sel.addEventListener('change', function() {
+        try { window._changeSitePerm(sel); } catch(_) {}
+      });
+    });
+    var reloadBtn2 = document.getElementById('siReloadBtn');
+    if (reloadBtn2) reloadBtn2.addEventListener('click', function() {
+      try { window._reloadAfterPerm(); } catch(_) {}
+    });
+
+    // Collapsible details toggle.
+    var dToggle = document.getElementById('siDetailsToggle');
+    var dBody = document.getElementById('siDetailsBody');
+    var dArrow = document.getElementById('siDetailsArrow');
+    if (dToggle && dBody) dToggle.addEventListener('click', function() {
+      var open = dBody.style.display !== 'none';
+      dBody.style.display = open ? 'none' : 'block';
+      if (dArrow) dArrow.style.transform = open ? '' : 'rotate(90deg)';
+    });
+
+    // Third-party requests (Network insight): lazy-load on first expand,
+    // per-row Block/Allow select writes store.netBlocks via IPC.
+    var nToggle = document.getElementById('siNetToggle');
+    var nBody = document.getElementById('siNetBody');
+    var nArrow = document.getElementById('siNetArrow');
+    var nLoaded = false;
+    function renderNetRows(hosts) {
+      var rows = document.getElementById('siNetRows');
+      if (!rows) return;
+      if (!hosts || !hosts.length) {
+        rows.textContent = siL.netEmpty;
+        return;
+      }
+      var h = '';
+      hosts.forEach(function(it) {
+        h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">' +
+          '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;word-break:break-all;color:var(--text-color);">' + escapeHtmlSimple(it.host) + '</span>' +
+          '<span style="color:var(--text-secondary);flex-shrink:0;">' + it.count + ' ' + siL.netReqs + '</span>' +
+          '<select data-net-host="' + escapeHtmlSimple(it.host) + '" style="padding:3px 6px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-color);color:var(--text-color);font-size:10px;flex-shrink:0;cursor:pointer;">' +
+          '<option value="allow"' + (!it.blocked ? ' selected' : '') + '>' + siL.netAllow + '</option>' +
+          '<option value="block"' + (it.blocked ? ' selected' : '') + '>' + siL.netBlock + '</option>' +
+          '</select></div>';
+      });
+      rows.innerHTML = h;
+      rows.querySelectorAll('select[data-net-host]').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+          var host = sel.getAttribute('data-net-host');
+          var blocked = sel.value === 'block';
+          if (window.electronAPI && window.electronAPI.netBlockSet) {
+            window.electronAPI.netBlockSet(domain, host, blocked).catch(function() {});
+          }
+        });
+      });
+    }
+    if (nToggle && nBody) nToggle.addEventListener('click', function() {
+      var open = nBody.style.display !== 'none';
+      nBody.style.display = open ? 'none' : 'block';
+      if (nArrow) nArrow.style.transform = open ? '' : 'rotate(90deg)';
+      if (!open && !nLoaded) {
+        nLoaded = true;
+        var rows = document.getElementById('siNetRows');
+        if (rows) rows.textContent = '…';
+        if (window.electronAPI && window.electronAPI.netInsightGet) {
+          window.electronAPI.netInsightGet(domain).then(function(r) {
+            renderNetRows(r && r.hosts);
+          }).catch(function() { renderNetRows([]); });
+        } else { renderNetRows([]); }
+      }
+    });
+
+    // Delete cookies and site data (this origin, this tab's session).
+    var clearBtn = document.getElementById('siClearDataBtn');
+    if (clearBtn) clearBtn.addEventListener('click', function() {
+      clearBtn.disabled = true;
+      clearBtn.style.opacity = '0.6';
+      var done = function(ok) {
+        clearBtn.disabled = false;
+        clearBtn.style.opacity = '1';
+        clearBtn.textContent = ok ? siL.clearDone : siL.clearFail;
+        clearBtn.style.borderColor = ok ? 'rgba(46,164,79,0.5)' : 'rgba(220,68,55,0.45)';
+      };
+      if (wcId === -1 || !window.electronAPI || !window.electronAPI.clearSiteData) { done(false); return; }
+      window.electronAPI.clearSiteData(wcId, url).then(function(r) {
+        done(!!(r && r.success));
+      }).catch(function() { done(false); });
+    });
 
     // Wire up geo-override UI.
     var chk = document.getElementById('siGeoFakeChk');
@@ -3563,7 +5709,7 @@ document.getElementById('scriptsBtn').addEventListener('click', function(e) {
           item.innerHTML =
             '<div class="sc-panel-item-info">' +
               '<div class="sc-panel-item-name' + (!s.enabled ? ' disabled' : '') + '">' + escapeHtmlSimple(s.name || 'Untitled') + '</div>' +
-              '<div class="sc-panel-item-meta">' + escapeHtmlSimple((s.runAt || 'document-idle').replace('document-', '')) + (s.runInFrames ? ' +frames' : '') + '</div>' +
+              '<div class="sc-panel-item-meta">' + escapeHtmlSimple((s.runAt || 'document-idle').replace('document-', '')) + (s.runInFrames ? ' +frames' : '') + (s.permissions && s.permissions.length ? ' · ' + s.permissions.join(', ') : '') + '</div>' +
             '</div>' +
             '<label class="sc-panel-item-toggle">' +
               '<input type="checkbox" ' + (s.enabled ? 'checked' : '') + ' data-id="' + s.id + '">' +
@@ -3611,6 +5757,21 @@ document.getElementById('eqBtn').addEventListener('click', function(e) {
 
 var _mcRefreshTimer = null;
 
+// Shared page-side snippet: collect CONTROLLABLE media elements in a stable
+// order. refreshMediaPanel and _mediaAction MUST agree on this filter — the
+// panel used to list the FILTERED elements while the action buttons indexed
+// the RAW querySelectorAll NodeList, so play/pause hit the wrong (often
+// hidden/dead) element and the controls did nothing.
+// Hidden 0x0 elements are NORMAL for <audio> (music services keep the
+// element invisible) — only invisible <video> is filtered out.
+var _MC_COLLECT_JS =
+  'var els=(function(){var all=document.querySelectorAll("video,audio");var out=[];' +
+  'for(var i=0;i<all.length;i++){var el=all[i];var src=el.currentSrc||el.src||"";' +
+  'if(!src||src==="about:blank")continue;' +
+  'if(el.tagName==="VIDEO"&&el.offsetWidth<1&&el.offsetHeight<1&&!el.srcObject)continue;' +
+  'if(el.tagName==="AUDIO"&&el.readyState===0)continue;' +
+  'out.push(el);}return out;})();';
+
 function refreshMediaPanel() {
   var list = document.getElementById('mcPanelList');
   var empty = document.getElementById('mcPanelEmpty');
@@ -3637,21 +5798,54 @@ function refreshMediaPanel() {
     t.webview.executeJavaScript(
       '(function(){' +
       'var result=[];' +
-      'var els=document.querySelectorAll("video,audio");' +
+      _MC_COLLECT_JS +
       'for(var i=0;i<els.length;i++){' +
       'var el=els[i];' +
-      'var src=el.currentSrc||el.src||"";' +
-      'if(!src||src==="about:blank")continue;' +
-      'if(el.offsetWidth<1&&el.offsetHeight<1&&!el.srcObject)continue;' +
       'result.push({paused:el.paused,currentTime:el.currentTime,duration:el.duration||0,volume:el.volume,muted:el.muted,tagName:el.tagName.toLowerCase()});' +
       '}' +
+      // WebAudio players (Yandex Music etc.) own NO media elements: expose
+      // the MediaSession state so the panel can list and control them via
+      // the site's own play/pause button.
+      'if(result.length===0){try{' +
+      '  var ms=navigator.mediaSession;' +
+      '  if(ms&&(ms.playbackState==="playing"||ms.paused===false||ms.metadata)){' +
+      '    result.push({paused:ms.playbackState!=="playing",currentTime:0,duration:0,volume:1,muted:false,tagName:"webaudio",webaudio:true,title:(ms.metadata&&ms.metadata.title)||""});' +
+      '  }' +
+      // Brace audit: close ms-if + try, catch, close the result.length-if.
+      // The old line had one "}" too many BEFORE catch — the whole script
+      // died with "Missing catch or finally after try" and the silent
+      // .catch() below made the media panel look forever empty.
+      '}catch(e){}}' +
+      // Second fallback for WebAudio players that do NOT fill mediaSession
+      // (Yandex Music in a webview): if the page has a visible play/pause
+      // button, list it as a "player" entry — the panel's play/mute buttons
+      // already route to the site's own controls (_MC_SITE_PLAYPAUSE_JS).
+      'if(result.length===0){try{' +
+      '  var psels=[".player-controls__btn_play",".player-controls__btn_pause",' +
+      '  "button[aria-label*=\\"Пауз\\" i]","button[aria-label*=\\"Плей\\" i]","button[aria-label*=\\"Играть\\" i]",' +
+      '  "button[aria-label*=\\"Pause\\" i]","button[aria-label*=\\"Play\\" i]","button[aria-label*=\\"Слушать\\" i]",' +
+      '  "[data-testid=\\"play-pause-button\\"]",".ytmusic-play-button",".shaka-play-button",' +
+      '  ".vjs-play-control",".play-btn",".playButton",' +
+      '  "button[class*=\\"play\\" i]:not([class*=\\"next\\"]):not([class*=\\"prev\\"]):not([class*=\\"playlist\\"])]"];' +
+      '  scan:for(var pi=0;pi<psels.length;pi++){var plst;' +
+      '    try{plst=document.querySelectorAll(psels[pi]);}catch(pe){continue;}' +
+      '    for(var pj=0;pj<plst.length;pj++){var pb=plst[pj];' +
+      '      if(pb.offsetWidth<5&&pb.offsetHeight<5)continue;' +
+      '      var pcl=((pb.getAttribute("class")||"")+" "+(pb.getAttribute("aria-label")||""));' +
+      '      var isPlaying=/pause|Пауз/i.test(pcl);' +
+      '      result.push({paused:!isPlaying,currentTime:0,duration:0,volume:1,muted:false,tagName:"player",webaudio:true,title:document.title||""});' +
+      '      break scan;}' +
+      '  }' +
+      '}catch(e2){}}' +
       'return JSON.stringify(result);' +
       '})()'
     ).then(function(jsonStr) {
       try {
         var medias = JSON.parse(jsonStr);
         medias.forEach(function(m, idx) {
-          allItems.push({ tabId: tabId, tabTitle: tabTitle, idx: idx, media: m });
+          // webaudio entries carry no element index — mark with -1 so the
+          // panel button routes to the site-button click fallback.
+          allItems.push({ tabId: tabId, tabTitle: tabTitle, idx: m.webaudio ? -1 : idx, media: m });
         });
       } catch(e) {}
       pending--;
@@ -3670,31 +5864,75 @@ function renderMediaItems(items, list, empty) {
     return;
   }
   empty.style.display = 'none';
-  var html = '';
+  list.innerHTML = '';
+  // Build DOM nodes with addEventListener: the window CSP bans inline
+  // onclick handlers (script-src 'self'), so the previous
+  // onclick="window._mediaAction(...)" buttons were silently dead — the
+  // media panel rendered but play/mute did nothing.
   items.forEach(function(item) {
     var m = item.media;
     var isPlaying = !m.paused;
     var curTime = formatMediaTime(m.currentTime);
     var durTime = m.duration > 0 ? formatMediaTime(m.duration) : '--:--';
-    html += '<div class="mc-item">';
-    html += '<div class="mc-item-title">' + escapeHtmlSimple(item.tabTitle || '') + ' (' + m.tagName + ')</div>';
-    html += '<div class="mc-item-controls">';
-    html += '<button class="mc-btn' + (isPlaying ? ' active' : '') + '" onclick="window._mediaAction(\'' + item.tabId + '\',' + item.idx + ',\'toggle\')">' + (isPlaying ? _icon('⏸') : _icon('▶')) + '</button>';
-    html += '<button class="mc-btn" onclick="window._mediaAction(\'' + item.tabId + '\',' + item.idx + ',\'mute\')">' + (m.muted ? _icon('🔇') : _icon('🔊')) + '</button>';
-    html += '<span class="mc-time">' + curTime + ' / ' + durTime + '</span>';
-    html += '</div></div>';
+    var row = document.createElement('div');
+    row.className = 'mc-item';
+    var title = document.createElement('div');
+    title.className = 'mc-item-title';
+    title.textContent = (m.title || item.tabTitle || '') + (m.webaudio ? ' (web audio)' : ' (' + m.tagName + ')');
+    var controls = document.createElement('div');
+    controls.className = 'mc-item-controls';
+    var btnPlay = document.createElement('button');
+    btnPlay.className = 'mc-btn' + (isPlaying ? ' active' : '');
+    btnPlay.innerHTML = isPlaying ? _icon('⏸') : _icon('▶');
+    btnPlay.addEventListener('click', function() { window._mediaAction(item.tabId, item.idx, 'toggle'); });
+    controls.appendChild(btnPlay);
+    if (!m.webaudio) {
+      // Element-based media supports mute + position readout.
+      var btnMute = document.createElement('button');
+      btnMute.className = 'mc-btn';
+      btnMute.innerHTML = m.muted ? _icon('🔇') : _icon('🔊');
+      btnMute.addEventListener('click', function() { window._mediaAction(item.tabId, item.idx, 'mute'); });
+      controls.appendChild(btnMute);
+      var time = document.createElement('span');
+      time.className = 'mc-time';
+      time.textContent = curTime + ' / ' + durTime;
+      controls.appendChild(time);
+    }
+    row.appendChild(title);
+    row.appendChild(controls);
+    list.appendChild(row);
   });
-  list.innerHTML = html;
 }
+
+// Site play/pause fallback for WebAudio players (Yandex Music etc.): click
+// the site's own button — there is no <audio> element to control.
+var _MC_SITE_PLAYPAUSE_JS =
+  '(function(){' +
+  'var sels=[".player-controls__btn_play",".player-controls__btn_pause",' +
+  '"button[aria-label*=\"Пауз\" i]","button[aria-label*=\"Плей\" i]","button[aria-label*=\"Играть\" i]",' +
+  '"button[aria-label*=\"Pause\" i]","button[aria-label*=\"Play\" i]","button[aria-label*=\"Слушать\" i]",' +
+  '"[data-testid=\"play-pause-button\"]",".ytmusic-play-button",".shaka-play-button",' +
+  '".vjs-play-control",".play-btn",".playButton",' +
+  '"button[class*=\"play\" i]:not([class*=\"next\" i]):not([class*=\"prev\" i]):not([class*=\"playlist\" i])"];' +
+  'for(var i=0;i<sels.length;i++){try{var list=document.querySelectorAll(sels[i]);' +
+  'for(var j=0;j<list.length;j++){var b=list[j];if(b.offsetWidth<5&&b.offsetHeight<5)continue;b.click();return 1}}catch(e){}}' +
+  'return 0})()';
 
 window._mediaAction = function(tabId, idx, action) {
   var t = tabs.find(function(tab) { return tab.id === tabId; });
   if (!t || !t.webview || !canExecInWebview(t.webview)) return;
+  if (action === 'toggle' && idx === -1) {
+    // WebAudio entry: click the site's own play/pause button.
+    t.webview.executeJavaScript(_MC_SITE_PLAYPAUSE_JS, true).catch(function() {});
+    return;
+  }
   var js = '';
   if (action === 'toggle') {
-    js = '(function(){var els=document.querySelectorAll("video,audio");if(els[' + idx + ']){if(els[' + idx + '].paused)els[' + idx + '].play().catch(function(){});else els[' + idx + '].pause();}return 0})()';
+    js = '(function(){' + _MC_COLLECT_JS +
+      'if(els[' + idx + ']){if(els[' + idx + '].paused)els[' + idx + '].play().catch(function(){});else els[' + idx + '].pause();}return 0})()';
   } else if (action === 'mute') {
-    js = '(function(){var els=document.querySelectorAll("video,audio");if(els[' + idx + '])els[' + idx + '].muted=!els[' + idx + '].muted;return 0})()';
+    js = '(function(){' + _MC_COLLECT_JS +
+      'if(els[' + idx + '])els[' + idx + '].muted=!els[' + idx + '].muted;return 0})()';
   }
   if (js) {
     t.webview.executeJavaScript(js).catch(function() {});
@@ -3711,12 +5949,8 @@ function formatMediaTime(s) {
 // Navigation buttons
 backBtn.addEventListener('click', function() {
   const tab = tabs.find(function(t) { return t.id === activeTabId; });
-  if (tab && tab.isReady) {
-    try {
-      if (tab.webview.canGoBack()) {
-        tab.webview.goBack();
-      }
-    } catch(e) {
+  if (tab) {
+    try { tabGoBack(tab); } catch(e) {
       console.warn('Error navigating back:', e.message);
     }
   }
@@ -3724,12 +5958,8 @@ backBtn.addEventListener('click', function() {
 
 forwardBtn.addEventListener('click', function() {
   const tab = tabs.find(function(t) { return t.id === activeTabId; });
-  if (tab && tab.isReady) {
-    try {
-      if (tab.webview.canGoForward()) {
-        tab.webview.goForward();
-      }
-    } catch(e) {
+  if (tab) {
+    try { tabGoForward(tab); } catch(e) {
       console.warn('Error navigating forward:', e.message);
     }
   }
@@ -3796,7 +6026,7 @@ newTabBtn.addEventListener('click', function() {
   window.electronAPI.onSuperDragAction(function(d) {
     if (!d || !d.payload) return;
     if (d.kind === 'text') {
-      createNewTab(searchEngineUrl + encodeURIComponent(d.payload), true);
+      createNewTab(buildSearchUrl(d.payload), true);
     } else if (d.kind === 'link') {
       try { var u = new URL(d.payload); if (u.protocol === 'http:' || u.protocol === 'https:') createNewTab(u.href, true); } catch(e) {}
     } else if (d.kind === 'image') {
@@ -3852,15 +6082,41 @@ if (window.electronAPI && window.electronAPI.getHomepage) {
 
 function _restoreTabs(savedTabs) {
   if (savedTabs && savedTabs.length > 0) {
+    // Sanitize saved entries BEFORE restoring: drop about:blank junk left by
+    // older sleep bugs and unwrap saved ErrorPage URLs back to the real site
+    // (so a once-off network error does not resurrect on every launch).
+    var cleanTabs = [];
+    savedTabs.forEach(function(tabInfo) {
+      if (!tabInfo) return;
+      var u = _cleanSavedTabUrl(tabInfo.url);
+      if (!u) return;
+      var rec = { url: u, title: tabInfo.title, pinned: tabInfo.pinned, groupId: tabInfo.groupId, containerId: tabInfo.containerId };
+      // The unsent omnibox draft is restored with its tab.
+      if (typeof tabInfo.draft === 'string' && tabInfo.draft) rec.draft = tabInfo.draft;
+      // Back/Forward chain must survive sanitizing too — rebuilding the
+      // object without hist/hi silently dropped it and the arrows went dead
+      // after every restart.
+      if (Array.isArray(tabInfo.hist) && tabInfo.hist.length) {
+        var hh = tabInfo.hist.filter(function(x) { return typeof x === 'string' && x.indexOf('http') === 0 && x !== 'about:blank'; });
+        if (hh.length) {
+          rec.hist = hh;
+          rec.hi = (typeof tabInfo.hi === 'number') ? Math.min(Math.max(tabInfo.hi, 0), hh.length - 1) : hh.length - 1;
+        }
+      }
+      cleanTabs.push(rec);
+    });
+    savedTabs = cleanTabs;
     // Whether non-active tabs should be loaded lazily (only when clicked).
-    // Default = false: every restored tab starts loading immediately so the
-    // user does not stare at spinning placeholders when switching tabs.
+    // Default = TRUE: eager loading of every restored tab made the browser
+    // fetch all sites at once on startup — slow start and heavy CPU. The
+    // wake path is reliable now (URL shown + reload insurance in
+    // setActiveTab), so laziness no longer costs white pages.
     // Toggle: Settings → Optimization → "Lazy tab loading" (optLazyTabs).
-    var lazyStartup = !!(_optSettings && _optSettings.lazyTabs);
+    var lazyStartup = _optSettings ? _optSettings.lazyTabs !== false : true;
     savedTabs.forEach(function(tabInfo, idx) {
       if (tabInfo.url) {
         // The first restored tab is always the active one (lazy=false).
-        // Others: load eagerly by default, lazy only if the user opted in.
+        // Others: lazy by default, eager only if the user opted out.
         var lazy = (idx === 0) ? false : lazyStartup;
         // Container tabs reopen in their own partition. If the container was
         // deleted while away, fall back to a regular tab.
@@ -3882,6 +6138,20 @@ function _restoreTabs(savedTabs) {
           if (tabInfo.groupId) {
             lastTab.groupId = tabInfo.groupId;
             _applyGroupColor(lastTab.id);
+          }
+          // Restore the Back/Forward chain: the webview's own history dies
+          // with the process, but our saved navHistory lets the Back button
+          // keep working right after a restart (fallback navigation below).
+          if (tabInfo.hist && tabInfo.hist.length) {
+            lastTab.navHistory = tabInfo.hist.map(function(u) { return { url: u, title: '' }; });
+            lastTab.navIndex = (typeof tabInfo.hi === 'number')
+              ? Math.min(Math.max(tabInfo.hi, 0), tabInfo.hist.length - 1)
+              : tabInfo.hist.length - 1;
+          }
+          // Restore the unsent omnibox draft — the tab shows it again after
+          // the restart, exactly where the user left it.
+          if (tabInfo.draft && typeof tabInfo.draft === 'string') {
+            lastTab.urlDraft = tabInfo.draft;
           }
         }
       }
@@ -4003,9 +6273,188 @@ window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TA
 // ====== Welcome / Onboarding tour — replaced by Start.htm setup wizard ======
 // The old welcome overlay is disabled; first-launch setup is handled by
 // MainPage/index.html which opens as a tab in initTabs().
-(function initWelcomeTour() {
-  // disabled — Start.htm handles onboarding now
+// initWelcomeTour: disabled — Start.htm handles onboarding now
+
+// ====== Donation support prompt ======
+// A small card that appears SOMETIMES on startup in the primary window:
+//   • never before the 3rd launch,
+//   • at least 3 days between shows,
+//   • ~1 of 4 launches (randomized),
+//   • never again after "Больше не показывать" / after the user supported.
+// State lives in settings.json → donatePrompt (see main.js handlers).
+(function initDonatePrompt() {
+  if (!window.electronAPI || !window.electronAPI.getDonatePromptState) return;
+  // Only the primary window shows it — not incognito/secondary shells.
+  if (window._canSaveSession === false) return;
+
+  var DONATE_URL = 'https://startpozi.com/s/donate.html';
+  var MIN_LAUNCHES = 3;
+  var MIN_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+  var SHOW_CHANCE = 0.25; // ~1 of 4 launches
+
+  var L10N = {
+    ru: {
+      title: 'Поддержите StartPOZI',
+      text: 'Браузер развивается независимо и остаётся бесплатным. Если StartPOZI вам нравится — поддержите проект любой суммой.',
+      support: 'Поддержать проект',
+      later: 'Позже',
+      never: 'Больше не показывать'
+    },
+    en: {
+      title: 'Support StartPOZI',
+      text: 'The browser is developed independently and stays free. If you like StartPOZI, consider supporting the project with any amount.',
+      support: 'Support the project',
+      later: 'Later',
+      never: "Don't show again"
+    }
+  };
+
+  // Do not bother the user right at login — give the session ~10s to settle.
+  setTimeout(function() {
+    window.electronAPI.getDonatePromptState().then(function(st) {
+      try {
+        if (!st || st.never || st.supported) return;
+        if ((st.launches || 0) < MIN_LAUNCHES) return;
+        if (st.lastShown && (Date.now() - st.lastShown) < MIN_INTERVAL_MS) return;
+        // forceNext (set manually in settings.json) bypasses the random gate —
+        // handy for previewing the card without waiting for the schedule.
+        if (st.forceNext !== true && Math.random() >= SHOW_CHANCE) return;
+        showDonateCard();
+      } catch(e) {}
+    }).catch(function() {});
+  }, 10000);
+
+  function showDonateCard() {
+    var lang = 'en';
+    var getLang = window.electronAPI && window.electronAPI.getLanguage;
+    if (getLang) {
+      getLang().then(function(l) { try { render(l === 'ru' ? 'ru' : 'en'); } catch(e) { render('en'); } }).catch(function() { render('en'); });
+    } else {
+      render('en');
+    }
+  }
+
+  function render(lang) {
+    var t = L10N[lang] || L10N.en;
+
+    var card = document.createElement('div');
+    card.id = 'donate-prompt-card';
+    card.style.cssText =
+      'position:fixed;right:20px;bottom:20px;z-index:2147483000;max-width:330px;padding:18px 18px 14px;' +
+      'background:var(--bg-secondary,#2d2d2d);border:1px solid var(--border-color,#3d3d3d);border-radius:12px;' +
+      'box-shadow:0 10px 34px rgba(0,0,0,.45);font-family:inherit;color:var(--text-primary,#fff);' +
+      'opacity:0;transform:translateX(24px);transition:opacity .25s ease,transform .25s ease;';
+    document.body.appendChild(card);
+    // Mark as shown immediately so a quick "Позже" still enforces the cooldown.
+    if (window.electronAPI.setDonatePromptShown) window.electronAPI.setDonatePromptShown().catch(function() {});
+
+    // Header: heart icon + title
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+    var icon = document.createElement('div');
+    icon.style.cssText =
+      'flex:0 0 auto;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(226,74,101,.15);color:#e24a65;';
+    icon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:15px;font-weight:600;';
+    title.textContent = t.title;
+    head.appendChild(icon);
+    head.appendChild(title);
+    card.appendChild(head);
+
+    var text = document.createElement('div');
+    text.style.cssText = 'font-size:13px;line-height:1.5;color:var(--text-secondary,#aaa);margin-bottom:14px;';
+    text.textContent = t.text;
+    card.appendChild(text);
+
+    function closeCard() {
+      try {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(24px)';
+        setTimeout(function() { if (card.parentNode) card.parentNode.removeChild(card); }, 260);
+      } catch(e) {}
+      try { document.removeEventListener('keydown', onKey); } catch(e) {}
+    }
+    var onKey = function(e) { if (e.key === 'Escape') { e.preventDefault(); closeCard(); } };
+    document.addEventListener('keydown', onKey);
+
+    // Buttons
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+    var btnSupport = document.createElement('button');
+    btnSupport.textContent = t.support;
+    btnSupport.style.cssText =
+      'flex:1 1 auto;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;' +
+      'background:var(--primary-color,#1da1f2);color:#fff;';
+    btnSupport.addEventListener('mouseenter', function() { btnSupport.style.filter = 'brightness(1.12)'; });
+    btnSupport.addEventListener('mouseleave', function() { btnSupport.style.filter = ''; });
+    btnSupport.addEventListener('click', function() {
+      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
+        window.electronAPI.setDonatePromptChoice({ supported: true }).catch(function() {});
+      }
+      closeCard();
+      createNewTab(DONATE_URL);
+    });
+    var btnLater = document.createElement('button');
+    btnLater.textContent = t.later;
+    btnLater.style.cssText =
+      'flex:0 0 auto;padding:8px 14px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;cursor:pointer;' +
+      'font-size:13px;background:transparent;color:var(--text-primary,#fff);';
+    btnLater.addEventListener('mouseenter', function() { btnLater.style.background = 'var(--hover-bg,rgba(255,255,255,.08))'; });
+    btnLater.addEventListener('mouseleave', function() { btnLater.style.background = 'transparent'; });
+    btnLater.addEventListener('click', closeCard);
+    row.appendChild(btnSupport);
+    row.appendChild(btnLater);
+    card.appendChild(row);
+
+    var btnNever = document.createElement('button');
+    btnNever.textContent = t.never;
+    btnNever.style.cssText =
+      'margin-top:10px;padding:2px 0;border:none;background:none;cursor:pointer;font-size:11px;' +
+      'color:var(--text-secondary,#aaa);text-decoration:underline;';
+    btnNever.addEventListener('mouseenter', function() { btnNever.style.color = 'var(--text-primary,#fff)'; });
+    btnNever.addEventListener('mouseleave', function() { btnNever.style.color = 'var(--text-secondary,#aaa)'; });
+    btnNever.addEventListener('click', function() {
+      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
+        window.electronAPI.setDonatePromptChoice({ never: true }).catch(function() {});
+      }
+      closeCard();
+    });
+    card.appendChild(btnNever);
+
+    // Slide in
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        card.style.opacity = '1';
+        card.style.transform = 'translateX(0)';
+      });
+    });
+  }
 })();
+
+// Clean a URL before it is written to the saved session:
+//  - transient internal pages (ErrorPage/security interstitials) are
+//    unwrapped to the SITE they represent — otherwise every restart reopened
+//    yesterday's error page instead of the site ("browser remembers
+//    nothing");
+//  - about:blank is never persisted (a blank restored tab is a white screen
+//    with an empty omnibox — the classic corrupted-sleep symptom).
+function _cleanSavedTabUrl(url) {
+  if (!url) return '';
+  if (url === 'about:blank') return '';
+  if (url.indexOf('ErrorPage/index.html') > -1 || url.indexOf('ErrorPage/security.html') > -1) {
+    try {
+      var m = url.match(/[?&]url=([^&]+)/);
+      if (m) {
+        var real = decodeURIComponent(m[1]);
+        if (real && real.indexOf('http') === 0) return real;
+      }
+    } catch (e0) {}
+    return ''; // an error page without a target URL is not worth restoring
+  }
+  return url;
+}
 
 function getTabUrlForSave(tab) {
   var url = '';
@@ -4014,10 +6463,12 @@ function getTabUrlForSave(tab) {
   } catch(e) {
     url = tab.webview.src || '';
   }
-  if ((!url || url === 'about:blank') && tab.pendingUrl) {
-    url = tab.pendingUrl;
-  }
-  return url;
+  // Resolve the REAL url through every fallback: sleeping/lazy tabs sit on
+  // about:blank; tabs corrupted by older sleep bugs had pendingUrl blank too.
+  if (!url || url === 'about:blank') url = tab.pendingUrl || '';
+  if (!url || url === 'about:blank') url = tab._sleepUrl || '';
+  if (!url || url === 'about:blank') url = tab.lastUrl || '';
+  return _cleanSavedTabUrl(url);
 }
 
 function autoSaveTabs() {
@@ -4030,6 +6481,15 @@ function autoSaveTabs() {
     if (tab.pinned) d.pinned = true;
     if (tab.groupId) d.groupId = tab.groupId;
     if (tab.containerId) d.containerId = tab.containerId;
+    // The unsent omnibox draft survives a restart together with its tab.
+    if (tab.urlDraft) d.draft = tab.urlDraft;
+    // Persist the Back/Forward chain (capped) so the arrows keep working
+    // after a restart; navIndex maps onto the capped window.
+    if (tab.navHistory && tab.navHistory.length) {
+      var off = tab.navHistory.length > 10 ? tab.navHistory.length - 10 : 0;
+      d.hist = tab.navHistory.slice(off).map(function(x) { return x.url; });
+      d.hi = Math.max(0, (typeof tab.navIndex === 'number' ? tab.navIndex : tab.navHistory.length - 1) - off);
+    }
     return d;
   }).filter(function(t) { return t.url; });
   if (window.electronAPI.setWorkspaceTabs) {
@@ -4074,6 +6534,13 @@ function saveTabsAndClose() {
       var d = { url: getTabUrlForSave(tab), title: tab.title };
       if (tab.pinned) d.pinned = true;
       if (tab.groupId) d.groupId = tab.groupId;
+      if (tab.containerId) d.containerId = tab.containerId;
+      if (tab.urlDraft) d.draft = tab.urlDraft;
+      if (tab.navHistory && tab.navHistory.length) {
+        var off = tab.navHistory.length > 10 ? tab.navHistory.length - 10 : 0;
+        d.hist = tab.navHistory.slice(off).map(function(x) { return x.url; });
+        d.hi = Math.max(0, (typeof tab.navIndex === 'number' ? tab.navIndex : tab.navHistory.length - 1) - off);
+      }
       return d;
     }).filter(function(t) { return t.url; });
     var promises = [];
@@ -4124,8 +6591,8 @@ if (window.electronAPI && window.electronAPI.onNavigateCurrentTab) {
 if (window.electronAPI && window.electronAPI.onNavigateCurrentBack) {
   window.electronAPI.onNavigateCurrentBack(function() {
     var tab = tabs.find(function(t) { return t.id === activeTabId; });
-    if (tab && tab.webview && tab.isReady) {
-      try { if (tab.webview.canGoBack()) tab.webview.goBack(); } catch(e) {}
+    if (tab && tab.webview) {
+      try { tabGoBack(tab); } catch(e) {}
     }
   });
 }
@@ -4309,11 +6776,18 @@ function injectPiP(tabData) {
         '});' +
         'document.addEventListener("leavepictureinpicture",function(){setIcon(_pipUrl);});' +
         'var _hideT=null;' +
+        // Hit-test by coordinates instead of elementsFromPoint: the old
+        // check could not see the <video> through opaque overlays (ad
+        // layers, custom control bars, poster wrappers) — there the stack
+        // never contained VIDEO and the button never appeared.
         'document.addEventListener("mousemove",function(e){' +
         '  clearTimeout(_hideT);' +
         '  if(document.pictureInPictureElement)return;' +
-        '  try{var els=document.elementsFromPoint(e.clientX,e.clientY);' +
-        '    for(var i=0;i<els.length;i++){if(els[i].tagName==="VIDEO"){showAt(els[i]);return;}}' +
+        '  try{var vids=document.querySelectorAll("video");' +
+        '    for(var i=0;i<vids.length;i++){var v=vids[i];' +
+        '      var r=v.getBoundingClientRect();' +
+        '      if(r.width>50&&r.height>50&&e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){showAt(v);return;}' +
+        '    }' +
         '  }catch(ex){}' +
         '  _hideT=setTimeout(function(){fadeOut();},800);' +
         '});' +
@@ -4394,13 +6868,22 @@ function injectSponsorBlock(tabData) {
   if (!tabData || !tabData.webview || !tabData.isReady) return;
   if (!window.electronAPI || !window.electronAPI.getSponsorBlockEnabled) return;
   var vid = getYouTubeVideoId(tabData.lastUrl || '');
-  if (!vid) return;
+  if (!vid) {
+    // Not a video page anymore — stop the stats poll left over from the
+    // previous video (it would otherwise tick forever until tab close).
+    if (tabData._sbPollId) { clearInterval(tabData._sbPollId); tabData._sbPollId = null; }
+    return;
+  }
 
   if (_sbLastVid[tabData.id] === vid) return;
   _sbLastVid[tabData.id] = vid;
 
   window.electronAPI.getSponsorBlockEnabled().then(function(enabled) {
-    if (!enabled) return;
+    if (!enabled) {
+      // SponsorBlock is off — stop the stats poll left over from before.
+      if (tabData._sbPollId) { clearInterval(tabData._sbPollId); tabData._sbPollId = null; }
+      return;
+    }
 
     var defaultCats = [
       { id: 'sponsor', color: '#00ff00', enabled: true },
@@ -4542,27 +7025,37 @@ function injectSponsorBlock(tabData) {
         '})()'
       ).catch(function() {});
 
-      console.log('[SB] setting up poll, hasAPI:', !!(window.electronAPI && window.electronAPI.updateSponsorBlockStats));
       if (window.electronAPI && window.electronAPI.updateSponsorBlockStats) {
         if (tabData._sbPollId) clearInterval(tabData._sbPollId);
         tabData._sbPollId = setInterval(function() {
-          try { if (!tabData.webview || !tabData.isReady) { clearInterval(tabData._sbPollId); tabData._sbPollId = null; return; } } catch(e) { clearInterval(tabData._sbPollId); tabData._sbPollId = null; return; }
-          tabData.webview.executeJavaScript(
-            '(function(){' +
-            'if(typeof window._sbSkipped==="undefined")return "no-sb";' +
-            'var c=0,t=0;' +
-            'for(var k in window._sbSkipped){if(window._sbSkipped[k]>0){c++;t+=window._sbSkipped[k];window._sbSkipped[k]=-1;}}' +
-            'return c>0?{c:c,t:t}:"none";' +
-            '})()'
-          ).then(function(r) {
-            console.log('[SB poll] result:', r);
-            if (r && typeof r === 'object') {
-              console.log('[SB poll] skip detected:', JSON.stringify(r));
-              if (window.electronAPI && window.electronAPI.updateSponsorBlockStats) {
-                window.electronAPI.updateSponsorBlockStats({ segments: r.c, timeSaved: r.t });
+          // Guard: a closed tab keeps the closure alive; executeJavaScript on
+          // a detached webview throws SYNCHRONOUSLY (before any promise), so
+          // the try/catch must wrap the call itself or the interval leaks
+          // forever with an uncaught exception every 3 s.
+          try {
+            if (!tabData.webview || !tabData.isReady || !document.contains(tabData.webview)) { clearInterval(tabData._sbPollId); tabData._sbPollId = null; return; }
+            tabData.webview.executeJavaScript(
+              '(function(){' +
+              'if(typeof window._sbSkipped==="undefined")return "no-sb";' +
+              'var c=0,t=0;' +
+              'for(var k in window._sbSkipped){if(window._sbSkipped[k]>0){c++;t+=window._sbSkipped[k];window._sbSkipped[k]=-1;}}' +
+              'return c>0?{c:c,t:t}:"none";' +
+              '})()'
+            ).then(function(r) {
+              if (r === 'no-sb') {
+                // The page no longer has SponsorBlock state (navigated away
+                // or injection failed) — stop polling this tab.
+                clearInterval(tabData._sbPollId);
+                tabData._sbPollId = null;
+                return;
               }
-            }
-          }).catch(function(err) { console.log('[SB poll] error:', err); clearInterval(tabData._sbPollId); tabData._sbPollId = null; });
+              if (r && typeof r === 'object') {
+                if (window.electronAPI && window.electronAPI.updateSponsorBlockStats) {
+                  window.electronAPI.updateSponsorBlockStats({ segments: r.c, timeSaved: r.t });
+                }
+              }
+            }).catch(function() { clearInterval(tabData._sbPollId); tabData._sbPollId = null; });
+          } catch(e) { clearInterval(tabData._sbPollId); tabData._sbPollId = null; }
         }, 3000);
       }
     }).catch(function() {});
@@ -4781,7 +7274,7 @@ var _qcEmojiData = [
   {e:'🎁',n:['gift','gift','present','surprise']},{e:'🏅',n:['medal','medal','sport','sport']},
   {e:'🔖',n:['bookmark','bookmark','save','save']},{e:'📈',n:['chart','chart','grow','growth']},
   {e:'🔊',n:['volume','volume','speaker','sound']},{e:'🔇',n:['mute','muted','silent','quiet']},
-  {e:'🗂️',n:['folder','folder','file','file']},{e:'🐶',n:['dog','dog','puppy','puppy','woof']},
+  {e:'🗂️',n:['folder','folder','file','file']},
 ];
 
 var _qcWidgetVisible = false;
@@ -4844,26 +7337,48 @@ function doTranslate(text, from, to, qcInput) {
   var list = document.getElementById('qcList');
   if (!list) return;
   list.innerHTML = '<div class="qc-empty" style="padding:14px">Translating...</div>';
+  // NOTE: results are rendered with textContent + addEventListener below.
+  // The previous inline onclick="navigator.clipboard.writeText('…')"
+  // pattern was injectable: HTML entities (&#39;) decode back into quotes
+  // inside the attribute, letting page-derived text break the JS string.
+  function renderTranslateResult(originalText, translatedText, noteHtml) {
+    list.innerHTML = '';
+    var wrap = document.createElement('div');
+    wrap.className = 'qc-translate-result';
+    var orig = document.createElement('div');
+    orig.className = 'qc-translate-original';
+    orig.textContent = originalText;
+    var arrow = document.createElement('div');
+    arrow.className = 'qc-translate-arrow';
+    if (noteHtml) { arrow.style.color = '#999'; arrow.textContent = noteHtml; }
+    else arrow.textContent = '\u2193';
+    var trans = document.createElement('div');
+    trans.className = 'qc-translate-translated';
+    trans.textContent = translatedText;
+    var actions = document.createElement('div');
+    actions.className = 'qc-translate-actions';
+    var btn = document.createElement('button');
+    btn.className = 'qc-translate-copy';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', function() {
+      var s = translatedText;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(s).catch(function() {});
+      }
+      btn.textContent = 'Copied!';
+    });
+    actions.appendChild(btn);
+    wrap.appendChild(orig); wrap.appendChild(arrow); wrap.appendChild(trans); wrap.appendChild(actions);
+    list.appendChild(wrap);
+  }
   window.electronAPI.translateText(text, from, to).then(function(result) {
     if (result.success) {
       if (result.from === result.to) {
         var langLabel = result.to === 'ru' ? 'Russian' : 'English';
-        list.innerHTML = '<div class="qc-translate-result">' +
-          '<div class="qc-translate-original">' + escapeHtmlSimple(text) + '</div>' +
-          '<div class="qc-translate-arrow" style="color:#999">Already in ' + langLabel + '</div>' +
-          '<div class="qc-translate-actions">' +
-          '<button class="qc-translate-copy" onclick="navigator.clipboard.writeText(\'' + escapeHtmlSimple(text).replace(/'/g, "\\'") + '\');this.textContent=\'Copied!\'">Copy</button>' +
-          '</div></div>';
+        renderTranslateResult(text, text, 'Already in ' + langLabel);
         return;
       }
-      var html = '<div class="qc-translate-result">' +
-        '<div class="qc-translate-original">' + escapeHtmlSimple(text) + '</div>' +
-        '<div class="qc-translate-arrow">\u2193</div>' +
-        '<div class="qc-translate-translated">' + escapeHtmlSimple(result.translated) + '</div>' +
-        '<div class="qc-translate-actions">' +
-        '<button class="qc-translate-copy" onclick="navigator.clipboard.writeText(\'' + escapeHtmlSimple(result.translated).replace(/'/g, "\\'") + '\');this.textContent=\'Copied!\'">Copy</button>' +
-        '</div></div>';
-      list.innerHTML = html;
+      renderTranslateResult(text, result.translated, null);
     } else {
       list.innerHTML = '<div class="qc-empty" style="padding:14px;color:#e74c3c">Error: ' + escapeHtmlSimple(result.error || 'failed to translate') + '</div>';
     }
@@ -4903,8 +7418,8 @@ function _qcRenderFiltered(prefixLower) {
 }
 
 var _qcCommands = [
-  { name: 'back', desc: 'Back in tab history', cat: 'nav', args: '', fn: function() { var t=getActiveTab(); if(t&&t.webview&&t.isReady){try{if(t.webview.canGoBack())t.webview.goBack();}catch(e){}} }},
-  { name: 'forward', desc: 'Forward in tab history', cat: 'nav', args: '', fn: function() { var t=getActiveTab(); if(t&&t.webview&&t.isReady){try{if(t.webview.canGoForward())t.webview.goForward();}catch(e){}} }},
+  { name: 'back', desc: 'Back in tab history', cat: 'nav', args: '', fn: function() { var t=getActiveTab(); if(t&&t.webview){try{tabGoBack(t);}catch(e){}} }},
+  { name: 'forward', desc: 'Forward in tab history', cat: 'nav', args: '', fn: function() { var t=getActiveTab(); if(t&&t.webview){try{tabGoForward(t);}catch(e){}} }},
   { name: 'home', desc: 'Open start page', cat: 'nav', args: '', fn: function() { createNewTab('MainPage/index.html'); }},
   { name: 'open', desc: 'Open URL in current tab', cat: 'nav', args: 'URL', fn: function(a) { if(a)navigateTo(a); }},
   { name: 'reload', desc: 'Reload page', cat: 'nav', args: '', fn: function() { var t=getActiveTab(); if(t&&t.webview){try{t.webview.reload();}catch(e){}} }},
@@ -4932,7 +7447,7 @@ var _qcCommands = [
   { name: 'view-source', desc: 'Page source', cat: 'misc', args: '', fn: function() { var t=getActiveTab(); if(t&&t.webview&&t.isReady&&canExecInWebview(t.webview)){t.webview.executeJavaScript('window.location.href').then(function(u){createNewTab('view-source:'+u);}).catch(function(){});} }},
   { name: 'zoom', desc: 'Set zoom (%)', cat: 'misc', args: 'percent', fn: function(a) { var t=getActiveTab(); if(!t)return;var z=a?parseInt(a)/100:1;if(isNaN(z))z=1;z=Math.max(0.25,Math.min(3,z));_tabZoom[t.id]=z;if(canExecInWebview(t.webview)){t.webview.executeJavaScript('document.body.style.zoom='+z).catch(function(){});} }},
   { name: 'fullscreen', desc: 'Fullscreen mode', cat: 'misc', args: '', fn: function() { if(window.electronAPI&&window.electronAPI.toggleWindowFullscreen)window.electronAPI.toggleWindowFullscreen(); }},
-  { name: 'version', desc: 'Version info', cat: 'misc', args: '', fn: function() { customAlert('StartPOZI Browser\nElectron '+process.versions.electron+'\nChromium '+process.versions.chrome); }},
+  { name: 'version', desc: 'Version info', cat: 'misc', args: '', fn: function() { var ev='n/a', cv='n/a'; try { if (typeof process !== 'undefined' && process.versions) { ev = process.versions.electron || 'n/a'; cv = process.versions.chrome || 'n/a'; } else { var mCh = navigator.userAgent.match(/Chrome\/([\d.]+)/); var mEl = navigator.userAgent.match(/Electron\/([\d.]+)/); if (mCh) cv = mCh[1]; if (mEl) ev = mEl[1]; } } catch(e) {} customAlert('StartPOZI Browser\nElectron ' + ev + '\nChromium ' + cv); }},
   { name: 'quit', desc: 'Quit browser', cat: 'misc', args: '', fn: function() { if(window.electronAPI&&window.electronAPI.windowClose)window.electronAPI.windowClose(); }},
   { name: 'undo', desc: 'Reopen last closed tab', cat: 'tab', args: '', fn: function() { if(closedTabsHistory.length>0){var c=closedTabsHistory.shift();createNewTab(c.url);} }},
   { name: 'help', desc: 'List of all commands (help 2 — page 2)', cat: 'misc', args: '', keepOpen: true, fn: function(a, qcInput) { qcInput.value=':'; var p=parseInt(a); _qcHelpPage=(!isNaN(p)&&p>=1)?p-1:0; renderQcList(':'); }},
@@ -4988,6 +7503,42 @@ var _qcCommands = [
       else { customAlert('Command :' + rname + ' not found'); }
     }
   }},
+  { name: 'bang', desc: 'Add a site bang: :bang <name> <url с %s>', cat: 'cfg', args: '<name> <url>', fn: function(a, qcInput) {
+    if (!a) { qcInput.value = ':bang '; renderQcList(':bang '); qcInput.focus(); return; }
+    var parts = a.trim().split(/\s+/);
+    var sub = (parts[0] || '').toLowerCase();
+    if (sub === 'remove') {
+      var rname = (parts[1] || '').toLowerCase();
+      if (!rname) { customAlert('Format: :bang remove <name>'); return; }
+      var ridx = _qcCustomCommands.findIndex(function(c) { return c.name === rname; });
+      if (ridx >= 0) { _qcCustomCommands.splice(ridx, 1); _qcSaveCustom(); customAlert('Bang :' + rname + ' removed'); }
+      else { customAlert('Bang :' + rname + ' not found'); }
+      return;
+    }
+    if (sub === 'list') {
+      var bangs = _qcCustomCommands.filter(function(c) { return c.type === 'url'; });
+      if (!bangs.length) { customAlert('No bangs yet. Try: :bang yt https://www.youtube.com/results?q=%s'); return; }
+      customAlert(bangs.map(function(c) { return ':' + c.name + ' — ' + c.value; }).join('\n'));
+      return;
+    }
+    var name = (parts[0] || '').toLowerCase();
+    var url = parts.slice(1).join(' ');
+    if (!name || !url) { customAlert('Format: :bang <name> <url>. Use %s where the query goes: :bang yt https://www.youtube.com/results?q=%s'); return; }
+    if (!/^[a-z0-9-]{1,20}$/.test(name)) { customAlert('Name: 1-20 chars, a-z 0-9 -'); return; }
+    var clashes = _qcCommands.some(function(c) { return c.name === name; });
+    if (clashes) { customAlert(':' + name + ' is a built-in command — pick another name'); return; }
+    if (!/^https?:\/\//i.test(url)) { url = 'https://' + url; }
+    var bangObj = {
+      name: name,
+      desc: 'Bang: ' + (url.indexOf('%s') !== -1 ? url.replace('%s', '…') : url.slice(0, 60)),
+      type: 'url',
+      value: url
+    };
+    var existing = _qcCustomCommands.findIndex(function(c) { return c.name === name; });
+    if (existing >= 0) _qcCustomCommands[existing] = bangObj; else _qcCustomCommands.push(bangObj);
+    _qcSaveCustom();
+    customAlert('Bang :' + name + ' ' + (existing >= 0 ? 'updated' : 'added') + (url.indexOf('%s') !== -1 ? ' — try :name query' : ''));
+  }},
   { name: 'alias', desc: 'Manage command aliases', cat: 'cfg', args: 'add/remove/list', fn: function(a, qcInput) {
     if (!a) { qcInput.value = ':alias '; renderQcList(':alias '); qcInput.focus(); return; }
     var parts = a.split(/\s+/);
@@ -5033,16 +7584,26 @@ var _qcCommands = [
   }},
   { name: 'widget', desc: 'Widget mode (mini panel)', cat: 'misc', args: '', fn: function() { toggleQcWidget(); }},
   { name: 'settings', desc: 'Open settings section', cat: 'cfg', args: 'section', fn: function(a) {
-    var sections = ['search-engine','startup','scripts','customization','permissions','proxy','system-integration','profiles','blocker','security','optimization','paths','backup','hotkeys'];
+    var sections = ['main','search-engine','scripts','customization','permissions','proxy','system-integration','profiles','blocker','security','optimization','paths','backup','hotkeys'];
     var target = a && sections.indexOf(a) >= 0 ? a : '';
     createNewTab('Settings.html' + (target ? '#' + target : ''));
   }},
+  { name: 'theme-editor', desc: 'Open the visual theme editor (colors, icons, live preview)', cat: 'cfg', args: '', fn: function() {
+    createNewTab('ThemeEditor.html');
+  }},
   { name: 'zapper', desc: 'Hide element on page (Element Zapper)', cat: 'misc', args: '', fn: function() {
-    var t = getActiveTab(); if (t && canExecInWebview(t.webview)) t.webview.executeJavaScript('window.postMessage({__spzPickerStart:true},"*");return 1').catch(function() {});
+    var t = getActiveTab();
+    if (t && canExecInWebview(t.webview)) {
+      try {
+        if (window.electronAPI && window.electronAPI.startElementPicker && t.webview.getWebContentsId) {
+          window.electronAPI.startElementPicker(t.webview.getWebContentsId());
+        }
+      } catch(e) {}
+    }
   }},
   { name: 'sleep', desc: 'Put active tab to sleep (except last)', cat: 'tab', args: '', fn: function() {
     var t = getActiveTab();
-    if (t && tabs.length > 1 && t.webview && t.isReady && !t._isSleeping) {
+    if (t && tabs.length > 1 && t.webview && t.isReady && !t._isSleeping && !_tabIsPlayingMedia(t)) {
       var u = ''; try { u = t.webview.getURL ? t.webview.getURL() : t.webview.src; } catch(e) {}
       if (u && u !== 'about:blank' && !isDomainNoSleep(u)) {
         _maybeClearSWBeforeSleep(t);
@@ -5310,31 +7871,119 @@ function _qcGeneratePreview(cmdName, cmdArg) {
   }
 }
 
+// Safe arithmetic evaluator (tokenizer + recursive descent). The old
+// implementation used Function() — eval-like execution that the chrome CSP
+// (script-src 'self', no 'unsafe-eval') forbids, which left :calc and the
+// math suggestion dead. Supports + - * / % ^ ( ) , unary minus, the
+// constants pi/e (and π) and the functions below.
+var _MATH_FNS = {
+  sqrt: Math.sqrt, sin: Math.sin, cos: Math.cos, tan: Math.tan,
+  log: Math.log10, ln: Math.log, abs: Math.abs, ceil: Math.ceil,
+  floor: Math.floor, round: Math.round, pow: Math.pow,
+  min: Math.min, max: Math.max
+};
+function _mathTokenize(s) {
+  var tokens = [];
+  var i = 0;
+  while (i < s.length) {
+    var ch = s[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (/[0-9.]/.test(ch)) {
+      var num = '';
+      while (i < s.length && /[0-9.]/.test(s[i])) num += s[i++];
+      // Reject malformed numbers like "2..5" (parseFloat would silently
+      // truncate them — the old Function() path treated them as errors).
+      if (!/^(\d+(\.\d+)?|\.\d+)$/.test(num)) throw new Error('bad number');
+      var v = parseFloat(num);
+      tokens.push({ t: 'num', v: v });
+      continue;
+    }
+    if (/[a-z]/i.test(ch)) {
+      var id = '';
+      while (i < s.length && /[a-z]/i.test(s[i])) id += s[i++];
+      tokens.push({ t: 'id', v: id.toLowerCase() });
+      continue;
+    }
+    if ('+-*/%^(),'.indexOf(ch) >= 0) { tokens.push({ t: ch }); i++; continue; }
+    throw new Error('bad char');
+  }
+  return tokens;
+}
+function _mathEval(src) {
+  var tokens = _mathTokenize(src);
+  var pos = 0;
+  function peek() { return tokens[pos]; }
+  function eat(t) {
+    var tok = tokens[pos];
+    if (!tok || tok.t !== t) throw new Error('syntax');
+    pos++;
+    return tok;
+  }
+  function parseExpr() {
+    var v = parseTerm();
+    while (peek() && (peek().t === '+' || peek().t === '-')) {
+      var op = tokens[pos++].t;
+      var r = parseTerm();
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  }
+  function parseTerm() {
+    var v = parseUnary();
+    while (peek() && (peek().t === '*' || peek().t === '/' || peek().t === '%')) {
+      var op = tokens[pos++].t;
+      var r = parseUnary();
+      if (op === '*') v = v * r; else if (op === '/') v = v / r; else v = v % r;
+    }
+    return v;
+  }
+  function parseUnary() {
+    if (peek() && peek().t === '-') { pos++; return -parseUnary(); }
+    if (peek() && peek().t === '+') { pos++; return parseUnary(); }
+    return parsePower();
+  }
+  function parsePower() {
+    var base = parseAtom();
+    if (peek() && peek().t === '^') { pos++; return Math.pow(base, parseUnary()); }
+    return base;
+  }
+  function parseAtom() {
+    var tok = peek();
+    if (!tok) throw new Error('unexpected end');
+    if (tok.t === 'num') { pos++; return tok.v; }
+    if (tok.t === '(') { pos++; var v = parseExpr(); eat(')'); return v; }
+    if (tok.t === 'id') {
+      pos++;
+      if (tok.v === 'pi') return Math.PI;
+      if (tok.v === 'e') return Math.E;
+      var fn = _MATH_FNS[tok.v];
+      if (!fn) throw new Error('unknown fn');
+      var args = [];
+      if (peek() && peek().t === '(') {
+        pos++;
+        if (peek() && peek().t !== ')') {
+          args.push(parseExpr());
+          while (peek() && peek().t === ',') { pos++; args.push(parseExpr()); }
+        }
+        eat(')');
+      } else {
+        args.push(parseUnary());
+      }
+      return fn.apply(null, args);
+    }
+    throw new Error('unexpected token');
+  }
+  var result = parseExpr();
+  if (pos !== tokens.length) throw new Error('trailing tokens');
+  return result;
+}
 function _tryMath(expr) {
   if (!expr || expr.length < 1) return null;
   if (!/^[0-9\s\+\-\*\/\.\(\)\^%pipi,e\s]+$/.test(expr.replace(/sqrt|sin|cos|tan|log|ln|abs|ceil|floor|round|pow|min|max|PI|E/gi, ''))) return null;
   if (!/\d/.test(expr)) return null;
   if (/^[0-9\s\.]+$/.test(expr.trim()) && expr.trim().length < 3) return null;
   try {
-    var safe = expr
-      .replace(/\^/g, '**')
-      .replace(/π/g, 'Math.PI')
-      .replace(/\bpi\b/gi, 'Math.PI')
-      .replace(/\be\b/g, 'Math.E')
-      .replace(/\bsqrt\b/gi, 'Math.sqrt')
-      .replace(/\bsin\b/gi, 'Math.sin')
-      .replace(/\bcos\b/gi, 'Math.cos')
-      .replace(/\btan\b/gi, 'Math.tan')
-      .replace(/\blog\b/gi, 'Math.log10')
-      .replace(/\bln\b/gi, 'Math.log')
-      .replace(/\babs\b/gi, 'Math.abs')
-      .replace(/\bceil\b/gi, 'Math.ceil')
-      .replace(/\bfloor\b/gi, 'Math.floor')
-      .replace(/\bround\b/gi, 'Math.round')
-      .replace(/\bpow\b/gi, 'Math.pow')
-      .replace(/\bmin\b/gi, 'Math.min')
-      .replace(/\bmax\b/gi, 'Math.max');
-    var result = Function('"use strict"; return (' + safe + ')')();
+    var result = _mathEval(expr.replace(/π/g, ' pi '));
     if (typeof result === 'number' && isFinite(result)) {
       var rounded = Math.round(result * 1e12) / 1e12;
       return rounded;
@@ -5350,8 +7999,10 @@ function renderQcList(query) {
   var q = (query || '').trim();
   var qcInput = document.getElementById('qcInput');
 
-  function add(icon, title, sub, action, shortcut, preview) {
-    _qcItems.push({ icon: icon, title: title, sub: sub, action: action, shortcut: shortcut || '', preview: preview || '' });
+  function add(icon, title, sub, action, shortcut, preview, raw) {
+    // raw=true keeps the icon verbatim (emoji picker: the glyph IS the data,
+    // it must not be swapped for an _SVG lookalike).
+    _qcItems.push({ icon: icon, title: title, sub: sub, action: action, shortcut: shortcut || '', preview: preview || '', rawIcon: !!raw });
   }
 
   if (q.charAt(0) === ':') {
@@ -5371,7 +8022,7 @@ function renderQcList(query) {
           add(item.e, item.e + '  ' + item.n.slice(0, 3).join(', '), 'Click to copy', function() {
             navigator.clipboard.writeText(item.e).catch(function() {});
             toggleQuickCommands();
-          });
+          }, '', '', true);
         });
         if (emojiMatches.length === 0) {
           add('\uD83D\uDE10', 'Nothing found', 'Try another query', function() {});
@@ -5381,7 +8032,7 @@ function renderQcList(query) {
           add(item.e, item.e + '  ' + item.n.slice(0, 3).join(', '), 'Click to copy', function() {
             navigator.clipboard.writeText(item.e).catch(function() {});
             toggleQuickCommands();
-          });
+          }, '', '', true);
         });
         if (_qcEmojiData.length > _qcHelpPageSize) {
           add('\u25B6', 'More emoji...', 'Show all', function() {
@@ -5399,7 +8050,15 @@ function renderQcList(query) {
       var allCmds = _qcCommands.concat(_qcCustomCommands.map(function(c) {
         return { name: c.name, desc: c.desc, cat: 'custom', args: c.type === 'js' ? 'js' : 'URL', fn: function(a) {
           if (c.type === 'js') { var t = getActiveTab(); if (t && canExecInWebview(t.webview)) t.webview.executeJavaScript(c.value).catch(function() {}); }
-          else { navigateTo(c.value); }
+          else {
+            // %s substitution (bang-style): ":yt cats" on a URL containing
+            // %s opens it with the encoded query in place of %s.
+            var url = c.value;
+            if (a && url.indexOf('%s') !== -1) {
+              url = url.split('%s').join(encodeURIComponent(a.trim()));
+            }
+            navigateTo(url);
+          }
         }};
       }));
 
@@ -5583,7 +8242,7 @@ function renderQcList(query) {
     }
     var cls = i === _qcActiveIdx ? 'qc-item active' : 'qc-item';
     html += '<div class="' + cls + '" data-idx="' + i + '">' +
-      '<div class="qc-item-icon">' + _icon(item.icon) + '</div>' +
+      '<div class="qc-item-icon">' + (item.rawIcon ? escapeHtmlSimple(item.icon) : _icon(item.icon)) + '</div>' +
       '<div class="qc-item-text"><div class="qc-item-title">' + escapeHtmlSimple(item.title) + '</div>' +
       '<div class="qc-item-sub">' + escapeHtmlSimple(item.sub) + '</div></div>' +
       (item.shortcut ? '<div class="qc-item-shortcut">' + item.shortcut + '</div>' : '') +
@@ -5679,10 +8338,6 @@ function takeScreenshot() {
 
 // ============== KEYBOARD SHORTCUTS ==============
 (function() {
-  function getActiveTab() {
-    return tabs.find(function(t) { return t.id === activeTabId; });
-  }
-
   document.addEventListener('keydown', function(e) {
     if (e.key === 'F11') {
       e.preventDefault();
@@ -5752,10 +8407,10 @@ function takeScreenshot() {
           }
           break;
         case 'goBack':
-          if (tab && tab.webview && tab.isReady) { try { if (tab.webview.canGoBack()) tab.webview.goBack(); } catch(e) {} }
+          if (tab && tab.webview) { try { tabGoBack(tab); } catch(e) {} }
           break;
         case 'goForward':
-          if (tab && tab.webview && tab.isReady) { try { if (tab.webview.canGoForward()) tab.webview.goForward(); } catch(e) {} }
+          if (tab && tab.webview) { try { tabGoForward(tab); } catch(e) {} }
           break;
         case 'quickCommands': toggleQuickCommands(); break;
         case 'pip':
@@ -5846,10 +8501,10 @@ function takeScreenshot() {
         toggleFindBar();
         break;
       case 'back':
-        if (tab && tab.webview && tab.isReady) { try { if (tab.webview.canGoBack()) tab.webview.goBack(); } catch(e) {} }
+        if (tab && tab.webview) { try { tabGoBack(tab); } catch(e) {} }
         break;
       case 'forward':
-        if (tab && tab.webview && tab.isReady) { try { if (tab.webview.canGoForward()) tab.webview.goForward(); } catch(e) {} }
+        if (tab && tab.webview) { try { tabGoForward(tab); } catch(e) {} }
         break;
       case 'zoomIn':
         if (tab && tab.webview) { try { var z = tab.webview.getZoomFactor ? tab.webview.getZoomFactor() : 1; if (tab.webview.setZoomFactor) tab.webview.setZoomFactor(Math.min(3, z + 0.1)); } catch(e) {} }
@@ -5877,9 +8532,6 @@ function takeScreenshot() {
             if (qi && !qi.value) { qi.value = (typeof arg === 'string') ? arg : ':'; qi.dispatchEvent(new Event('input')); qi.focus(); }
           }, 30);
         }
-        break;
-      case 'find':
-        if (typeof toggleFindBar === 'function') toggleFindBar();
         break;
       case 'findNext':
         _vimRepeatFind(true);
@@ -6015,15 +8667,15 @@ function _vimChromeOverlayOpen() {
   if (typeof _customizeActive !== 'undefined' && _customizeActive) return true;
   // Autoscroll active (there is an indicator with buttons)
   if (typeof _autoscrollActive !== 'undefined' && _autoscrollActive) return true;
-  // Dialog (customAlert/customConfirm/customPrompt) — check via display
+  // Dialog (customAlert/customConfirm/customPrompt) — shown via .active class
   var dlg = document.getElementById('dialogOverlay');
-  if (dlg && dlg.style.display !== 'none' && dlg.style.display) return true;
+  if (dlg && dlg.classList.contains('active')) return true;
   // Bookmarks sidebar (class-based)
   var sb = document.getElementById('bookmarksSidebar');
   if (sb && sb.classList.contains('open')) return true;
-  // Workspace create modal
+  // Workspace create modal (shown via .open class)
   var ws = document.getElementById('wsCreateModal');
-  if (ws && ws.style.display !== 'none' && ws.style.display) return true;
+  if (ws && ws.classList.contains('open')) return true;
   return false;
 }
 
@@ -6046,11 +8698,9 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
 
 // Subscribe to modeChange from the active webview engine (via vim-action IPC)
 // — this event is sent by the engine itself when the mode changes.
-(function(){
-  // Extend the existing onVimAction — it already listens to 'vim-action'.
-  // But modeChange comes as {action:'modeChange', arg:mode}, we handle it
-  // with a separate listener as part of the onVimAction callback below.
-})();
+// Extend the existing onVimAction — it already listens to 'vim-action'.
+// But modeChange comes as {action:'modeChange', arg:mode}, we handle it
+// with a separate listener as part of the onVimAction callback below.
 
 // Chrome → webview forwarding is now handled via IPC from main.js
 // (same place as regular hotkeys — this reliably always works). main.js
@@ -6083,16 +8733,13 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
 
 // Hook mode updates: extend onShortcutAction (or use
 // a separate channel) — the engine sends modeChange via the 'vim-action' IPC.
-(function() {
-  if (!window.electronAPI || !window.electronAPI.onVimAction) return;
-  // onVimAction is already used by the block above — but IPC events reach us
-  // multiple times (one per listener), so we add our own listener.
-  // contextBridge.onXxx usually registers ONE ipcRenderer.on, but if
-  // it allows multiple callbacks — a repeated call adds another one.
-  // To avoid risk, we use the same callback via a patch:
-  // (Only a comment is left here — modeChange is handled in onVimAction
-  // above, in the switch case. We add case 'modeChange' there.)
-})();
+// onVimAction is already used by the block above — but IPC events reach us
+// multiple times (one per listener), so we add our own listener.
+// contextBridge.onXxx usually registers ONE ipcRenderer.on, but if
+// it allows multiple callbacks — a repeated call adds another one.
+// To avoid risk, we use the same callback via a patch:
+// (Only a comment is left here — modeChange is handled in onVimAction
+// above, in the switch case. We add case 'modeChange' there.)
 
 (function() {
   var abBtn = document.getElementById('adblockBtn');
@@ -6103,7 +8750,239 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
   var abTotal = document.getElementById('abTotal');
   var abSiteName = document.getElementById('abSiteName');
   var abSiteToggle = document.getElementById('abSiteToggle');
+  var abStatusText = document.getElementById('abStatusText');
+  var abStatusStrip = document.getElementById('abStatusStrip');
+  var abPageBlocked = document.getElementById('abPageBlocked');
+  var abSettingsLink = document.getElementById('abPanelSettings');
   var abPanelOpen = false;
+  var _abEnabled = null; // last known global on/off state
+
+  // ===== Shield status machine =====
+  // ok      green   — blocking, page fine
+  // loading yellow  — the current page is still loading
+  // warn    orange  — page is "dangerous": a lot of trackers/ads blocked
+  // error   red     — engine failed (e.g. lists never loaded, fallback engine)
+  // off     grey    — disabled globally or whitelisted for this site
+  // na      white   — not applicable: local files (file://) and internal
+  //                   pages (Settings/Library/MainPage…) — blocking does not
+  //                   run there, so no status is shown
+  var AB_COLORS = { ok: '#28ca42', loading: '#f5c518', warn: '#ff9f0a', error: '#ff453a', off: '#666', na: 'var(--text-primary,#eee)' };
+  var AB_TITLES = {
+    ok: 'Ad blocker — active',
+    loading: 'Ad blocker — page loading…',
+    warn: 'Ad blocker — many trackers on this page',
+    error: 'Ad blocker — engine error (lists not loaded)',
+    off: 'Ad blocker — disabled',
+    na: 'Ad blocker — not active on this page'
+  };
+  var abBadge = document.getElementById('abBadge');
+  var _abShieldState = 'ok';
+  var _abWlDomain = null;      // domain the cached whitelist answer belongs to
+  var _abWhitelisted = false;  // cached "site is whitelisted" answer
+  var _abEngineSrc = null;     // 'catalog' | 'cache' | 'fallback'
+  var _abEngineAt = 0;         // engine info refresh timestamp
+  var _abNudgeShownFor = {};   // per page URL — nudge shown already
+
+  function _applyAbShield(state) {
+    if (!(state in AB_COLORS)) state = 'ok';
+    _abShieldState = state;
+    if (!abBtn) return;
+    abBtn.style.color = AB_COLORS[state];
+    abBtn.title = AB_TITLES[state];
+    if (abBadge) {
+      if (state === 'off' || state === 'error' || state === 'na') { abBadge.style.display = 'none'; }
+      else { abBadge.style.display = ''; }
+    }
+  }
+
+  // Educational nudge "We blocked N trackers…" — shown at most twice EVER:
+  // on the first ad-heavy page, then once more ≥3 days later, never again.
+  function _abNudgeMaybe(stats, tab) {
+    try {
+      if (!stats || !stats.blocked || stats.blocked < 5) return;
+      var pageKey = '';
+      try { pageKey = tab.webview.getURL ? tab.webview.getURL() : ''; } catch (e0) {}
+      if (!pageKey || pageKey.indexOf('http') !== 0) return;
+      if (_abNudgeShownFor[pageKey]) return;
+      var st = null;
+      try { st = JSON.parse(localStorage.getItem('spz_ab_nudge') || 'null'); } catch (e1) {}
+      var now = Date.now();
+      if (st && st.shows >= 2) return;
+      if (st && st.shows === 1 && (now - (st.firstTs || 0)) < 3 * 24 * 3600 * 1000) return;
+      _abNudgeShownFor[pageKey] = true;
+      try { localStorage.setItem('spz_ab_nudge', JSON.stringify({ shows: (st ? st.shows : 0) + 1, firstTs: st && st.firstTs ? st.firstTs : now })); } catch (e2) {}
+      _showAbNudge(stats);
+    } catch (e) {}
+  }
+
+  function _showAbNudge(stats) {
+    if (!abBtn) return;
+    try { var old = document.getElementById('abNudge'); if (old) old.remove(); } catch (e0) {}
+    var isRu = false;
+    try { isRu = !!(window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru'); } catch (e1) {}
+    var trackers = stats.trackers || 0;
+    var rest = Math.max(0, (stats.blocked || 0) - trackers);
+    var n = document.createElement('div');
+    n.className = 'ab-nudge';
+    n.id = 'abNudge';
+    var icon = document.createElement('div');
+    icon.innerHTML = _icon('🛡');
+    icon.style.cssText = 'font-size:20px;margin-bottom:6px;display:flex;justify-content:center;';
+    n.appendChild(icon);
+    var line1 = document.createElement('div');
+    var b = document.createElement('b');
+    b.textContent = isRu ? ('Мы заблокировали ' + stats.blocked) : ('We blocked ' + stats.blocked);
+    line1.appendChild(b);
+    n.appendChild(line1);
+    var line2 = document.createElement('div');
+    line2.style.cssText = 'color:var(--text-secondary,#999);font-size:11.5px;margin-top:3px;';
+    line2.textContent = isRu
+      ? ('трекеров, рекламу и запросы слежения на этой странице' + (trackers ? ' (трекеров: ' + trackers + ')' : ''))
+      : ('trackers, ads and tracking requests on this page' + (trackers ? ' (trackers: ' + trackers + ')' : ''));
+    n.appendChild(line2);
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'ab-nudge-close';
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', function() { n.remove(); });
+    n.appendChild(closeBtn);
+    document.body.appendChild(n);
+    // Anchor under the shield button (fallback: top-right of the navbar).
+    var r = abBtn.getBoundingClientRect();
+    if (r.width > 0) {
+      n.style.left = Math.max(6, Math.min(r.left - 60, window.innerWidth - 310)) + 'px';
+      n.style.top = (r.bottom + 8) + 'px';
+    } else {
+      n.style.right = '12px';
+      n.style.top = '52px';
+    }
+    setTimeout(function() { try { n.remove(); } catch (e2) {} }, 8000);
+  }
+
+  // Global refresh of the shield: color state + page counter + nudge.
+  function updateAbShield() {
+    var tab = tabs.find(function(t) { return t.id === activeTabId; });
+    if (!tab || !tab.webview || !window.electronAPI || !window.electronAPI.adblockerGetPageStats) {
+      _applyAbShield(_abEnabled ? 'ok' : 'off');
+      return;
+    }
+    var domain = getActiveDomain();
+
+    // Whitelist answer is cached per domain (changes only on navigation).
+    if (domain !== _abWlDomain) {
+      _abWlDomain = domain;
+      _abWhitelisted = false;
+      if (domain && window.electronAPI.adblockerIsWhitelisted) {
+        window.electronAPI.adblockerIsWhitelisted(domain).then(function(r) {
+          _abWhitelisted = !!(r && r.whitelisted);
+        }).catch(function() {});
+      }
+    }
+    // Engine source refresh (fallback engine == red "error" state).
+    var now = Date.now();
+    if (window.electronAPI.adblockerEngineInfo && now - _abEngineAt > 30000) {
+      _abEngineAt = now;
+      window.electronAPI.adblockerEngineInfo().then(function(r) {
+        if (r && r.success && r.info) _abEngineSrc = r.info.source || '';
+      }).catch(function() {});
+    }
+
+    var wcId = null;
+    try { wcId = tab.webview.getWebContentsId ? tab.webview.getWebContentsId() : null; } catch(e) {}
+    if (!wcId) { _applyAbShield(_abEnabled ? 'ok' : 'off'); if (abBadge) abBadge.textContent = '0'; return; }
+    // Local files and internal pages: blocking never runs there → neutral
+    // white shield, no badge (checked before anything else).
+    var curUrl = '';
+    try { curUrl = tab.webview.getURL ? tab.webview.getURL() : ''; } catch(e0) {}
+    if (!/^https?:/i.test(curUrl || '')) {
+      if (abBadge) abBadge.style.display = 'none';
+      _applyAbShield('na');
+      return;
+    }
+    window.electronAPI.adblockerGetPageStats(wcId).then(function(r) {
+      var stats = (r && r.stats) || { blocked: 0 };
+      if (abBadge) abBadge.textContent = String(stats.blocked || 0);
+      if (abBadge) abBadge.style.background = (stats.blocked ? AB_COLORS.ok : 'var(--bg-secondary,#2a2a2a)');
+      var state;
+      if (!_abEnabled) state = 'off';
+      else if (_abWhitelisted && domain) state = 'off';
+      else if (_abEngineSrc === 'fallback') state = 'error';
+      else if (tab.isLoading) state = 'loading';
+      else if ((stats.trackers || 0) >= 8 || (stats.blocked || 0) >= 20) state = 'warn';
+      else state = 'ok';
+      _applyAbShield(state);
+      if (state === 'ok' || state === 'warn') _abNudgeMaybe(stats, tab);
+    }).catch(function() {});
+  }
+  window._updateAbShield = updateAbShield;
+
+  // Classic button look: green when on, gray when off. Additionally synced
+  // at startup and every 5 s so toggling from Settings/hamburger is reflected
+  // without reopening this panel.
+  function setAbBtnState(on) {
+    _abEnabled = !!on;
+    // Colors/status are computed by updateAbShield; reflect the global
+    // toggle immediately so the button never stays stale after a click.
+    _applyAbShield(_abEnabled ? 'ok' : 'off');
+    try { updateAbShield(); } catch(e) {}
+    if (abStatusText) abStatusText.textContent = _abEnabled ? 'Enabled' : 'Disabled';
+    if (abStatusStrip) abStatusStrip.classList.toggle('off', !_abEnabled);
+  }
+
+  // Per-page blocked count for the CURRENT tab (shown in the panel).
+  function updateAbPageStats() {
+    if (!abPageBlocked) return;
+    var tab = tabs.find(function(t) { return t.id === activeTabId; });
+    if (!tab || !tab.webview || tab.isReady === false ||
+        !window.electronAPI || !window.electronAPI.adblockerGetPageStats) {
+      abPageBlocked.textContent = '0';
+      return;
+    }
+    var wcId = null;
+    try { wcId = tab.webview.getWebContentsId ? tab.webview.getWebContentsId() : null; } catch(e) {}
+    if (!wcId) { abPageBlocked.textContent = '0'; return; }
+    window.electronAPI.adblockerGetPageStats(wcId).then(function(r) {
+      abPageBlocked.textContent = String((r && r.stats && r.stats.blocked) || 0);
+    }).catch(function() {});
+  }
+  setInterval(function() { updateAbShield(); if (abPanelOpen) updateAbPageStats(); }, 1500);
+
+  function updateAbEnabled() {
+    if (!window.electronAPI || !window.electronAPI.adblockerIsEnabled) return;
+    window.electronAPI.adblockerIsEnabled().then(function(r) {
+      if (r && r.success) setAbBtnState(r.enabled);
+    }).catch(function() {});
+  }
+  setInterval(updateAbEnabled, 5000);
+
+  // Engine diagnostics: lists count + source. A red/orange "fallback" badge
+  // means the full catalog did not load (offline first launch etc.) and the
+  // weak prebuilt engine is running — the usual cause of "not everything
+  // is blocked".
+  function updateAbEngineInfo() {
+    var row = document.getElementById('abEngineRow');
+    var info = document.getElementById('abEngineInfo');
+    if (!row || !info || !window.electronAPI || !window.electronAPI.adblockerEngineInfo) return;
+    window.electronAPI.adblockerEngineInfo().then(function(r) {
+      if (!r || !r.success || !r.info) { row.style.display = 'none'; return; }
+      var src = r.info.source || '';
+      var srcLabel = src === 'catalog' ? '' : (src === 'cache' ? ' · cache' : (src === 'fallback' ? ' · FALLBACK' : ''));
+      info.textContent = 'Lists: ' + (r.info.lists || 0) + srcLabel;
+      row.classList.toggle('ab-engine-warn', src === 'fallback');
+      row.style.display = 'flex';
+    }).catch(function() {});
+  }
+  var abReloadBtn = document.getElementById('abReloadLists');
+  if (abReloadBtn) {
+    abReloadBtn.addEventListener('click', function() {
+      if (!window.electronAPI || !window.electronAPI.updateFilterLists) return;
+      abReloadBtn.classList.add('spinning');
+      window.electronAPI.updateFilterLists().then(function() {
+        abReloadBtn.classList.remove('spinning');
+        updateAbEngineInfo();
+        if (typeof _showToast === 'function') _showToast('Filter lists updated', 'adblock', null, 'info');
+      }).catch(function() { abReloadBtn.classList.remove('spinning'); });
+    });
+  }
 
   function getActiveDomain() {
     var activeTab = tabs.find(function(t) { return t.id === activeTabId; });
@@ -6119,10 +8998,13 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     if (!window.electronAPI || !window.electronAPI.adblockerIsEnabled) return;
     window.electronAPI.adblockerIsEnabled().then(function(r) {
       if (!r || !r.success) return;
-      var on = r.enabled;
-      abBtn.style.color = on ? '#28ca42' : '#666';
-      if (abToggle) abToggle.checked = on;
+      setAbBtnState(r.enabled);
+      if (abToggle) abToggle.checked = r.enabled;
     }).catch(function() {});
+    // Bootstrap the page stats + button state before the first interval tick.
+    updateAbEnabled();
+    updateAbPageStats();
+    updateAbEngineInfo();
 
     var domain = getActiveDomain();
     if (abSiteName) abSiteName.textContent = domain || '—';
@@ -6153,11 +9035,112 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     });
   }
 
+  if (abSettingsLink) {
+    abSettingsLink.addEventListener('click', function() {
+      abPanelOpen = false;
+      abPanel.classList.remove('open');
+      createNewTab('Settings.html#blocker');
+    });
+  }
+
+  // "Report a problem" — external feedback form.
+  var abReport = document.getElementById('abReportIssue');
+  if (abReport) {
+    abReport.addEventListener('click', function() {
+      abPanelOpen = false;
+      abPanel.classList.remove('open');
+      createNewTab('https://startpoziblog.wordpress.com/feedback/');
+    });
+  }
+
+  // "Check this site" — StartPOZI site-check service with the current page
+  // URL appended (?url=<link>). On internal pages the service opens without
+  // a URL (it shows its own input there).
+  var abCheck = document.getElementById('abCheckSite');
+  if (abCheck) {
+    abCheck.addEventListener('click', function() {
+      var tab = tabs.find(function(t) { return t.id === activeTabId; });
+      var curUrl = '';
+      try { curUrl = (tab && tab.webview && tab.webview.getURL) ? tab.webview.getURL() : ''; } catch(e) {}
+      abPanelOpen = false;
+      abPanel.classList.remove('open');
+      var checkUrl = 'https://startpozi.com/VirInfoTest';
+      if (curUrl && /^https?:\/\//i.test(curUrl)) {
+        checkUrl += '?url=' + encodeURIComponent(curUrl);
+      }
+      createNewTab(checkUrl);
+    });
+  }
+
+  // "Block ads manually" — starts the element-zapper picker on the active
+  // page: the user clicks intrusive elements and they are hidden + remembered.
+  var abManual = document.getElementById('abBlockManually');
+  if (abManual) {
+    abManual.addEventListener('click', function() {
+      var tab = tabs.find(function(t) { return t.id === activeTabId; });
+      if (!tab || !tab.webview || !canExecInWebview(tab.webview)) return;
+      try {
+        if (window.electronAPI && window.electronAPI.startElementPicker && tab.webview.getWebContentsId) {
+          abPanelOpen = false;
+          abPanel.classList.remove('open');
+          window.electronAPI.startElementPicker(tab.webview.getWebContentsId());
+        }
+      } catch(e) {}
+    });
+  }
+
+  // Expandable full statistics: category breakdown for THIS PAGE
+  // (ads / trackers / social / CDN / other) + cookies stored for this site.
+  var abFsToggle = document.getElementById('abFullStatsToggle');
+  var abFsBox = document.getElementById('abFullStats');
+  var abFsOpen = false;
+  function _abFsSet(id, v) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = String(v || 0);
+  }
+  function updateAbFullStats() {
+    if (!abFsOpen || !abFsBox) return;
+    var tab = tabs.find(function(t) { return t.id === activeTabId; });
+    var wcId = null, curUrl = '';
+    try {
+      if (tab && tab.webview && tab.webview.getWebContentsId) wcId = tab.webview.getWebContentsId();
+      if (tab && tab.webview && tab.webview.getURL) curUrl = tab.webview.getURL();
+    } catch(e) {}
+    if (!wcId) {
+      _abFsSet('abFsAds', 0); _abFsSet('abFsTrackers', 0); _abFsSet('abFsSocial', 0);
+      _abFsSet('abFsCdn', 0); _abFsSet('abFsOther', 0); _abFsSet('abFsCookies', 0);
+      return;
+    }
+    if (window.electronAPI && window.electronAPI.adblockerGetPageStats) {
+      window.electronAPI.adblockerGetPageStats(wcId).then(function(r) {
+        var s = (r && r.stats) || {};
+        _abFsSet('abFsAds', s.ads); _abFsSet('abFsTrackers', s.trackers);
+        _abFsSet('abFsSocial', s.social); _abFsSet('abFsCdn', s.cdn);
+        _abFsSet('abFsOther', s.other);
+      }).catch(function() {});
+    }
+    if (window.electronAPI && window.electronAPI.getCookieCount && curUrl) {
+      window.electronAPI.getCookieCount(wcId, curUrl).then(function(r) {
+        _abFsSet('abFsCookies', r && r.count);
+      }).catch(function() {});
+    } else {
+      _abFsSet('abFsCookies', 0);
+    }
+  }
+  if (abFsToggle && abFsBox) {
+    abFsToggle.addEventListener('click', function() {
+      abFsOpen = !abFsOpen;
+      abFsBox.style.display = abFsOpen ? '' : 'none';
+      abFsToggle.classList.toggle('open', abFsOpen);
+      if (abFsOpen) updateAbFullStats();
+    });
+  }
+
   if (abToggle) {
     abToggle.addEventListener('change', function() {
       if (window.electronAPI && window.electronAPI.adblockerToggle) {
         window.electronAPI.adblockerToggle(abToggle.checked).then(function() {
-          abBtn.style.color = abToggle.checked ? '#28ca42' : '#666';
+          setAbBtnState(abToggle.checked);
         });
       }
     });
@@ -6167,15 +9150,24 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     abSiteToggle.addEventListener('click', function() {
       var domain = getActiveDomain();
       if (!domain) return;
+      // The whitelist only affects NEW requests and freshly injected
+      // cosmetics — without a reload the already-rendered page kept its
+      // blocked resources/hidden elements and the toggle looked dead.
+      function reloadActiveTab() {
+        var t = tabs.find(function(x) { return x.id === activeTabId; });
+        if (t && t.webview) { try { t.webview.reload(); } catch(e0) {} }
+      }
       if (abSiteToggle.classList.contains('whitelisted')) {
         window.electronAPI.adblockerRemoveWhitelist(domain).then(function() {
           abSiteToggle.textContent = 'Disable for this site';
           abSiteToggle.classList.remove('whitelisted');
+          reloadActiveTab();
         });
       } else {
         window.electronAPI.adblockerAddWhitelist(domain).then(function() {
           abSiteToggle.textContent = 'Whitelisted';
           abSiteToggle.classList.add('whitelisted');
+          reloadActiveTab();
         });
       }
     });
@@ -6197,6 +9189,8 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
       if (abTrackers) abTrackers.textContent = r.stats.session.trackers || 0;
       if (abTotal) abTotal.textContent = r.stats.session.blocked || 0;
     }).catch(function() {});
+    // Keep the expanded breakdown fresh too.
+    updateAbFullStats();
   }, 2000);
 })();
 
@@ -6446,6 +9440,7 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
       var isComplete = dl.state === 'completed';
       var isFailed = dl.state === 'failed' || dl.state === 'interrupted';
       var isProgressing = dl.state === 'progressing';
+      var isPaused = dl.state === 'paused';
       var pct = (dl.totalBytes > 0) ? Math.round((dl.receivedBytes / dl.totalBytes) * 100) : 0;
 
       html += '<div class="dl-item" data-id="' + dl.id + '">';
@@ -6453,11 +9448,11 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
       html += '<div class="dl-item-info">';
       html += '<div class="dl-item-name" title="' + escapeHtmlSimple(dl.filename) + '">' + escapeHtmlSimple(dl.filename) + '</div>';
 
-      if (isProgressing) {
-        html += '<div class="dl-item-meta"><span class="dl-status-progress">' + pct + '% — ' + formatBytes(dl.receivedBytes);
+      if (isProgressing || isPaused) {
+        html += '<div class="dl-item-meta"><span class="' + (isPaused ? 'dl-status-paused' : 'dl-status-progress') + '">' + (isPaused ? 'Paused — ' + pct + '% — ' : pct + '% — ') + formatBytes(dl.receivedBytes);
         if (dl.totalBytes > 0) html += ' / ' + formatBytes(dl.totalBytes);
         html += '</span></div>';
-        html += '<div class="dl-item-progress"><div class="dl-item-progress-bar" style="width:' + pct + '%"></div></div>';
+        html += '<div class="dl-item-progress' + (isPaused ? ' dl-progress-paused' : '') + '"><div class="dl-item-progress-bar" style="width:' + pct + '%"></div></div>';
       } else if (isComplete) {
         var fileMissing = dl.path && fileExistsCache[dl.path] === false;
         if (fileMissing) {
@@ -6472,6 +9467,15 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
 
       html += '</div>';
       html += '<div class="dl-item-actions">';
+      if (isProgressing || isPaused) {
+        html += '<button class="dl-pause-resume" data-id="' + dl.id + '" data-action="' + (isPaused ? 'resume' : 'pause') + '" title="' + (isPaused ? 'Resume' : 'Pause') + '">';
+        if (isPaused) {
+          html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><polygon points="6 3 20 12 6 21 6 3"/></svg>';
+        } else {
+          html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+        }
+        html += '</button>';
+      }
       if (isComplete) {
         html += '<button class="dl-open-file" data-path="' + (dl.path || '').replace(/"/g, '&quot;') + '" title="Open file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>';
         html += '<button class="dl-open-folder" data-path="' + (dl.path || '').replace(/"/g, '&quot;') + '" title="Show in folder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></button>';
@@ -6481,6 +9485,27 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     });
     dlPanelList.innerHTML = html;
 
+    dlPanelList.querySelectorAll('.dl-pause-resume').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-id');
+        var action = btn.getAttribute('data-action');
+        if (action === 'resume') {
+          if (window.electronAPI && window.electronAPI.resumeDownload) {
+            window.electronAPI.resumeDownload(id).then(function(r) {
+              if (!r || !r.success) {
+                var idx = downloadsCache.findIndex(function(d) { return d.id === id; });
+                if (idx >= 0) { downloadsCache[idx].state = 'failed'; renderDownloadsList(); }
+              }
+            }).catch(function() {});
+          }
+        } else {
+          if (window.electronAPI && window.electronAPI.pauseDownload) {
+            window.electronAPI.pauseDownload(id).catch(function() {});
+          }
+        }
+      });
+    });
     dlPanelList.querySelectorAll('.dl-open-file').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -6572,6 +9597,17 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
               downloadsCache[idx].receivedBytes = info.receivedBytes;
               downloadsCache[idx].totalBytes = info.totalBytes;
               downloadsCache[idx].state = 'progressing';
+            }
+            renderDownloadsList();
+          }
+        } else if (info.state === 'paused') {
+          activeDownloads[info.id] = 'paused';
+          if (panelOpen) {
+            var pidx = downloadsCache.findIndex(function(d) { return d.id === info.id; });
+            if (pidx >= 0) {
+              downloadsCache[pidx].receivedBytes = info.receivedBytes || downloadsCache[pidx].receivedBytes;
+              downloadsCache[pidx].totalBytes = info.totalBytes || downloadsCache[pidx].totalBytes;
+              downloadsCache[pidx].state = 'paused';
             }
             renderDownloadsList();
           }
@@ -6702,8 +9738,15 @@ function showQrOverlay(tabData, qrData, bx, by, bw, bh) {
   var sBh = Math.round(Math.max(bh, 30) + pad * 2);
   var isUrl = /^https?:\/\//i.test(qrData);
   var displayText = qrData.length > 50 ? qrData.substring(0, 50) + '...' : qrData;
-  var escData = qrData.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
-  var escDisplay = displayText.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/</g, '\\x3c').replace(/>/g, '\\x3e');
+  // Escape for embedding inside a JS string literal passed to
+  // executeJavaScript: \ ' " plus newlines (a raw \n/\r/U+2028/U+2029
+  // would break the literal — multi-line QR payloads crashed the script).
+  var escData = qrData.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"')
+    .replace(/\r/g, '\\r').replace(/\n/g, '\\n')
+    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  var escDisplay = displayText.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/</g, '\\x3c').replace(/>/g, '\\x3e')
+    .replace(/\r/g, '\\r').replace(/\n/g, '\\n')
+    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   var actionLabel = isUrl ? 'Open \u2192' : 'Copy';
 
   if (_qrOverlayExists[tabData.id]) {
@@ -6808,8 +9851,11 @@ function escapeHtmlSimple(str) {
 // Minimal HTML sanitizer for reader-mode article content. The extracted HTML
 // comes from the visited page and is injected into the privileged browser-chrome
 // renderer (which has access to electronAPI), so unsanitised <script>/on*=
-// handlers would be a page→chrome privilege escalation. This strips the common
-// script vectors; it is not a full sanitizer but blocks the realistic attacks.
+// handlers would be a page→chrome privilege escalation. Regex stripping below
+// removes the obvious vectors, then a DOM pass (template parsing decodes
+// entities, so javascript&#58; tricks become visible) removes every on* handler
+// and forces url-bearing attributes onto safe schemes. Not a full sanitizer,
+// but the DOM pass closes the entity/quote-less bypass routes of a pure regex.
 function sanitizeInlineHtml(html) {
   if (!html || typeof html !== 'string') return '';
   var s = html;
@@ -6821,7 +9867,32 @@ function sanitizeInlineHtml(html) {
   // Strip event-handler attributes (onclick=, onerror=, ...) and javascript: URIs.
   s = s.replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   s = s.replace(/(href|src|xlink:href)\s*=\s*("javascript:[^"]*"|'javascript:[^']*')/gi, '$1="#"');
-  return s;
+  // DOM pass: entity-encoded schemes (javascript&#58;), unquoted attributes
+  // and anything the regexes missed are re-checked on the PARSED tree.
+  try {
+    var tpl = document.createElement('template');
+    tpl.innerHTML = s;
+    var els = tpl.content.querySelectorAll('*');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var attrs = Array.prototype.slice.call(el.attributes);
+      for (var j = 0; j < attrs.length; j++) {
+        var an = attrs[j].name.toLowerCase();
+        if (an.indexOf('on') === 0) { el.removeAttribute(attrs[j].name); continue; }
+        if (an === 'href' || an === 'src' || an === 'xlink:href') {
+          var v = (attrs[j].value || '').trim();
+          // Allow: web/data-image/mailto/relative/fragment URLs. Deny any
+          // other scheme (javascript:, vbscript:, data:text/html, file:, ...).
+          var safe = !/^([a-z][a-z0-9+.-]*):/i.test(v) ||
+            /^(https?:|data:image\/|mailto:)/i.test(v);
+          if (!safe) el.setAttribute(attrs[j].name, '#');
+        }
+      }
+    }
+    return tpl.innerHTML;
+  } catch (e) {
+    return s;
+  }
 }
 
 // ============== SECURITY FEATURES ==============
@@ -6944,10 +10015,18 @@ function _maybeClearSWBeforeSleep(tab) {
 function _sleepTabSafe(tab) {
   if (!tab || !tab.webview || !tab.isReady || tab._isSleeping) return false;
   if (tab.id === activeTabId) return false;
-  // URL for whitelist check
+  // NEVER sleep a tab that is currently producing sound (music/video in a
+  // background tab — Yandex Music style WebAudio players included).
+  if (_tabIsPlayingMedia(tab)) return false;
+  // Resolve the REAL url to preserve. Lazy tabs sit on about:blank with the
+  // real url in pendingUrl — the old code read getURL() == 'about:blank',
+  // OVERWROTE pendingUrl with 'about:blank' and nulled lastUrl, so waking
+  // the tab later loaded a blank page (the "white tab after freeze" bug).
   var url = '';
-  try { url = tab.webview.getURL ? tab.webview.getURL() : tab.webview.src; } catch(e) { url = tab.lastUrl || ''; }
-  if (!url) url = tab.lastUrl || '';
+  try { url = tab.webview.getURL ? tab.webview.getURL() : (tab.webview.src || ''); } catch(e) { url = ''; }
+  if (!url || url === 'about:blank') url = tab.pendingUrl || '';
+  if (!url || url === 'about:blank') url = tab.lastUrl || '';
+  if (!url || url === 'about:blank') return false; // nothing real to preserve — never sleep
   if (isDomainNoSleep(url)) return false; // whitelist — do not touch
   if (url.indexOf('file://') === 0) return false;
   // Do not sleep if media is playing in the tab
@@ -6955,7 +10034,8 @@ function _sleepTabSafe(tab) {
   _maybeClearSWBeforeSleep(tab);
   tab._sleepUrl = url;
   tab.pendingUrl = url;
-  tab.lastUrl = null;
+  // NOTE: do NOT null lastUrl — did-navigate ignores about:blank anyway, and
+  // keeping the real url here is a life line for every wake-up path.
   try { tab.webview.loadURL('about:blank'); } catch(e) {}
   tab._isSleeping = true;
   var el = document.querySelector('[data-tab-id="' + tab.id + '"]');
@@ -7078,6 +10158,7 @@ function _ecoSetTab(tab, on) {
 function _ecoDesiredOn(tab) {
   if (!tab || !tab.webview || !tab.isReady) return false;
   if (tab.id === activeTabId) return false;        // do not freeze the active tab
+  if (tab.isLoading) return false;                 // still loading — freezing mid-load stalls the page
   if (tab._isSleeping) return false;               // already about:blank
   if (isDomainNoSleep(_ecoTabUrl(tab))) return false; // whitelist exempt
   if (_optSettings.ecoFreeze !== false) return true;  // ON by default (undefined → enabled)
@@ -7120,7 +10201,7 @@ function _startEcoCpuGuard() {
         tabs.forEach(function(tab) {
           var r = byId[tab.id];
           var cpu = r ? (r.cpu || 0) : 0;
-          if (cpu >= threshold && tab.id !== activeTabId) {
+          if (cpu >= threshold && tab.id !== activeTabId && !tab.isLoading) {
             tab._ecoCpuHeavyTicks = (tab._ecoCpuHeavyTicks || 0) + 1;
           } else {
             tab._ecoCpuHeavyTicks = 0;
@@ -7242,6 +10323,15 @@ if (window.electronAPI && window.electronAPI.onTaskManagerAction) {
         if (tab && tab.webview) {
           if (tab._isSleeping) wakeUpTab(tab);
           try { tab.webview.reload(); } catch(e) {}
+        }
+        break;
+      case 'hardreload':
+        // Hard reload: bypass ALL caches (Ctrl+Shift+R style). Also revives
+        // a sleeping tab first — reloadIgnoringCache on about:blank would
+        // just reload the blank page.
+        if (tab && tab.webview) {
+          if (tab._isSleeping) wakeUpTab(tab);
+          try { tab.webview.reloadIgnoringCache(); } catch(e) { try { tab.webview.reload(); } catch(e2) {} }
         }
         break;
     }
@@ -7394,12 +10484,18 @@ function resetTabSleepTimer(tabId) {
       'return "idle";' +
       '})()'
     ).then(function(status) {
-      if (status === 'playing') { resetTabSleepTimer(tabId); return; }
-      if (tab.lastUrl && tab.lastUrl.indexOf('file://') !== 0 && !isDomainNoSleep(tab.lastUrl)) {
+      if (status === 'playing' || _tabIsPlayingMedia(tab)) { resetTabSleepTimer(tabId); return; }
+      // Resolve the real URL from several sources: getURL() first, then
+      // pendingUrl (lazy tabs), then lastUrl. Without this a null lastUrl
+      // produced pendingUrl = null and the tab woke up as a blank page.
+      var sleepUrl = '';
+      try { sleepUrl = tab.webview && tab.webview.getURL ? tab.webview.getURL() : ''; } catch(e0) {}
+      if (!sleepUrl || sleepUrl === 'about:blank') sleepUrl = tab.pendingUrl || '';
+      if (!sleepUrl || sleepUrl === 'about:blank') sleepUrl = tab.lastUrl || '';
+      if (sleepUrl && sleepUrl !== 'about:blank' && sleepUrl.indexOf('file://') !== 0 && !isDomainNoSleep(sleepUrl)) {
         _maybeClearSWBeforeSleep(tab);
-        tab._sleepUrl = tab.lastUrl;
-        tab.pendingUrl = tab.lastUrl;
-        tab.lastUrl = null;
+        tab._sleepUrl = sleepUrl;
+        tab.pendingUrl = sleepUrl;
         try { tab.webview.loadURL('about:blank'); } catch(e) {}
         tab._isSleeping = true;
         var el = document.querySelector('[data-tab-id="' + tabId + '"]');
@@ -7424,6 +10520,30 @@ function wakeUpTab(tab) {
   }
   tab._sleepUrl = null;
   resetTabSleepTimer(tab.id);
+  // Safety net: some wake paths never pass through setActiveTab (e.g. the
+  // Task Manager "reload" action called wakeUpTab + reload() — which just
+  // reloaded about:blank and left a permanently white tab). If the webview
+  // still sits on about:blank and we know the real URL — load it here.
+  try {
+    var cur = (tab.webview && tab.webview.getURL) ? tab.webview.getURL() : '';
+    if ((!cur || cur === 'about:blank') && tab.pendingUrl && tab.pendingUrl !== 'about:blank') {
+      var u = tab.pendingUrl;
+      tab.pendingUrl = null;
+      tab.webview.src = u;
+      // Second insurance: if even this src assignment is dropped (webview
+      // not attached yet), retry via loadURL once navigation is possible.
+      (function(uu, t) {
+        setTimeout(function() {
+          try {
+            var c2 = t.webview && t.webview.getURL ? t.webview.getURL() : '';
+            var loading = false;
+            try { loading = t.webview.isLoading && t.webview.isLoading(); } catch (e0) {}
+            if ((!c2 || c2 === 'about:blank') && !loading) t.webview.loadURL(uu);
+          } catch (e) {}
+        }, 1800);
+      })(u, tab);
+    }
+  } catch(e) {}
 }
 
 // ============== PER-TAB AUTO-CLOSE TIMER ==============
@@ -7492,18 +10612,24 @@ if (window.electronAPI && window.electronAPI.onMemoryPressure) {
       target.webview.executeJavaScript(
         '(function(){var vs=document.querySelectorAll("video");for(var i=0;i<vs.length;i++){try{if(!vs[i].paused&&vs[i].currentTime>0)return "playing";}catch(e){}}return "idle";})()'
       ).then(function(status) {
-        if (status !== 'playing') {
-          _maybeClearSWBeforeSleep(target);
-          target._sleepUrl = target.lastUrl;
-          target.pendingUrl = target.lastUrl;
-          target.lastUrl = null;
-          try { target.webview.loadURL('about:blank'); } catch(e) {}
-          target._isSleeping = true;
-          var el = document.querySelector('[data-tab-id="' + target.id + '"]');
-          if (el) {
-            el.classList.add('tab-sleeping');
-            var fav = el.querySelector('.tab-favicon, .tab-favicon-placeholder');
-            if (fav) fav.classList.add('tab-sleeping-favicon');
+        if (status !== 'playing' && !_tabIsPlayingMedia(target)) {
+          // Same URL resolution as _sleepTabSafe: never sleep on a blank URL.
+          var sleepUrl = '';
+          try { sleepUrl = target.webview && target.webview.getURL ? target.webview.getURL() : ''; } catch(e0) {}
+          if (!sleepUrl || sleepUrl === 'about:blank') sleepUrl = target.pendingUrl || '';
+          if (!sleepUrl || sleepUrl === 'about:blank') sleepUrl = target.lastUrl || '';
+          if (sleepUrl && sleepUrl !== 'about:blank') {
+            _maybeClearSWBeforeSleep(target);
+            target._sleepUrl = sleepUrl;
+            target.pendingUrl = sleepUrl;
+            try { target.webview.loadURL('about:blank'); } catch(e) {}
+            target._isSleeping = true;
+            var el = document.querySelector('[data-tab-id="' + target.id + '"]');
+            if (el) {
+              el.classList.add('tab-sleeping');
+              var fav = el.querySelector('.tab-favicon, .tab-favicon-placeholder');
+              if (fav) fav.classList.add('tab-sleeping-favicon');
+            }
           }
         }
       }).catch(function() {});
@@ -7605,7 +10731,7 @@ function _sessionGuardOnNavigate(url, tabId, tabData) {
     var ckey = 'custom:' + (cr.id || cr.pattern);
     if (!_isOnCooldown(ckey)) {
       _markCooldown(ckey);
-      var message = cr.message || ('Rule matched: ' + (cr.name || cr.pattern));
+      var message = cr.message || (((window.i18n && window.i18n.t('Rule matched:')) || 'Rule matched:') + ' ' + (cr.name || cr.pattern));
       _showToast(message, 'session-guard-custom', null, cr.severity || 'info');
     }
   }
@@ -7629,7 +10755,7 @@ function _markCooldown(key) {
 function _showSessionGuardToast(dupTab, newUrl, type) {
   var title = dupTab.title || 'tab';
   try { title = (dupTab.webview && dupTab.webview.getTitle) ? (dupTab.webview.getTitle() || title) : title; } catch(e) {}
-  var msg = 'Already open: "' + title + '»';
+  var msg = ((window.i18n && window.i18n.t('Already open:')) || 'Already open:') + ' «' + title + '»';
   if (type === 'navigate') msg = 'This address is already open in another tab';
   _showToast(msg, 'session-guard', dupTab ? dupTab.id : null);
 }
@@ -7648,7 +10774,7 @@ function _showToast(msg, kind, tabId, severity) {
   }
   var t = document.createElement('div');
   var border = 'rgba(102,126,234,.5)';
-  if (severity === 'warning') border = 'rgba(255,152,0,.7)';
+  if (severity === 'warn' || severity === 'warning') border = 'rgba(255,152,0,.7)';
   else if (severity === 'danger') border = 'rgba(244,67,54,.7)';
   t.style.cssText = 'background:rgba(40,40,55,0.95);color:#fff;padding:12px 16px;border-radius:10px;font:13px/1.4 -apple-system,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:340px;display:flex;align-items:center;gap:12px;border:1px solid ' + border + ';backdrop-filter:blur(20px);';
   var span = document.createElement('span');
@@ -7693,7 +10819,7 @@ function sessionGuardScanAll() {
       var ckey = 'custom:' + (cr.id || cr.pattern);
       if (!_isOnCooldown(ckey)) {
         _markCooldown(ckey);
-        _showToast(cr.message || ('Rule matched: ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
+        _showToast(cr.message || (((window.i18n && window.i18n.t('Rule matched:')) || 'Rule matched:') + ' ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
       }
     }
   });
@@ -7742,7 +10868,7 @@ createNewTab = function(url, lazy) {
       var ckey = 'custom:' + (cr.id || cr.pattern);
       if (!_isOnCooldown(ckey)) {
         _markCooldown(ckey);
-        _showToast(cr.message || ('Rule matched: ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
+        _showToast(cr.message || (((window.i18n && window.i18n.t('Rule matched:')) || 'Rule matched:') + ' ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
       }
     }
   }
@@ -7822,34 +10948,19 @@ function sanitizeUrlBar(url) {
 }
 
 // --- Fingerprint Protection ---
-function injectFingerprintProtection(tabData) {
-  if (!_secSettings.fingerprint) return;
-  if (!tabData || !tabData.webview || !tabData.isReady) return;
-  if (!canExecInWebview(tabData.webview)) return;
-  var url = '';
-  try { url = tabData.webview.getURL ? tabData.webview.getURL() : (tabData.webview.src || ''); } catch(e) {}
-  if (_isSensitiveAuthPage(url)) return;
-  tabData.webview.executeJavaScript(
-    '(function(){' +
-    'if(window.__fpInjected)return;window.__fpInjected=true;' +
-    'var _origToDataURL=HTMLCanvasElement.prototype.toDataURL;' +
-    'HTMLCanvasElement.prototype.toDataURL=function(){' +
-    '  var c=document.createElement("canvas");c.width=16;c.height=16;' +
-    '  var ctx=c.getContext("2d");' +
-    '  for(var i=0;i<16;i++){for(var j=0;j<16;j++){' +
-    '    var v=Math.floor(Math.random()*256);' +
-    '    ctx.fillStyle="rgb("+v+","+v+","+v+")";ctx.fillRect(i,j,1,1);' +
-    '  }}' +
-    '  var noise=c.toDataURL();' +
-    '  var r=_origToDataURL.apply(this,arguments);' +
-    '  return r.slice(0,r.length-10)+noise.slice(-10);' +
-    '};' +
-    'Object.defineProperty(navigator,"platform",{get:function(){return "Win32";}});' +
-    'Object.defineProperty(navigator,"hardwareConcurrency",{get:function(){return 4;}});' +
-    'Object.defineProperty(navigator,"deviceMemory",{get:function(){return 4;}});' +
-    '})()'
-  ).catch(function() {});
-}
+// DISABLED legacy duplicate. The real protection lives in preload-webview.js
+// (document-start, platform spoofed to the REAL OS, proper canvas/AudioContext
+// noise). This late did-navigate injection actively HARMED browsing:
+//   1. navigator.platform was hardcoded to "Win32" — on Linux/macOS it
+//      contradicted the preload's per-OS spoof and the engine-level
+//      UA/sec-ch-ua-platform ("Linux"), an anti-bot mismatch that made
+//      Google BotGuard challenge/throttle pages (YouTube slow or broken).
+//   2. Its toDataURL override spliced random base64 into the PNG tail,
+//      corrupting the data URL — canvas-exporting sites broke.
+//   3. It ran AFTER page scripts: too late to fool fingerprinters, and the
+//      late property re-definition was itself a detectable signal.
+// (The empty injectFingerprintProtection() stub and its did-navigate call
+// were removed; keep it that way.)
 
 // --- Site Isolation check ---
 function shouldIsolate(url) {
@@ -7868,7 +10979,8 @@ function shouldIsolate(url) {
   // Tab sleep: reset on activity
   var origSetActiveTab = typeof setActiveTab === 'function' ? setActiveTab : null;
 
-  // Inject fingerprint + reset sleep on did-navigate
+  // Reset sleep on did-navigate (fingerprint injection is removed — see the
+  // DISABLED legacy comment above)
   document.addEventListener('DOMContentLoaded', function() {
     // Watch for webview additions
     var observer = new MutationObserver(function(mutations) {
@@ -7880,8 +10992,6 @@ function shouldIsolate(url) {
               if (tabId) {
                 resetTabSleepTimer(tabId);
                 sanitizeUrlBar(e.url);
-                var tab = tabs.find(function(t) { return t.id === tabId; });
-                if (tab) injectFingerprintProtection(tab);
               }
             });
             node.addEventListener('did-navigate-in-page', function(e) {
@@ -7902,13 +11012,36 @@ function escapeAttr(str) {
   return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-var _jsQRCache = null;
-function loadJsQRSource() {
-  if (_jsQRCache) return Promise.resolve(_jsQRCache);
-  return fetch('vendor/jsqr/jsQR.js')
-    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-    .then(function(src) { _jsQRCache = src; return src; })
-    .catch(function() { return null; });
+// Manual QR scan: images are collected inside the page as (downscaled) PNG
+// data URLs and decoded HERE in the chrome via window.jsQR, which is loaded
+// by a <script> tag in index.html. The old path — fetch('vendor/jsqr/jsQR.js')
+// — could never work: fetch on a file:// page is not allowed, so the source
+// always came back null and the scan reported 'jsQR not loaded'.
+function _qrDecodeDataUrls(dataUrls) {
+  return new Promise(function(resolve) {
+    var i = 0;
+    function next() {
+      if (i >= dataUrls.length) { resolve(''); return; }
+      var url = dataUrls[i++];
+      var img = new Image();
+      img.onload = function() {
+        try {
+          var c = document.createElement('canvas');
+          c.width = img.naturalWidth;
+          c.height = img.naturalHeight;
+          var ctx = c.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          var id = ctx.getImageData(0, 0, c.width, c.height);
+          var code = window.jsQR(id.data, id.width, id.height, { inversionAttempts: 'attemptBoth' });
+          if (code && code.data) { resolve(code.data); return; }
+        } catch (e) {}
+        next();
+      };
+      img.onerror = function() { next(); };
+      img.src = url;
+    }
+    next();
+  });
 }
 
 (function() {
@@ -7923,101 +11056,118 @@ function loadJsQRSource() {
       return;
     }
 
-    loadJsQRSource().then(function(jsQRSrc) {
-      if (!jsQRSrc) {
-        if (window.electronAPI.sendPageQRResult) {
-          window.electronAPI.sendPageQRResult({ success: false, message: 'jsQR not loaded' });
-        }
-        return;
+    if (typeof window.jsQR !== 'function') {
+      if (window.electronAPI.sendPageQRResult) {
+        window.electronAPI.sendPageQRResult({ success: false, message: 'jsQR not loaded' });
       }
-      activeTab.webview.executeJavaScript(
-        '(function(){' +
-        'try{' +
-          'var s=document.createElement("script");' +
-          's.textContent=' + JSON.stringify(jsQRSrc) + ';' +
-          'document.head.appendChild(s);' +
-          'var imgs=document.querySelectorAll("img,canvas");' +
-          'var results=[];' +
-          'var pending=imgs.length;' +
-          'function done(){' +
-            'pending--;' +
-            'if(pending<=0){' +
-              'var found=null;' +
-              'for(var i=0;i<results.length;i++){if(results[i]){found=results[i];break;}}' +
-              'window.__qrManualResult=found||"";' +
-            '}' +
+      return;
+    }
+
+    // Collect img/canvas snapshots as PNG data URLs (capped at 640px so a
+    // 30-image page does not push megabytes through IPC). Decoding happens
+    // in the chrome afterwards via _qrDecodeDataUrls().
+    activeTab.webview.executeJavaScript(
+      '(function(){' +
+      'try{' +
+        'window.__qrManualData=null;' +
+        'var imgs=document.querySelectorAll("img,canvas");' +
+        'var results=[];' +
+        'var pending=imgs.length;' +
+        'function done(){' +
+          'pending--;' +
+          'if(pending<=0){' +
+            'window.__qrManualData=results.filter(function(r){return !!r;});' +
           '}' +
-          'for(var i=0;i<imgs.length&&i<30;i++){' +
-            '(function(el,idx){' +
-              'try{' +
-                'var c=document.createElement("canvas");' +
-                'var ctx=c.getContext("2d");' +
-                'if(el.tagName==="CANVAS"){' +
-                  'c.width=el.width;c.height=el.height;' +
-                  'ctx.drawImage(el,0,0);' +
-                  'var id=ctx.getImageData(0,0,c.width,c.height);' +
-                  'var code=jsQR(id.data,id.width,id.height,{inversionAttempts:"attemptBoth"});' +
-                  'if(code&&code.data)results[idx]=code.data;' +
+        '}' +
+        'for(var i=0;i<imgs.length&&i<30;i++){' +
+          '(function(el,idx){' +
+            'try{' +
+              'var w=el.tagName==="CANVAS"?el.width:el.naturalWidth;' +
+              'var h=el.tagName==="CANVAS"?el.height:el.naturalHeight;' +
+              'if(!w||w<20||!h||h<20){done();return;}' +
+              'var mx=640,sc=Math.min(1,mx/Math.max(w,h));' +
+              'var c=document.createElement("canvas");' +
+              'c.width=Math.max(1,Math.round(w*sc));c.height=Math.max(1,Math.round(h*sc));' +
+              'var ctx=c.getContext("2d");' +
+              'if(el.tagName==="CANVAS"){' +
+                'ctx.drawImage(el,0,0,c.width,c.height);' +
+                'try{results[idx]=c.toDataURL("image/png");}catch(e){}' +
+                'done();' +
+              '}else{' +
+                'var img=new Image();img.crossOrigin="anonymous";' +
+                'img.onload=function(){' +
+                  'try{ctx.drawImage(img,0,0,c.width,c.height);results[idx]=c.toDataURL("image/png");}catch(e){}' +
                   'done();' +
-                '}else{' +
-                  'if(!el.naturalWidth||el.naturalWidth<20){done();return;}' +
-                  'var img=new Image();img.crossOrigin="anonymous";' +
-                  'img.onload=function(){' +
-                    'c.width=img.naturalWidth;c.height=img.naturalHeight;' +
-                    'ctx.drawImage(img,0,0);' +
-                    'var id=ctx.getImageData(0,0,c.width,c.height);' +
-                    'var code=jsQR(id.data,id.width,id.height,{inversionAttempts:"attemptBoth"});' +
-                    'if(code&&code.data)results[idx]=code.data;' +
-                    'done();' +
-                  '};' +
-                  'img.onerror=function(){done();};' +
-                  'img.src=el.src;' +
-                '}' +
-              '}catch(e){done();}' +
-            '})(imgs[i],i);' +
-          '}' +
-          'if(imgs.length===0)window.__qrManualResult="";' +
-        '}catch(e){window.__qrManualResult="";}' +
-        'return "ok";' +
-        '})()'
-      ).then(function() {
-        setTimeout(function() {
-          activeTab.webview.executeJavaScript('window.__qrManualResult||""').then(function(result) {
-            if (result) {
-              if (window.electronAPI.sendPageQRResult) {
-                window.electronAPI.sendPageQRResult({ success: true, data: result });
+                '};' +
+                'img.onerror=function(){done();};' +
+                'img.src=el.src;' +
+              '}' +
+            '}catch(e){done();}' +
+          '})(imgs[i],i);' +
+        '}' +
+      '}catch(e){window.__qrManualData=null;}' +
+      'return "ok";' +
+      '})()'
+    ).then(function() {
+      setTimeout(function() {
+        activeTab.webview.executeJavaScript('window.__qrManualData||null').then(function(list) {
+          if (list && list.length) {
+            _qrDecodeDataUrls(list).then(function(text) {
+              if (text) {
+                if (window.electronAPI.sendPageQRResult) {
+                  window.electronAPI.sendPageQRResult({ success: true, data: text });
+                }
+              } else {
+                if (window.electronAPI.sendPageQRResult) {
+                  window.electronAPI.sendPageQRResult({ success: false, message: 'QR code not found on page' });
+                }
               }
-            } else {
-              if (window.electronAPI.sendPageQRResult) {
-                window.electronAPI.sendPageQRResult({ success: false, message: 'QR code not found on page' });
-              }
-            }
-          }).catch(function() {
+            });
+          } else {
             if (window.electronAPI.sendPageQRResult) {
-              window.electronAPI.sendPageQRResult({ success: false, message: 'Scan error' });
+              window.electronAPI.sendPageQRResult({ success: false, message: 'QR code not found on page' });
             }
-          });
-        }, 3000);
-      }).catch(function() {
-        if (window.electronAPI.sendPageQRResult) {
-          window.electronAPI.sendPageQRResult({ success: false, message: 'Injection error' });
-        }
-      });
+          }
+        }).catch(function() {
+          if (window.electronAPI.sendPageQRResult) {
+            window.electronAPI.sendPageQRResult({ success: false, message: 'Scan error' });
+          }
+        });
+      }, 3000);
+    }).catch(function() {
+      if (window.electronAPI.sendPageQRResult) {
+        window.electronAPI.sendPageQRResult({ success: false, message: 'Injection error' });
+      }
     });
   });
 })();
 
-(function setupNavbarContextMenu() {
-  document.querySelector('.navbar').addEventListener('contextmenu', function(e) {
-    e.preventDefault();
-    if (window.electronAPI && window.electronAPI.showContextMenu) {
-      window.electronAPI.showContextMenu({
-        type: 'navbar',
-        x: e.clientX,
-        y: e.clientY,
+// Accessibility: mirror title → aria-label for every element that has only a
+// tooltip (icon buttons, tabs, menu entries). Screen readers announce
+// aria-label but ignore title in most navigation modes.
+(function setupAriaMirror() {
+  function mirror(root) {
+    try {
+      (root || document).querySelectorAll('[title]:not([aria-label])').forEach(function(el) {
+        var t = el.getAttribute('title');
+        if (t) el.setAttribute('aria-label', t);
       });
-    }
-  });
+    } catch (e) {}
+  }
+  mirror(document);
+  var timer = null;
+  try {
+    new MutationObserver(function() {
+      if (timer) return;
+      timer = setTimeout(function() { timer = null; mirror(document); }, 500);
+    }).observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
+})();
+
+(function setupNavbarContextMenu() {
+  // Superseded: the chrome context-menu system below (URL bar, reload,
+  // back/forward history, toolbar pinning) covers the navbar; plain panel
+  // areas must show NO menu at all.
 })();
 
 // Horizontal wheel scroll for tabs bar
@@ -8161,7 +11311,15 @@ function loadJsQRSource() {
   }
 
   window._toggleReader = toggleReader;
-  document.getElementById('darkModeBtn').addEventListener('click', toggleForceDark);
+  document.getElementById('darkModeBtn').addEventListener('click', function() {
+    // Click opens the professional Dark Reader panel (the master switch
+    // inside does what the old single-purpose toggle did).
+    var panel = document.getElementById('darkReaderPanel');
+    if (!panel) return;
+    var open = !panel.classList.contains('open');
+    panel.classList.toggle('open', open);
+    if (open && window._drSyncPanel) { try { window._drSyncPanel(); } catch(e) {} }
+  });
 
   var qrScanBtn = document.getElementById('qrScanBtn');
   qrScanBtn.style.color = '#1da1f2';
@@ -8330,11 +11488,21 @@ function toggleColorPicker() {
     _cpWvRect = t.webview.getBoundingClientRect();
     _cpCache = null;
     _cpMouse = { x: -1, y: -1 };
+    // Inject NAMED, guarded handlers: the old anonymous capture listener kept
+    // swallowing every click FOREVER after the picker finished (finishCP had
+    // no way to remove it) — links on the page were dead until reload. The
+    // __cpActive guard + named removal below fix both the leak and repeat
+    // activation stacking multiple listeners.
     t.webview.executeJavaScript(
       '(function(){' +
-      'document.addEventListener("mousemove",function(e){window.__cpMX=e.clientX;window.__cpMY=e.clientY;},true);' +
-      'document.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();window.__cpClick=true;},true);' +
-      'document.addEventListener("keydown",function(e){if(e.key==="Escape")window.__cpEsc=true;},true);' +
+      'window.__cpActive=true;' +
+      'if(!window.__cpInstalled){window.__cpInstalled=true;' +
+      'window.__cpOnMove=function(e){window.__cpMX=e.clientX;window.__cpMY=e.clientY;};' +
+      'window.__cpOnClick=function(e){if(!window.__cpActive)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();window.__cpClick=true;};' +
+      'window.__cpOnKey=function(e){if(!window.__cpActive)return;if(e.key==="Escape")window.__cpEsc=true;};' +
+      'document.addEventListener("mousemove",window.__cpOnMove,true);' +
+      'document.addEventListener("click",window.__cpOnClick,true);' +
+      'document.addEventListener("keydown",window.__cpOnKey,true);}' +
       '})()'
     ).catch(function() {});
     _cpCapture();
@@ -8380,6 +11548,21 @@ function finishCP() {
   _cpCache = null;
   _cpCacheSize = null;
   _cpPending = false;
+  // Deactivate + remove the page-side capture listeners injected above
+  // (best effort: tab may be gone — the __cpActive flag alone already
+  // unblocks clicks even if the removal never runs).
+  try {
+    var t = getActiveTab();
+    if (t && t.webview && canExecInWebview(t.webview)) {
+      t.webview.executeJavaScript(
+        '(function(){window.__cpActive=false;' +
+        'if(window.__cpInstalled){document.removeEventListener("mousemove",window.__cpOnMove,true);' +
+        'document.removeEventListener("click",window.__cpOnClick,true);' +
+        'document.removeEventListener("keydown",window.__cpOnKey,true);' +
+        'window.__cpInstalled=false;}})()'
+      ).catch(function() {});
+    }
+  } catch(e) {}
 }
 
 // ============== BOOKMARKS SIDEBAR ==============
@@ -8502,14 +11685,22 @@ function finishCP() {
     div.className = 'sidebar-item';
     var domain = '';
     try { domain = bm.url ? new URL(bm.url).hostname : ''; } catch(e) {}
-    var favicon = domain ? 'https://www.google.com/s2/favicons?domain=' + domain + '&sz=32' : '';
+    var favicon = domain ? spzFaviconUrl(domain) : '';
     div.innerHTML =
-      '<span class="sidebar-item-icon">' + (favicon ? '<img src="' + favicon + '" onerror="this.outerHTML=\'' + _icon('🔗').replace(/'/g, "\\'") + '\'">' : _icon('🔗')) + '</span>' +
+      '<span class="sidebar-item-icon">' + (favicon ? '<img src="' + favicon + '" alt="">' : _icon('🔗')) + '</span>' +
       '<div class="sidebar-item-text">' +
         '<div class="sidebar-item-name">' + escapeHtmlSimple(bm.title || bm.url || 'Untitled') + '</div>' +
         '<div class="sidebar-item-url">' + escapeHtmlSimple(domain || bm.url || '') + '</div>' +
       '</div>' +
       '<button class="sidebar-item-del" title="Delete">' + _icon('✕') + '</button>';
+    // Favicon fallback: no inline onerror (CSP forbids it and the SVG quotes
+    // broke the attribute) — attach the handler from JS instead.
+    var favImg = div.querySelector('.sidebar-item-icon img');
+    if (favImg) {
+      favImg.onerror = function() {
+        try { this.outerHTML = _icon('🔗'); } catch (e) { this.remove(); }
+      };
+    }
     div.addEventListener('click', function(e) {
       if (e.target.closest('.sidebar-item-del')) return;
       if (bm.url) {
@@ -8557,12 +11748,12 @@ var _splitPct = 50;
         var text = sel || '';
         if (text) {
           if (window.electronAPI && window.electronAPI.translateText) {
-            window.electronAPI.translateText(text, 'ru').then(function(r) { if (r && r.translatedText) customAlert('Translate:\n' + r.translatedText); }).catch(function() {});
+            window.electronAPI.translateText(text, 'auto', 'ru').then(function(r) { if (r && r.success && r.translated) customAlert('Translate:\n' + r.translated); }).catch(function() {});
           }
         } else {
           customPrompt('Text to translate:').then(function(input) {
             if (input && window.electronAPI && window.electronAPI.translateText) {
-              window.electronAPI.translateText(input, 'ru').then(function(r) { if (r && r.translatedText) customAlert('Translate:\n' + r.translatedText); }).catch(function() {});
+              window.electronAPI.translateText(input, 'auto', 'ru').then(function(r) { if (r && r.success && r.translated) customAlert('Translate:\n' + r.translated); }).catch(function() {});
             }
           });
         }
@@ -8606,8 +11797,9 @@ var _splitPct = 50;
         var item = document.createElement('div');
         item.style.cssText = 'padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:6px;border:1px solid rgba(255,255,255,0.1);transition:background 0.15s;display:flex;align-items:center;gap:10px;';
         var icon = document.createElement('span');
-        icon.textContent = '\uD83C\uDF10';
+        icon.innerHTML = _icon('\uD83C\uDF10');
         icon.style.fontSize = '14px';
+        icon.style.display = 'inline-flex';
         var label = document.createElement('span');
         label.textContent = t.title || 'New tab';
         label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;';
@@ -8842,6 +12034,197 @@ document.addEventListener('dragover', function(e) {
     _tearShowHint();
   } else {
     _tearHideHint();
+  }
+}, true);
+
+// Suspect-certificate swap: when the main process records a certificate
+// problem for a host (the verify proc holds the verdict instead of rejecting
+// it — rejections are cached per session and would make a later "Proceed"
+// impossible), every tab currently navigating to that host is rerouted to the
+// security page BEFORE the content renders.
+(function setupSuspectCertSwap() {
+  if (window.electronAPI && window.electronAPI.onSuspectCertsChanged) {
+    window.electronAPI.onSuspectCertsChanged(function(hosts) {
+      try {
+        if (!hosts || typeof hosts !== 'object') return;
+        tabs.forEach(function(t) {
+          if (!t || !t.webview) return;
+          var u = '';
+          try { u = t.webview.src || ''; } catch(e) { return; }
+          if (!u || u.indexOf('https://') !== 0) return;
+          var h = '';
+          try { h = new URL(u).hostname; } catch(e) { return; }
+          if (!h || !Object.prototype.hasOwnProperty.call(hosts, h)) return;
+          // Already showing the security page for this host? (its src is a
+          // file:// URL then, so the https:// check above already skipped it)
+          t._lastFailedUrl = u;
+          var secUrl = window.location.href.replace(/\/[^/]*$/, '/') + 'ErrorPage/security.html' +
+            '?url=' + encodeURIComponent(u) +
+            '&reason=' + encodeURIComponent(hosts[h] || 'unknown');
+          try { t.webview.src = secUrl; } catch(e) {}
+          if (t.id === activeTabId) { _urlBarRevealed = false; setUrlBarDisplay(u); }
+        });
+      } catch(e) {}
+    });
+  }
+})();
+
+// ============== FILE DROP ON TAB STRIP ==============
+// Drag an HTML (or any viewable) file onto the tab bar to open it in a new
+// tab. Uses screen coordinates to detect the tab-bar zone (the actual event
+// target can be a webview which swallows drags). Webviews get
+// pointer-events:none during the drag — same approach as tear-out.
+var _fileDropIndicator = null;
+var _fileDropActive = false;
+
+function _fileDropHasFiles(e) {
+  try {
+    return !!(e.dataTransfer && e.dataTransfer.types &&
+      Array.from(e.dataTransfer.types).indexOf('Files') !== -1);
+  } catch (err) { return false; }
+}
+
+// Dragged LINKS / plain text (from other apps, or from a page): open as a
+// new tab. Internal drags are excluded — own tab drags are covered by the
+// _tearDragActive guard, cross-window tab moves carry the custom MIME, and
+// toolbar-customization pool items mark themselves with .dragging.
+// ALL of the browser's own customize-mode drags are excluded the same way:
+// they carry internal ids in text/plain ('hmSettings', 'library'…) and,
+// dropped anywhere, opened a SEARCH for that id; the capture-phase drop
+// interception below also killed the customize drop zones themselves.
+function _fileDropHasUrl(e) {
+  try {
+    if (_tearDragActive) return false;
+    if (typeof _customizeActive !== 'undefined' && _customizeActive) return false;
+    if (window._menuCustomizeModeActive && window._menuCustomizeModeActive()) return false;
+    var t = e.dataTransfer && e.dataTransfer.types;
+    if (!t) return false;
+    var arr = Array.from(t);
+    if (arr.indexOf('application/x-startpozi-tab') !== -1) return false;
+    // Drags started on the browser's own internal pages (marked by
+    // preload-webview) — never "dropped links/text".
+    if (arr.indexOf('application/x-startpozi-ui-drag') !== -1) return false;
+    if (document.querySelector('.customize-pool-item.dragging,.toolbar-btn-slot.dragging,.nav-btn.dragging,.hm-item.dragging,.hm-cust-chip.dragging')) return false;
+    return arr.indexOf('text/uri-list') !== -1 ||
+           (arr.indexOf('Files') === -1 && arr.indexOf('text/plain') !== -1);
+  } catch (err) { return false; }
+}
+
+function _fileDropAcceptable(e) {
+  return _fileDropHasFiles(e) || _fileDropHasUrl(e);
+}
+
+function _urlFromDataTransfer(dt) {
+  try {
+    var uri = dt.getData('text/uri-list');
+    if (uri) {
+      uri = uri.split('\n')[0].trim(); // comments start with '#'
+      if (uri && uri.charAt(0) !== '#') return uri;
+    }
+    return (dt.getData('text/plain') || '').trim();
+  } catch (err) { return ''; }
+}
+
+// Open a dropped link/text: http(s)/ftp/file/about → as-is; "site.com" →
+// https://; anything else → search for the phrase (Firefox-style drop).
+function _openDroppedText(raw) {
+  try {
+    if (!raw) return;
+    var s = String(raw).split('\n')[0].trim();
+    if (!s) return;
+    if (/^(https?|ftp|file):\/\//i.test(s) || /^about:/i.test(s)) {
+      createNewTab(s);
+      return;
+    }
+    if (!/\s/.test(s) && s.indexOf('.') !== -1) {
+      createNewTab('https://' + s);
+      return;
+    }
+    createNewTab(buildSearchUrl(s));
+  } catch (err) {}
+}
+
+function _inTabStripZone(e) {
+  try {
+    var bar = document.querySelector('.tabs-bar');
+    if (!bar) return false;
+    var rect = bar.getBoundingClientRect();
+    return e.clientY >= rect.top - 8 && e.clientY <= rect.bottom + 8 &&
+           e.clientX >= rect.left && e.clientX <= rect.right;
+  } catch (err) { return false; }
+}
+
+function _fileDropShow() {
+  if (!_fileDropIndicator) {
+    _fileDropIndicator = document.createElement('div');
+    _fileDropIndicator.id = 'fileDropHint';
+    _fileDropIndicator.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Drop to open</span>';
+    document.body.appendChild(_fileDropIndicator);
+  }
+  _fileDropIndicator.classList.add('visible');
+  _fileDropActive = true;
+  document.body.classList.add('file-drop-hover');
+  if (!_tearDragActive) document.body.classList.add('tear-dragging');
+}
+
+function _fileDropHide() {
+  if (_fileDropIndicator) _fileDropIndicator.classList.remove('visible');
+  _fileDropActive = false;
+  document.body.classList.remove('file-drop-hover');
+  if (!_tearDragActive) document.body.classList.remove('tear-dragging');
+}
+
+document.addEventListener('dragenter', function(e) {
+  if (_tearDragActive) return;
+  if (!_fileDropAcceptable(e)) return;
+  e.preventDefault();
+}, true);
+
+document.addEventListener('dragover', function(e) {
+  if (_tearDragActive) return;
+  if (!_fileDropAcceptable(e)) return;
+  e.preventDefault();
+  // Files are accepted on the tab strip only; links/text anywhere on the
+  // browser chrome (dropping over a page stays native — the guest navigates
+  // itself, exactly like Chrome).
+  if (_inTabStripZone(e) || _fileDropHasUrl(e)) {
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    _fileDropShow();
+  } else {
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+    _fileDropHide();
+  }
+}, true);
+
+document.addEventListener('dragleave', function(e) {
+  if (!_fileDropActive) return;
+  if (e.relatedTarget === null || !document.contains(e.relatedTarget)) {
+    _fileDropHide();
+  }
+}, true);
+
+document.addEventListener('drop', function(e) {
+  if (!_fileDropActive || _tearDragActive) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _fileDropHide();
+  var files = e.dataTransfer ? e.dataTransfer.files : null;
+  if (!files || !files.length) {
+    // No files — a dragged link/text: open it as a new tab.
+    _openDroppedText(_urlFromDataTransfer(e.dataTransfer || {}));
+    return;
+  }
+  for (var fi = 0; fi < files.length; fi++) {
+    var f = files[fi];
+    if (!f || !f.path) continue;
+    var ext = (f.name || '').split('.').pop().toLowerCase();
+    var openable = ['html', 'htm', 'xhtml', 'svg', 'md', 'markdown', 'txt',
+                    'json', 'geojson', 'har', 'xml', 'css', 'js', 'pdf',
+                    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'ico',
+                    'ttf', 'otf', 'woff', 'woff2'].indexOf(ext) !== -1;
+    if (openable) {
+      createNewTab('file://' + f.path.replace(/\\/g, '/'));
+    }
   }
 }, true);
 
@@ -9904,7 +13287,8 @@ window._ttsToggle = function() {
         _ttsState.tabId = resumeTab;
         _ttsState.speaking = true;
         _ttsState.paused = false;
-        // engine resolution copied from _ttsStart
+        // engine preference: offline | system | auto (auto = system when
+        // voices are available, offline otherwise)
         var useOffline = _ttsEnginePref === 'offline' ? true :
           (_ttsEnginePref === 'system' ? false : !_ttsState.voices.length);
         _ttsState.engineMode = useOffline ? 'offline' : 'system';
@@ -10033,14 +13417,17 @@ function toggleFindAll() {
     var qLower = query.toLowerCase();
     var totalMatches = 0;
     var tabResults = [];
-    var pending = tabs.length;
+    // Snapshot the tab count: comparing `checked` against the LIVE
+    // tabs.length breaks when tabs open/close mid-search (double render or
+    // a panel stuck on "Searching…" forever).
+    var total = tabs.length;
     var checked = 0;
 
     tabs.forEach(function(tab) {
       if (_findallAbort) return;
       if (!tab.webview || !canExecInWebview(tab.webview) || tab._isSleeping) {
         checked++;
-        if (checked === tabs.length) renderFindAllResults(tabResults, totalMatches);
+        if (checked === total) renderFindAllResults(tabResults, totalMatches);
         return;
       }
       try {
@@ -10066,14 +13453,14 @@ function toggleFindAll() {
             totalMatches += r.count;
             tabResults.push({ tabId: tab.id, title: r.title || '', url: r.url || '', count: r.count, snippets: r.snippets });
           }
-          if (checked === tabs.length) renderFindAllResults(tabResults, totalMatches);
+          if (checked === total) renderFindAllResults(tabResults, totalMatches);
         }).catch(function() {
           checked++;
-          if (checked === tabs.length) renderFindAllResults(tabResults, totalMatches);
+          if (checked === total) renderFindAllResults(tabResults, totalMatches);
         });
       } catch(e) {
         checked++;
-        if (checked === tabs.length) renderFindAllResults(tabResults, totalMatches);
+        if (checked === total) renderFindAllResults(tabResults, totalMatches);
       }
     });
 
@@ -10256,10 +13643,15 @@ var _eqInjectedTabs = {};
 function eqLoadSettings() {
   if (!window.electronAPI || !window.electronAPI.getCustomizationSettings) return;
   window.electronAPI.getCustomizationSettings().then(function(s) {
-    if (s && s.equalizer) {
-      _eqState = Object.assign(_eqState, s.equalizer);
+    if (s && s.settings && s.settings.equalizer) {
+      _eqState = Object.assign(_eqState, s.settings.equalizer);
       _eqState.gains = _eqState.gains || _eqPresets.flat.slice();
       eqUpdateUI();
+      // Apply a SAVED-ENABLED EQ to tabs that loaded during the startup race
+      // (_eqState defaults to false precisely so nothing injects before the
+      // settings arrive). Without this the equalizer stayed "on" in the panel
+      // but silent until the next navigation — "EQ does nothing" after restart.
+      if (_eqState.enabled) eqApplyToAllTabs();
     }
   }).catch(function() {});
 }
@@ -10297,16 +13689,21 @@ function eqApplyToAllTabs() {
   });
 }
 
-function eqInject(tab) {
-  if (!tab || !tab.webview) return;
+function eqInject(tab, _retried) {
+  if (!tab || !tab.webview || !canExecInWebview(tab.webview)) return;
   var gains = JSON.stringify(_eqState.gains);
   var preamp = _eqState.preamp;
   var enabled = _eqState.enabled;
   var bands = JSON.stringify(_eqBands.map(function(b) { return { freq: b.freq, type: b.type }; }));
+  // userGesture=true: the user clicked the EQ toggle/sliders in the BROWSER
+  // CHROME, not on the page. Without passing the gesture down, the page's
+  // AudioContext stays suspended (autoplay policy) and the equalizer graph
+  // sat dead — "EQ does nothing". The gesture flag grants user activation.
   tab.webview.executeJavaScript(
     '(function(){' +
     'var G=' + gains + ',PA=' + preamp + ',EN=' + enabled + ',B=' + bands + ';' +
     'if(!EN){' +
+    '  if(window.__eqCtx){try{if(window.__eqCtx.state==="suspended"&&window.__eqCtx.resume)window.__eqCtx.resume();}catch(e){}}' +
     '  if(window.__eqFilters){for(var i=0;i<window.__eqFilters.length;i++){window.__eqFilters[i].gain.value=0;}}' +
     '  if(window.__eqGain){window.__eqGain.gain.value=1.0;}' +
     '  window.__eqActive=false;return "eq-bypass";' +
@@ -10330,21 +13727,25 @@ function eqInject(tab) {
     '    filters.push(f);}' +
     '  window.__eqFilters=filters;' +
     '  window.__eqGain=ctx.createGain();' +
-    '  var chain=ctx.createGain();chain.gain.value=1;chain.disconnect();' +
     '  for(var i=0;i<filters.length;i++){if(i===0)continue;filters[i-1].connect(filters[i]);}' +
     '  filters[filters.length-1].connect(window.__eqGain);' +
     '  window.__eqGain.connect(ctx.destination);' +
     '}' +
     'for(var i=0;i<window.__eqFilters.length;i++){window.__eqFilters[i].gain.value=G[i]||0;}' +
     'window.__eqGain.gain.value=Math.pow(10,PA/20);' +
-    'window.__eqConnected=window.__eqConnected||[];' +
+    'window.__eqOk=window.__eqOk||[];' +
+    'window.__eqSkip=window.__eqSkip||[];' +
     'function connectEl(el){' +
-    '  for(var c=0;c<window.__eqConnected.length;c++){if(window.__eqConnected[c]===el)return;}' +
+    '  for(var c=0;c<window.__eqOk.length;c++){if(window.__eqOk[c]===el)return;}' +
+    '  for(var c2=0;c2<window.__eqSkip.length;c2++){if(window.__eqSkip[c2]===el)return;}' +
     '  try{' +
     '    var src=ctx.createMediaElementSource(el);' +
     '    src.connect(window.__eqFilters[0]);' +
-    '    window.__eqConnected.push(el);' +
-    '  }catch(e){}}' +
+    '    window.__eqOk.push(el);' +
+    // createMediaElementSource throws InvalidStateError when the site ALREADY
+    // routes the element through its own AudioContext (some players do) —
+    // count it so the UI can tell the user WHY the EQ has no effect there.
+    '  }catch(e){window.__eqSkip.push(el);}}' +
     'var els=document.querySelectorAll("video,audio");' +
     'for(var j=0;j<els.length;j++){connectEl(els[j]);}' +
     'if(!window.__eqObs){' +
@@ -10358,9 +13759,27 @@ function eqInject(tab) {
     '  window.__eqObs.observe(document.documentElement,{childList:true,subtree:true});' +
     '}' +
     'window.__eqActive=true;' +
-    'return "eq-ok";' +
-    '})()'
-  ).catch(function() {});
+    'return "eq-ok:"+window.__eqOk.length+":"+window.__eqSkip.length;' +
+    '})()',
+    true
+  ).then(function(res) {
+    // Diagnostics + mid-load retry. The script may run while the DOM is still
+    // empty (did-navigate fires before the player creates its <video>) —
+    // retry once so the EQ actually attaches instead of silently no-op'ing.
+    var m = /^eq-ok:(\d+):(\d+)$/.exec(String(res || ''));
+    if (!m) return;
+    var attached = parseInt(m[1], 10) || 0;
+    var failed = parseInt(m[2], 10) || 0;
+    if (attached === 0 && failed === 0 && !_retried) {
+      setTimeout(function() { eqInject(tab, true); }, 1500);
+      return;
+    }
+    if (attached === 0 && failed > 0 && typeof _showToast === 'function') {
+      _showToast(' Equalizer cannot attach on this site: the player routes audio through its own WebAudio graph.', 'eq-attach-info', null, 'info');
+    }
+  }).catch(function() {
+    if (!_retried) setTimeout(function() { eqInject(tab, true); }, 1500);
+  });
 }
 
 function eqRemoveFromAllTabs() {
@@ -10368,10 +13787,12 @@ function eqRemoveFromAllTabs() {
     if (tab.webview && !tab._isSleeping) {
       tab.webview.executeJavaScript(
         '(function(){' +
+        'if(window.__eqCtx){try{if(window.__eqCtx.state==="suspended"&&window.__eqCtx.resume)window.__eqCtx.resume();}catch(e){}}' +
         'if(window.__eqFilters){for(var i=0;i<window.__eqFilters.length;i++){window.__eqFilters[i].gain.value=0;}}' +
         'if(window.__eqGain){window.__eqGain.gain.value=1.0;}' +
         'window.__eqActive=false;' +
-        'return 0})()'
+        'return 0})()',
+        true
       ).catch(function() {});
     }
   });
@@ -10449,6 +13870,10 @@ function toggleEqPanel() {
     eqSaveSettings();
   });
 
+  // Sync the checkbox with the real (false) state BEFORE the async settings
+  // load — the HTML used to ship checked="checked" while _eqState.enabled
+  // was false, so the panel showed ON while the EQ was actually off.
+  eqUpdateUI();
   eqLoadSettings();
 })();
 
@@ -10463,8 +13888,8 @@ var _hoverTranslateSettings = {
 function htLoadSettings() {
   if (!window.electronAPI || !window.electronAPI.getCustomizationSettings) return;
   window.electronAPI.getCustomizationSettings().then(function(s) {
-    if (s && s.hoverTranslate) {
-      _hoverTranslateSettings = Object.assign(_hoverTranslateSettings, s.hoverTranslate);
+    if (s && s.settings && s.settings.hoverTranslate) {
+      _hoverTranslateSettings = Object.assign(_hoverTranslateSettings, s.settings.hoverTranslate);
       htUpdateUI();
     }
   }).catch(function() {});
@@ -10490,10 +13915,10 @@ function injectHoverTranslate(tabData) {
   var cfg = htConfigString();
   tabData.webview.executeJavaScript(
     '(function(){' +
-    'window.__htCFG=' + cfg + ';' +
-    'if(window.__htActive)return "active";window.__htActive=true;' +
+    'try{Object.defineProperty(window,"__htCFG",{value:' + cfg + ',enumerable:false,configurable:true,writable:true});}catch(e){window.__htCFG=' + cfg + ';}' +
+    'if(window.__htActive)return "active";try{Object.defineProperty(window,"__htActive",{value:true,enumerable:false,configurable:true});}catch(e){window.__htActive=true;}' +
     'if(!document.getElementById("__ht_style")){var st=document.createElement("style");st.id="__ht_style";st.textContent=".__ht-popup{position:fixed;z-index:2147483647;max-width:320px;min-width:110px;background:rgba(30,30,46,0.96);color:#e6e6e6;border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px 13px;font-size:13px;font-family:system-ui,-apple-system,sans-serif;line-height:1.5;box-shadow:0 8px 28px rgba(0,0,0,0.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:none;opacity:0;transition:opacity 0.15s ease}.__ht-popup.__ht-show{opacity:1}.__ht-w{font-weight:600;color:#7aa2f7;display:block;margin-bottom:2px}.__ht-t{color:#e6e6e6}.__ht-l{font-size:10px;color:#7a8290;margin-top:5px;display:block}.__ht-lo{color:#888}";document.documentElement.appendChild(st);}' +
-    'window.__htCache={};' +
+    'try{Object.defineProperty(window,"__htCache",{value:{},enumerable:false,configurable:true,writable:true});}catch(e){window.__htCache={};}' +
     'var _popup=null,_curWord="",_pending=false,_timer=null;' +
     'function isWordChar(c){return !!c && /[\\w\\u00C0-\\u00FF\\u0400-\\u04FF]/.test(c);}' +
     'function getWordAt(x,y){' +
@@ -10520,25 +13945,20 @@ function injectHoverTranslate(tabData) {
     'function doTranslate(word,x,y){' +
     '  if(window.__htCache[word]){showPopup(window.__htCache[word],x,y);return;}' +
     '  if(_pending)return;' +
+    '  if(!window.__spzSend){return;}' +
     '  _pending=true;' +
     '  showPopup("<span class=\\"__ht-lo\\">Translating…</span>",x,y);' +
-    '  var _tid="t"+Math.random().toString(36).slice(2,10);' +
-    '  function _h(ev){' +
-    '    if(!ev.data||!ev.data.__spzTrResp||ev.data.id!==_tid)return;' +
-    '    window.removeEventListener("message",_h);' +
+    '  window.__spzSend("translate",{text:word,from:"auto",to:window.__htCFG.targetLang},function(r){' +
     '    _pending=false;' +
-    '    var r=ev.data.result;' +
     '    if(r&&r.success&&r.translated&&r.translated!==word){' +
     '      var lang=r.from&&r.to?"<span class=\\"__ht-l\\">"+escHtml(r.from)+" \\u2192 "+escHtml(r.to)+"</span>":"";' +
     '      var html="<span class=\\"__ht-w\\">"+escHtml(word)+"</span><span class=\\"__ht-t\\">"+escHtml(r.translated)+"</span>"+lang;' +
     '      window.__htCache[word]=html;' +
     '      showPopup(html,x,y);' +
     '    }else{hidePopup();}' +
-    '  }' +
-    '  window.addEventListener("message",_h);' +
-    '  window.postMessage({__spzTrReq:true,id:_tid,text:word,from:"auto",to:window.__htCFG.targetLang},"*");' +
+    '  });' +
     '}' +
-    'window.__htMove=function(e){' +
+    'var _htMove=function(e){' +
     '  var C=window.__htCFG;' +
     '  if(C.trigger!=="hover"){var held=C.trigger==="ctrl"?e.ctrlKey:(C.trigger==="alt"?e.altKey:false);if(!held){if(_timer){clearTimeout(_timer);_timer=null;}hidePopup();_curWord="";return;}}' +
     '  var word=getWordAt(e.clientX,e.clientY);' +
@@ -10549,7 +13969,9 @@ function injectHoverTranslate(tabData) {
     '  var px=e.clientX,py=e.clientY;' +
     '  _timer=setTimeout(function(){doTranslate(word,px,py);},C.delay);' +
     '};' +
-    'window.__htDismiss=function(){if(_timer){clearTimeout(_timer);_timer=null;}hidePopup();_curWord="";};' +
+    'var _htDismiss=function(){if(_timer){clearTimeout(_timer);_timer=null;}hidePopup();_curWord="";};' +
+    'try{Object.defineProperty(window,"__htMove",{value:_htMove,enumerable:false,configurable:true,writable:true});}catch(e){window.__htMove=_htMove;}' +
+    'try{Object.defineProperty(window,"__htDismiss",{value:_htDismiss,enumerable:false,configurable:true,writable:true});}catch(e){window.__htDismiss=_htDismiss;}' +
     'document.addEventListener("mousemove",window.__htMove,true);' +
     'document.addEventListener("mousedown",window.__htDismiss,true);' +
     'document.addEventListener("keydown",function(ev){if(ev.key==="Escape"){window.__htDismiss();}},true);' +
@@ -10790,15 +14212,12 @@ function renderWorkspacePanel() {
     item.className = 'ws-item' + (ws.id === _activeWorkspaceId ? ' active' : '');
     if (ws.id === _activeWorkspaceId) {
       item.style.setProperty('--ws-color', ws.color || '#667eea');
-      item.querySelector || null;
     }
     item.innerHTML = '<div class="ws-item-icon" style="background:' + (ws.color || '#667eea') + '22;color:' + (ws.color || '#667eea') + '">' + _icon(ws.icon || '🌐') + '</div>' +
       '<div class="ws-item-info"><div class="ws-item-name">' + escapeHtmlSimple(ws.name || 'Untitled') + '</div></div>' +
       (ws.id !== 'ws-default' ? '<button class="ws-item-delete" data-id="' + ws.id + '" title="Delete">&#10005;</button>' : '');
     if (ws.id === _activeWorkspaceId) {
       item.style.background = (ws.color || '#667eea') + '15';
-      var beforeStyle = 'background:' + (ws.color || '#667eea');
-      item.setAttribute('style', item.getAttribute('style') + '');
       item.style.setProperty('--ws-accent', ws.color || '#667eea');
     }
     item.addEventListener('click', function(e) {
@@ -11688,7 +15107,6 @@ function _ocrClose() {
     } else {
       status.textContent = 'OCR API unavailable';
     }
-    void drag; void dpr;
   });
 
   document.getElementById('ocrClose').addEventListener('click', _ocrClose);
@@ -11753,6 +15171,19 @@ function _getToolbarButtons() {
 
 function _applyToolbarLayout(buttons) {
   _currentToolbarButtons = buttons ? buttons.slice() : _defaultToolbarButtons.slice();
+  // The blocker shield is a PERMANENT toolbar citizen with a FIXED home:
+  // the end of the LEFT button group (right after Reload). Normalize every
+  // layout — saved configs that already carry it on the right, reset,
+  // drag&drop, missing entries — it is always (re)placed there and can be
+  // neither moved away nor removed.
+  _currentToolbarButtons = _currentToolbarButtons.filter(function(k) { return k !== 'adblock'; });
+  var _lastLeftIdx = -1;
+  for (var _pi = 0; _pi < _currentToolbarButtons.length; _pi++) {
+    var _pk = _currentToolbarButtons[_pi];
+    if (_customizeBtnMap[_pk] && _customizeBtnMap[_pk].side === 'left') _lastLeftIdx = _pi;
+  }
+  if (_lastLeftIdx === -1) _currentToolbarButtons.unshift('adblock');
+  else _currentToolbarButtons.splice(_lastLeftIdx + 1, 0, 'adblock');
   var navControls = document.querySelector('.nav-controls');
   var navActions = document.querySelector('.nav-actions.right');
   var tabsBar = document.getElementById('tabsBar');
@@ -11887,6 +15318,12 @@ function _loadToolbarConfig() {
   }
 })();
 
+// One-time wiring guard: the drop-zone and mousedown listeners below all
+// no-op while !_customizeActive, so they only ever need to be attached ONCE.
+// Previously every open of customize mode stacked another copy of each
+// anonymous listener (closeCustomizeMode never removed them).
+var _customizeZonesWired = false;
+
 function toggleCustomizeMode() {
   if (_customizeActive) { closeCustomizeMode(); return; }
   _customizeActive = true;
@@ -11922,18 +15359,28 @@ function toggleCustomizeMode() {
     };
     tabsBarEl.addEventListener('click', tabsBarEl._custClickBlock, true);
   }
-  navbar.addEventListener('mousedown', function(e) {
-    if (_customizeActive && e.target.closest('.nav-btn')) {
-      e.target.closest('.nav-btn').draggable = true;
-    }
-  }, true);
-  var _tsbDrag = document.getElementById('tabsBarBtns');
-  if (_tsbDrag) {
-    _tsbDrag.addEventListener('mousedown', function(e) {
+  if (!_customizeZonesWired) {
+    navbar.addEventListener('mousedown', function(e) {
       if (_customizeActive && e.target.closest('.nav-btn')) {
         e.target.closest('.nav-btn').draggable = true;
       }
     }, true);
+    var _tsbDrag = document.getElementById('tabsBarBtns');
+    if (_tsbDrag) {
+      _tsbDrag.addEventListener('mousedown', function(e) {
+        if (_customizeActive && e.target.closest('.nav-btn')) {
+          e.target.closest('.nav-btn').draggable = true;
+        }
+      }, true);
+    }
+    if (_wsZone) {
+      _wsZone.addEventListener('mousedown', function(e) {
+        if (_customizeActive && (e.target.closest('.nav-btn') || e.target.closest('.workspace-btn'))) {
+          var target = e.target.closest('.nav-btn') || e.target.closest('.workspace-btn');
+          target.draggable = true;
+        }
+      }, true);
+    }
   }
   if (_wsZone) {
     _wsZone._custClickBlock = function(e) {
@@ -11943,12 +15390,6 @@ function toggleCustomizeMode() {
       }
     };
     _wsZone.addEventListener('click', _wsZone._custClickBlock, true);
-    _wsZone.addEventListener('mousedown', function(e) {
-      if (_customizeActive && (e.target.closest('.nav-btn') || e.target.closest('.workspace-btn'))) {
-        var target = e.target.closest('.nav-btn') || e.target.closest('.workspace-btn');
-        target.draggable = true;
-      }
-    }, true);
   }
 
   var activeButtons = _getToolbarButtons();
@@ -12078,6 +15519,10 @@ function _setupNavbarDrag(btn, key) {
 }
 
 function _setupDropZones() {
+  // Wire once per page lifetime — the handlers check _customizeActive, so
+  // re-entry on every "Customize" open only piled up duplicates.
+  if (_customizeZonesWired) return;
+  _customizeZonesWired = true;
   var navControls = document.querySelector('.nav-controls');
   var navActions = document.querySelector('.nav-actions.right');
   var pool = document.getElementById('customizePool');
@@ -12400,8 +15845,9 @@ function _playBreakLoupeAnimation() {
 (function() {
   var btn = document.getElementById('breakLoupeBtn');
   if (!btn) return;
+  var _blT = function(s) { return (window.i18n && window.i18n.t(s)) || s; };
   btn.addEventListener('click', function() {
-    customConfirm('🔍 Break the magnifier?\n\nThis will delete ALL cookies of external sites (tabs and history are kept). You will be signed out of all websites. Cookies of the browser\'s internal pages (file://) are preserved.').then(function(ok) {
+    customConfirm(_blT('🔍 Break the magnifier?\n\nThis will delete ALL cookies of external sites (tabs and history are kept). You will be signed out of all websites. Cookies of the browser\'s internal pages (file://) are preserved.')).then(function(ok) {
       if (!ok) return;
       _playBreakLoupeAnimation();
       if (window.electronAPI && window.electronAPI.breakLoupe) {
@@ -12409,10 +15855,11 @@ function _playBreakLoupeAnimation() {
           var msg;
           var sev;
           if (r && r.success) {
-            msg = '🔍 Magnifier broken! Cookies removed: ' + (r.removed || 0) + (r.kept ? ' (kept for browser pages: ' + r.kept + ')' : '');
+            msg = _blT('🔍 Magnifier broken! Cookies removed:') + ' ' + (r.removed || 0) +
+                  (r.kept ? ' ' + _blT('(kept for browser pages:') + ' ' + r.kept + ')' : '');
             sev = 'info';
           } else {
-            msg = 'Error: ' + (r && r.message || 'unknown');
+            msg = _blT('Error:') + ' ' + (r && r.message || _blT('unknown'));
             sev = 'danger';
           }
           if (typeof _showToast === 'function') {
@@ -12421,10 +15868,10 @@ function _playBreakLoupeAnimation() {
             customAlert(msg);
           }
         }).catch(function(e) {
-          customAlert('Error: ' + (e && e.message || e));
+          customAlert(_blT('Error:') + ' ' + (e && e.message || e));
         });
       } else {
-        customAlert('Unavailable');
+        customAlert(_blT('Unavailable'));
       }
     });
   });
@@ -12442,6 +15889,7 @@ var _POPUP_BTN_MAP = {
   downloadPanel:  'downloadsBtn',
   autofillPanel:  'autofillBtn',
   adblockPanel:   'adblockBtn',
+  darkReaderPanel: 'darkModeBtn',
   scriptsPanel:   'scriptsBtn',
   mediaPanel:     'mediaBtn',
   eqPanel:        'eqBtn',
@@ -12548,63 +15996,480 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ============== TOOLBAR BUTTON RIGHT-CLICK → "Customize toolbar" ==============
-// Chrome / Firefox show a context menu on right-click over toolbar buttons.
-// We render our own tiny menu (no main-process round-trip) with a single
-// "Customize toolbar…" entry that opens the customisation page.
-(function installToolbarContextMenu() {
-  // Tiny DOM popup. Reused for every right-click.
+// ============== CHROME CONTEXT MENUS ==============
+// Chrome-style right-click menus for the browser UI:
+//   • Reload button  → normal reload / hard reload / empty cache + hard reload
+//   • Back / Forward → the tab's navigation history + "Show all history"
+//   • Toolbar shortcut buttons (Downloads, Passwords, …) → Unpin + Customize
+//   • URL bar → Cut / Copy / Paste / Paste and search / Delete / Select all
+//   • Plain chrome areas (empty panel space) → NO menu at all
+// Websites keep their own page context menu (handled elsewhere).
+(function installChromeContextMenus() {
+  // One DOM popup, rebuilt per invocation.
   var menu = document.createElement('div');
   menu.className = 'tb-context-menu';
   menu.style.cssText = [
     'position:fixed','display:none','z-index:100001',
-    'min-width:200px','padding:6px 0',
-    'background:var(--bg-secondary,#2d2d2d)',
+    'min-width:220px','max-width:340px','max-height:60vh','overflow-y:auto',
+    'padding:6px 0',
+    'background:var(--panel-bg,#2d2d2d)',
     'color:var(--text-primary,#fff)',
     'border:1px solid var(--border-color,#3d3d3d)',
     'border-radius:8px',
     'box-shadow:0 8px 24px rgba(0,0,0,0.4)',
     'font-family:inherit','font-size:13px','user-select:none'
   ].join(';');
-
-  var item = document.createElement('div');
-  item.textContent = 'Customize toolbar…';
-  item.style.cssText = 'padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;';
-  item.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/><path d="M3 8V3h5"/><path d="M21 16v5h-5"/><line x1="8" y1="3" x2="3" y2="8"/><line x1="16" y1="21" x2="21" y2="16"/></svg><span>Customize toolbar…</span>';
-  item.addEventListener('mouseenter', function() { item.style.background = 'var(--bg-hover, rgba(255,255,255,0.08))'; });
-  item.addEventListener('mouseleave', function() { item.style.background = 'transparent'; });
-  item.addEventListener('click', function() {
-    menu.style.display = 'none';
-    var btn = document.getElementById('open-toolbar-customization');
-    if (btn) btn.click();
-    else createNewTab('Settings.html#customization');
-  });
-  menu.appendChild(item);
   document.body.appendChild(menu);
 
-  // Close on any click elsewhere.
+  function close() { menu.style.display = 'none'; }
   document.addEventListener('click', function(e) {
-    if (menu.style.display !== 'none' && !menu.contains(e.target)) menu.style.display = 'none';
+    if (menu.style.display !== 'none' && !menu.contains(e.target)) close();
   });
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') menu.style.display = 'none';
-  });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+  window.addEventListener('blur', close);
+  window.addEventListener('resize', close);
 
-  function isToolbarButton(el) {
-    if (!el) return false;
-    // Anything in the navbar with class nav-btn or hamburger-btn counts.
-    return el.closest && (el.closest('.nav-btn') || el.closest('.hamburger-btn') || el.closest('.workspace-btn'));
+  function begin() { menu.innerHTML = ''; }
+  function add(label, hint, fn, opts) {
+    opts = opts || {};
+    var it = document.createElement('div');
+    it.style.cssText = 'padding:8px 14px;cursor:' + (opts.disabled ? 'default' : 'pointer') +
+      ';display:flex;align-items:center;gap:10px;white-space:nowrap;overflow:hidden;' +
+      (opts.disabled ? 'opacity:0.45;' : '');
+    // Optional leading icon (favicon in the Back/Forward history menu).
+    // onerror removes the broken image — the entry degrades to plain text.
+    if (opts.icon) {
+      var ic = document.createElement('img');
+      ic.src = opts.icon;
+      ic.style.cssText = 'width:16px;height:16px;flex:none;border-radius:3px;object-fit:contain;';
+      ic.onerror = function() { ic.remove(); };
+      it.appendChild(ic);
+    }
+    var span = document.createElement('span');
+    span.textContent = label;
+    span.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;';
+    it.appendChild(span);
+    if (hint) {
+      var h = document.createElement('span');
+      h.textContent = hint;
+      h.style.cssText = 'color:var(--text-secondary,#999);font-size:11px;flex:none;';
+      it.appendChild(h);
+    }
+    if (!opts.disabled) {
+      it.addEventListener('mouseenter', function() { it.style.background = 'var(--bg-hover, rgba(255,255,255,0.08))'; });
+      it.addEventListener('mouseleave', function() { it.style.background = 'transparent'; });
+      it.addEventListener('click', function(e0) {
+        e0.stopPropagation();
+        close();
+        try { fn && fn(); } catch (e1) {}
+      });
+    }
+    menu.appendChild(it);
+    return it;
+  }
+  function sep() {
+    var s = document.createElement('div');
+    s.style.cssText = 'height:1px;margin:5px 10px;background:var(--border-color,#3d3d3d);';
+    menu.appendChild(s);
+  }
+  function show(x, y) {
+    menu.style.display = 'block';
+    var w = menu.offsetWidth || 240, h = menu.offsetHeight || 60;
+    menu.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 6)) + 'px';
+    menu.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 6)) + 'px';
+  }
+
+  function activeWv() {
+    var t = getActiveTab();
+    return (t && t.isReady) ? t.webview : null;
+  }
+
+  // --- Window menu (right-click on the title bar) ---
+  // Frameless windows have no system chrome, so the OS title-bar menu does
+  // not exist — right-click on .titlebar used to do nothing at all. This is
+  // the native-style replacement: Minimize / Maximize-Restore / Close.
+  function windowMenu(e) {
+    begin();
+    var gs = (window.electronAPI && window.electronAPI.getWindowState)
+      ? window.electronAPI.getWindowState() : Promise.resolve({});
+    gs.then(function(state) {
+      state = state || {};
+      add('Minimize', null, function() { try { window.electronAPI.windowMinimize(); } catch (_) {} });
+      add(state.maximized ? 'Restore' : 'Maximize', null, function() { try { window.electronAPI.windowMaximize(); } catch (_) {} });
+      sep();
+      add('Close window', null, function() { try { window.electronAPI.windowClose(); } catch (_) {} });
+      show(e.clientX, e.clientY);
+    }).catch(function() {
+      add('Minimize', null, function() { try { window.electronAPI.windowMinimize(); } catch (_) {} });
+      add('Maximize', null, function() { try { window.electronAPI.windowMaximize(); } catch (_) {} });
+      sep();
+      add('Close window', null, function() { try { window.electronAPI.windowClose(); } catch (_) {} });
+      show(e.clientX, e.clientY);
+    });
+  }
+
+  // --- Reload variants ---
+  function reloadMenu(e) {
+    begin();
+    add('Normal reload', 'Ctrl+R', function() { var wv = activeWv(); if (wv) { try { wv.reload(); } catch (e0) {} } });
+    add('Hard reload', 'Ctrl+Shift+R', function() { var wv = activeWv(); if (wv) { try { wv.reloadIgnoringCache(); } catch (e0) {} } });
+    add('Empty cache and hard reload', null, function() {
+      var wv = activeWv();
+      if (!wv) return;
+      var doReload = function() { try { wv.reloadIgnoringCache(); } catch (e0) {} };
+      if (window.electronAPI && window.electronAPI.clearCacheReload) {
+        window.electronAPI.clearCacheReload().then(doReload).catch(doReload);
+      } else doReload();
+    });
+    show(e.clientX, e.clientY);
+  }
+
+  // --- Back / Forward history ---
+  // Favicon source mirrors the tab favicons (Google s2 — resolves favicons
+  // for Google/Yandex/Bing/DuckDuckGo and virtually any other site), gated
+  // by the faviconsEnabled external-service toggle like everywhere else.
+  function _menuFavicon(u) {
+    try { return spzFaviconUrl(new URL(u).hostname); }
+    catch (e) { return ''; }
+  }
+  function _hostOf(u) {
+    try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; }
+  }
+  function historyMenu(e, dir) {
+    var tab = getActiveTab();
+    var nh = (tab && tab.navHistory) || [];
+    var idx = (tab && typeof tab.navIndex === 'number') ? tab.navIndex : nh.length - 1;
+    var entries = dir === -1 ? nh.slice(0, idx).reverse() : nh.slice(idx + 1);
+    begin();
+    if (!entries.length) {
+      add(dir === -1 ? 'No back history' : 'No forward history', null, null, { disabled: true });
+    } else {
+      entries.slice(0, 15).forEach(function(en) {
+        var i = nh.indexOf(en);
+        var label = en.title || _hostOf(en.url);
+        var it = add(label, null, function() {
+          var wv = activeWv();
+          if (!wv) return;
+          try { wv.goToOffset(i - idx); } catch (e0) { try { wv.goBack(); } catch (e1) {} }
+          tab.navIndex = i;
+        }, { icon: _menuFavicon(en.url) });
+        if (it) it.title = en.url; // full URL as a native tooltip
+      });
+      sep();
+    }
+    add('Show all history', null, function() { createNewTab('Library.html#history'); });
+    show(e.clientX, e.clientY);
+  }
+
+  // --- Toolbar shortcut buttons: unpin + customize ---
+  function pinMenu(e, key) {
+    begin();
+    if (key === 'adblock') {
+      // Permanent button — never unpinnable.
+      add('Blocker is always on the toolbar', null, null, { disabled: true });
+      sep();
+    } else if (key) {
+      add('Unpin', null, function() {
+        var cur = _getToolbarButtons().filter(function(k) { return k !== key; });
+        if (window.electronAPI && window.electronAPI.saveToolbarButtons) {
+          window.electronAPI.saveToolbarButtons(cur);
+        }
+        _applyToolbarLayout(cur);
+      });
+      sep();
+    }
+    add('Customize toolbar…', null, function() {
+      var btn = document.getElementById('open-toolbar-customization');
+      if (btn) btn.click();
+      else createNewTab('Settings.html#customization');
+    });
+    show(e.clientX, e.clientY);
+  }
+
+  // --- URL bar text menu ---
+  function urlMenu(e) {
+    var inp = document.getElementById('urlInput');
+    if (!inp) return;
+    var hasSel = false;
+    try { hasSel = inp.selectionEnd > inp.selectionStart; } catch (e0) {}
+    begin();
+    add('Cut', 'Ctrl+X', function() { try { document.execCommand('cut'); } catch (e0) {} }, { disabled: !hasSel });
+    add('Copy', 'Ctrl+C', function() { try { document.execCommand('copy'); } catch (e0) {} }, { disabled: !hasSel });
+    add('Paste', 'Ctrl+V', function() {
+      if (window.electronAPI && window.electronAPI.readClipboard) {
+        window.electronAPI.readClipboard().then(function(txt) {
+          if (typeof txt !== 'string' || !txt) return;
+          var s = inp.selectionStart, epos = inp.selectionEnd;
+          inp.value = inp.value.slice(0, s) + txt + inp.value.slice(epos);
+          var pos = s + txt.length;
+          try { inp.setSelectionRange(pos, pos); } catch (e0) {}
+          inp.focus();
+        }).catch(function() {});
+      }
+    });
+    add('Paste and search', null, function() {
+      if (window.electronAPI && window.electronAPI.readClipboard) {
+        window.electronAPI.readClipboard().then(function(txt) {
+          if (typeof txt !== 'string' || !txt) return;
+          inp.value = txt;
+          inp.focus();
+          try { inp.setSelectionRange(txt.length, txt.length); } catch (e0) {}
+          inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        }).catch(function() {});
+      }
+    });
+    add('Delete', 'Del', function() {
+      var s = inp.selectionStart, epos = inp.selectionEnd;
+      if (epos > s) {
+        inp.value = inp.value.slice(0, s) + inp.value.slice(epos);
+        try { inp.setSelectionRange(s, s); } catch (e0) {}
+        inp.focus();
+      }
+    }, { disabled: !hasSel });
+    add('Select all', 'Ctrl+A', function() { inp.focus(); inp.select(); });
+    show(e.clientX, e.clientY);
+  }
+
+  // Map a DOM element to its customizable toolbar key (if any).
+  function toolbarKeyOf(el) {
+    var btn = el.closest('.nav-btn, .hamburger-btn, .workspace-btn');
+    if (!btn || !btn.id) return null;
+    var found = null;
+    Object.keys(_customizeBtnMap).forEach(function(k) {
+      if (_customizeBtnMap[k].el === btn.id) found = k;
+    });
+    if (!found && btn.classList.contains('workspace-btn')) found = 'workspace';
+    return found;
   }
 
   document.addEventListener('contextmenu', function(e) {
-    if (!isToolbarButton(e.target)) return;
-    e.preventDefault();
-    // Position so the cursor sits inside the menu.
-    var x = Math.min(e.clientX, window.innerWidth - 220);
-    var y = Math.min(e.clientY, window.innerHeight - 50);
-    menu.style.left = x + 'px';
-    menu.style.top = y + 'px';
-    menu.style.display = 'block';
+    var t = e.target;
+    if (!t || !t.closest) return;
+
+    // URL bar — text menu.
+    if (t.closest('#urlInput')) { e.preventDefault(); urlMenu(e); return; }
+
+    // Reload — reload variants.
+    if (t.closest('#reloadBtn')) { e.preventDefault(); reloadMenu(e); return; }
+
+    // Back / Forward — tab history.
+    if (t.closest('#backBtn')) { e.preventDefault(); historyMenu(e, -1); return; }
+    if (t.closest('#forwardBtn')) { e.preventDefault(); historyMenu(e, 1); return; }
+
+    // Toolbar shortcut buttons — Unpin + Customize. The workspace switcher
+    // and navigation trio keep only "Customize toolbar…".
+    var key = toolbarKeyOf(t);
+    if (key) {
+      e.preventDefault();
+      pinMenu(e, (key === 'workspace' || key === 'back' || key === 'forward' || key === 'reload') ? null : key);
+      return;
+    }
+
+    // Tabs keep their own rich menu; everything else in the chrome shows
+    // NO context menu at all.
+    if (t.closest('.tab, .tabs-bar')) return;
+    if (t.closest('input, textarea')) { e.preventDefault(); return; }
+    // Title bar (incl. the empty tab-strip space) → the native-style
+    // window menu — frameless windows have no system chrome for this.
+    if (t.closest('.titlebar')) { e.preventDefault(); windowMenu(e); return; }
+    if (t.closest('.navbar, body')) { e.preventDefault(); return; }
   });
+})();
+
+// ============== FIRST-RUN WIZARD ==============
+// 4-step onboarding overlay: privacy preset → master password → import
+// pointer → done. Shown once per profile (firstRunDone in settings.json).
+// If the appLock interstitial is up, the wizard waits until the browser
+// is unlocked (it sits one z-step below the lock screen).
+(function initFirstRunWizard() {
+  if (!window.electronAPI || !window.electronAPI.getFirstRun) return;
+
+  var ru = false;
+  try { ru = !!(window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru'); } catch (e0) {}
+
+  var T = {
+    steps: ru
+      ? ['Шаг 1 из 4 — Защита', 'Шаг 2 из 4 — Мастер-пароль', 'Шаг 3 из 4 — Импорт данных', 'Шаг 4 из 4 — Готово']
+      : ['Step 1 of 4 — Privacy', 'Step 2 of 4 — Master password', 'Step 3 of 4 — Import', 'Step 4 of 4 — Done'],
+    s1lead: ru
+      ? 'Выберите режим защиты — одну кнопку вместо тридцати переключателей. Всё можно изменить позже: Настройки → Безопасность.'
+      : 'Pick a protection level — one button instead of thirty toggles. Everything can be changed later in Settings → Security.',
+    cards: [
+      { id: 'standard', t: ru ? 'Стандарт' : 'Standard',
+        d: ru ? 'Базовая защита: чистка ссылок от трекеров, DNT, лёгкие списки блокировки. Ничего не ломается.'
+              : 'Baseline: tracker-URL cleaning, DNT, light blocker lists. Nothing ever breaks.' },
+      { id: 'private', t: ru ? 'Приватный' : 'Private',
+        d: ru ? 'Рекомендуется: анти-фингерпринт, блок WebRTC-утечек, HTTPS-only, блок cookie третьих сторон.'
+              : 'Recommended: anti-fingerprinting, WebRTC-leak block, HTTPS-only, 3rd-party cookie block.' },
+      { id: 'maximum', t: ru ? 'Максимум' : 'Maximum',
+        d: ru ? 'Всё из «Приватный» + блок уведомлений, геолокации, буфера обмена, WebGL. Часть сайтов может работать иначе.'
+              : 'Everything in Private + notifications, geolocation, clipboard and WebGL blocked. Some sites may behave differently.' }
+    ],
+    s2lead: ru
+      ? 'Мастер-пароль шифрует сохранённые пароли (AES-256). Его нельзя восстановить — только запомнить. Можно пропустить: тогда пароли будут привязаны к хранилищу ОС.'
+      : 'A master password encrypts saved passwords (AES-256). It cannot be recovered — remember it. You may skip: passwords will then be tied to the OS keystore.',
+    s2ph1: ru ? 'Мастер-пароль (мин. 8 символов)' : 'Master password (min. 8 characters)',
+    s2ph2: ru ? 'Повторите пароль' : 'Repeat the password',
+    s2btn: ru ? 'Установить и продолжить' : 'Set and continue',
+    s3lead: ru
+      ? 'Перенесите закладки, историю и пароли из вашего текущего браузера — в один клик из Библиотеки.'
+      : 'Import bookmarks, history and passwords from your current browser — one click in the Library.',
+    s3btn: ru ? 'Открыть импорт' : 'Open import',
+    doneTitle: ru ? 'Готово!' : 'All set!',
+    sumPreset: ru ? 'Режим защиты: ' : 'Protection level: ',
+    sumPwOk: ru ? 'Пароли защищены мастер-паролем.' : 'Passwords are protected by a master password.',
+    sumPwNo: ru ? 'Мастер-пароль не установлен (можно добавить: Настройки → Защита).' : 'No master password yet (add one in Settings → Protection).',
+    sumImport: ru ? 'Импорт доступен всегда: Библиотека → Пароли / Закладки.' : 'Import is always available: Library → Passwords / Bookmarks.',
+    finish: ru ? 'Начать работу' : 'Start browsing',
+    skip: ru ? 'Пропустить' : 'Skip',
+    next: ru ? 'Далее' : 'Next',
+    presetNames: { standard: ru ? 'Стандарт' : 'Standard', private: ru ? 'Приватный' : 'Private', maximum: ru ? 'Максимум' : 'Maximum' },
+    errShort: ru ? 'Пароль должен быть не короче 8 символов' : 'Password must be at least 8 characters',
+    errMatch: ru ? 'Пароли не совпадают' : 'Passwords do not match',
+    errSet: ru ? 'Не удалось установить пароль' : 'Failed to set the password'
+  };
+
+  var wiz, step = 0, chosen = 'private', presetApplied = false, pwSet = false, busy = false;
+
+  function $(id) { return document.getElementById(id); }
+
+  function buildDots() {
+    var d = $('wzDots');
+    if (!d) return;
+    d.innerHTML = '';
+    for (var i = 0; i < 4; i++) {
+      var dot = document.createElement('div');
+      dot.className = 'wzDot' + (i <= step ? ' on' : '');
+      d.appendChild(dot);
+    }
+  }
+
+  function buildCards() {
+    var wrap = $('wzCards');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    T.cards.forEach(function(c) {
+      var el = document.createElement('div');
+      el.className = 'wzCard' + (c.id === chosen ? ' sel' : '');
+      el.setAttribute('data-preset', c.id);
+      el.innerHTML = '<div class="t"></div><div class="d"></div>';
+      el.querySelector('.t').textContent = c.t;
+      el.querySelector('.d').textContent = c.d;
+      el.addEventListener('click', function() {
+        chosen = c.id;
+        wrap.querySelectorAll('.wzCard').forEach(function(x) { x.classList.remove('sel'); });
+        el.classList.add('sel');
+      });
+      wrap.appendChild(el);
+    });
+  }
+
+  function showStep(i) {
+    step = i;
+    for (var n = 1; n <= 4; n++) { var p = $('wzStep' + n); if (p) p.style.display = (n === i + 1) ? '' : 'none'; }
+    $('wzStepLabel').textContent = T.steps[i];
+    buildDots();
+    var skip = $('wzSkip'), nextB = $('wzNext');
+    if (i === 0) {
+      skip.style.visibility = 'hidden';
+      nextB.textContent = T.next;
+    } else if (i === 1) {
+      skip.style.visibility = '';
+      nextB.textContent = T.s2btn;
+      setTimeout(function() { try { $('wzPw1').focus(); } catch (e1) {} }, 50);
+    } else if (i === 2) {
+      skip.style.visibility = '';
+      nextB.textContent = T.s3btn;
+    } else {
+      skip.style.visibility = 'hidden';
+      nextB.textContent = T.finish;
+      $('wzDoneTitle').textContent = T.doneTitle;
+      var lines = [T.sumPreset + (T.presetNames[chosen] || chosen)];
+      lines.push(pwSet ? T.sumPwOk : T.sumPwNo);
+      lines.push(T.sumImport);
+      $('wzSummary').textContent = lines.join('\n');
+      $('wzSummary').style.whiteSpace = 'pre-line';
+    }
+  }
+
+  function finishWizard() {
+    try { window.electronAPI.finishFirstRun(); } catch (e1) {}
+    if (wiz) wiz.style.display = 'none';
+  }
+
+  function gotoStep2() {
+    // Apply the preset exactly once, on leaving step 1.
+    if (!presetApplied) {
+      presetApplied = true;
+      try { window.electronAPI.applyPrivacyPreset(chosen); } catch (e1) {}
+    }
+    showStep(1);
+  }
+
+  function onNext() {
+    if (busy) return;
+    if (step === 0) { gotoStep2(); return; }
+    if (step === 1) {
+      var p1 = $('wzPw1').value || '', p2 = $('wzPw2').value || '', err = $('wzPwErr');
+      if (p1.length < 8) { err.textContent = T.errShort; return; }
+      if (p1 !== p2) { err.textContent = T.errMatch; return; }
+      err.textContent = '';
+      busy = true;
+      window.electronAPI.setMasterPassword(p1).then(function(res) {
+        busy = false;
+        if (res && res.success) { pwSet = true; showStep(2); }
+        else { err.textContent = (res && res.message) || T.errSet; }
+      }).catch(function() { busy = false; err.textContent = T.errSet; });
+      // Best-effort scrub of the input fields.
+      $('wzPw1').value = ''; $('wzPw2').value = '';
+      return;
+    }
+    if (step === 2) {
+      try { createNewTab('Library.html#passwords'); } catch (e1) {}
+      finishWizard();
+      return;
+    }
+    finishWizard();
+  }
+
+  function onSkip() {
+    if (busy) return;
+    if (step === 1) { showStep(2); return; }
+    if (step === 2) { finishWizard(); return; }
+  }
+
+  function tryShow(attempt) {
+    var lock = document.getElementById('appLockScreen');
+    // Wait while the startup lock screen is covering the UI.
+    if (lock && lock.style.display !== 'none' && attempt < 150) {
+      setTimeout(function() { tryShow(attempt + 1); }, 600);
+      return;
+    }
+    if (wiz) wiz.style.display = 'flex';
+    showStep(0);
+  }
+
+  function init() {
+    wiz = document.getElementById('firstRunWizard');
+    if (!wiz) return;
+    $('wzS1Lead').textContent = T.s1lead;
+    $('wzS2Lead').textContent = T.s2lead;
+    $('wzPw1').placeholder = T.s2ph1;
+    $('wzPw2').placeholder = T.s2ph2;
+    $('wzS3Lead').textContent = T.s3lead;
+    $('wzSkip').textContent = T.skip;
+    buildCards();
+    $('wzNext').addEventListener('click', onNext);
+    $('wzSkip').addEventListener('click', onSkip);
+    $('wzPw1').addEventListener('keydown', function(e) { if (e.key === 'Enter') onNext(); });
+    $('wzPw2').addEventListener('keydown', function(e) { if (e.key === 'Enter') onNext(); });
+  }
+
+  window.electronAPI.getFirstRun().then(function(r) {
+    if (!r || !r.success || !r.firstRun) return;
+    init();
+    setTimeout(function() { tryShow(0); }, 400);
+  }).catch(function() {});
 })();
 
 // ============== BROWSER STARTUP LOCK (appLock) ==============

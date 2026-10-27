@@ -6,8 +6,11 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "start:drm": "node -e \"const p=require('path');const e=p.join(__dirname,'.drm','node_modules','.bin','electron');const s=require('fs').existsSync(e);if(!s){console.error('DRM runtime not installed. Run: npm run drm:setup');process.exit(1)}require('child_process').spawn(e,['.'],{stdio:'inherit'})\"",
+    "drm:setup": "node scripts/setup-drm.js",
     "build": "electron-builder",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "make-update": "node scripts/make-update.js",
+    "test": "node --test"
   },
   "keywords": [
     "browser",
@@ -25,12 +28,12 @@
   "dependencies": {
     "@cliqz/adblocker-electron": "^1.34.0",
     "adm-zip": "^0.6.0",
-    "electron": "^42.0.0",
     "espeak-ng": "^1.0.2",
     "sql.js": "^1.14.1",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "electron": "^42.11.8",
     "electron-builder": "^26.15.3"
   },
   "build": {
@@ -39,6 +42,28 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "**/*",
+      "!update-server",
+      "!update-server/**",
+      "!dist",
+      "!dist/**",
+      "!docs",
+      "!docs/**",
+      "!.drm",
+      "!.drm/**",
+      "!test",
+      "!test/**",
+      "!scripts",
+      "!scripts/**",
+      "!Запас",
+      "!Запас/**",
+      "!Заметки.txt",
+      "!Текстовый документ.txt",
+      "!electron-flags.conf",
+      "!test-login.html",
+      "!docs/site-docs.md"
+    ],
     "asarUnpack": [
       "node_modules/espeak-ng/dist/**"
     ],
@@ -46,7 +71,7 @@
       "icon": "assets/favicon/icon.ico"
     },
     "mac": {
-      "icon": "assets/favicon/icon.png"
+      "icon": "assets/favicon/icon.icns"
     },
     "linux": {
       "icon": "assets/favicon/icon.png"

@@ -21,6 +21,7 @@ var _chromeMajorVer = _chromeFullVer.split('.')[0];
 //
 // NOTE: sandboxed preloads have no __dirname — the app directory is fetched
 // synchronously from the main process once per webview.
+var _pageName = '';
 var _exposeFullAPI = false;
 try {
   if (location.protocol === 'file:') {
@@ -47,20 +48,73 @@ try {
     _locPath = (_isDrivePath ? '' : '/') + _norm.join('/');
     if (_appDir && (_locPath === _appDir || _locPath.indexOf(_appDir + '/') === 0)) {
       _exposeFullAPI = true;
+      var _segs2 = _locPath.split('/');
+      _pageName = (_segs2[_segs2.length - 1] || '').toLowerCase();
     }
   }
 } catch (e) { _exposeFullAPI = false; }
+
+// Per-page capability filter: even among trusted internal pages, secrets
+// (passwords/vault/backups) are only exposed to the pages that actually use
+// them, and proxy/Tor control + bulk settings import only to Settings.
+// This shrinks the blast radius of an XSS inside any other internal page
+// (e.g. an injected theme/widget on the start page).
+function _apiCapabilityFilter(api) {
+  try {
+    var secretsPages = ['settings.html', 'library.html'];
+    var controlPages = ['settings.html'];
+    var isSecretsPage = secretsPages.indexOf(_pageName) !== -1;
+    var isControlPage = controlPages.indexOf(_pageName) !== -1;
+    // viewer-read-file belongs to Viewer.html (the main process re-validates
+    // the caller and the file extension/whitelist anyway). It used to sit in
+    // the control-group regex below, which DELETED it for Viewer.html too —
+    // the viewer could never read a file through its own API.
+    var isViewerPage = _pageName === 'viewer.html';
+    var isThemeEditorPage = _pageName === 'themeeditor.html';
+    // Certificate exceptions + HTTP consents are the "trust this host anyway"
+    // switches: they must only be reachable from the interstitial
+    // (ErrorPage/security.html) and Settings — an XSS on any other internal
+    // page must not be able to silently MITM arbitrary domains.
+    var isCertControlPage = _pageName === 'security.html' || _pageName === 'settings.html';
+    Object.keys(api).forEach(function (key) {
+      // `cookies` and `passwords` are the same class of secret (the cookie
+      // jar carries site sessions) — both stay on the secrets pages only.
+      if (!isSecretsPage && /(password|vault|breach|backup|securityanalysis|readclipboard|cookies)/i.test(key)) {
+        delete api[key];
+      }
+      if (!isViewerPage && /(viewerread)/i.test(key)) {
+        delete api[key];
+      }
+      if (!isThemeEditorPage && /(themeeditor)/i.test(key)) {
+        delete api[key];
+      }
+      if (!isCertControlPage && /(certexception|httpconsent)/i.test(key)) {
+        delete api[key];
+      }
+      // Control group now also covers: tor hardening/security-level switches
+      // (they toggle the CSP lockdown core), detectTor/ensureTorForOnion,
+      // the whole skit lifecycle (list/toggle/delete/export, not just
+      // import) and the trust-root manager sslCerts*.
+      if (!isControlPage && /(proxys|proxy|torstart|torstop|torcheck|torstatus|tornewnym|torautostart|torbootstrap|torhardening|torsecurity|detecttor|ensuretor|settingsimport|settingsapply|skitimport|skitlist|skittoggle|skitdelete|skitexport|dohset|sslcerts|clearfrequent)/i.test(key)) {
+        delete api[key];
+      }
+    });
+  } catch (e) {}
+  return api;
+}
+
 if (_exposeFullAPI) {
-contextBridge.exposeInMainWorld('electronAPI', {
+var _electronApi = {
   platform: process.platform,
 
   // Window controls
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowMaximize: () => ipcRenderer.send('window-maximize'),
   windowClose: () => ipcRenderer.send('window-close'),
-  onMaximizeChange: (callback) => {
-    ipcRenderer.on('maximize-change', (_, isMaximized) => callback(isMaximized));
-  },
+
+  // Start-page mini-player: control the tab that last started playing
+  // (see the media bridge in main.js). Direct IPC — reliable on every page.
+  mediaControl: (act) => ipcRenderer.invoke('spz-media-control', act),
 
   // New tab from main process
   onOpenInNewTab: (callback) => {
@@ -89,6 +143,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Search Engine
   getSearchEngine: () => ipcRenderer.invoke('get-search-engine'),
   setSearchEngine: (url) => ipcRenderer.invoke('set-search-engine', url),
+  getSearchType: () => ipcRenderer.invoke('get-search-type'),
+  setSearchType: (t) => ipcRenderer.invoke('set-search-type', t),
+  getSearchOnionMaps: () => ipcRenderer.invoke('get-search-onion-maps'),
+  setSearchOnionMaps: (on) => ipcRenderer.invoke('set-search-onion-maps', on),
 
   // Startup
   getSaveTabs: () => ipcRenderer.invoke('get-save-tabs'),
@@ -118,11 +176,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Blocked log
   getBlockedLog: () => ipcRenderer.invoke('get-blocked-log'),
+  // Persistent blocked-log toggle (Settings → Blocker). These were previously
+  // exposed only in the shell preload — the Settings page runs in a webview,
+  // so its guarded api.* calls silently no-opped and the toggle was dead.
+  getBlockerLogPersistent: () => ipcRenderer.invoke('get-blocker-log-persistent'),
+  setBlockerLogPersistent: (val) => ipcRenderer.invoke('set-blocker-log-persistent', val),
   clearBlockedLog: () => ipcRenderer.invoke('clear-blocked-log'),
 
   // Security settings
   getSecuritySetting: (key) => ipcRenderer.invoke('get-security-setting', key),
   setSecuritySetting: (key, val) => ipcRenderer.invoke('set-security-setting', key, val),
+  // Settings → Search: forget the local "frequent sites" counters.
+  clearFrequentSites: () => ipcRenderer.invoke('clear-frequent-sites'),
   getAllSecuritySettings: () => ipcRenderer.invoke('get-all-security-settings'),
   cleanUrl: (url) => ipcRenderer.invoke('clean-url', url),
 
@@ -181,8 +246,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseDataPath: () => ipcRenderer.invoke('choose-data-path'),
   migrateDataPath: (newPath) => ipcRenderer.invoke('migrate-data-path', newPath),
 
-  backupExport: (usePassword, password) => ipcRenderer.invoke('backup-export', usePassword, password),
-  backupImport: (filePath, password, options) => ipcRenderer.invoke('backup-import', filePath, password, options),
+  backupExport: (usePassword, password, keyFilePath) => ipcRenderer.invoke('backup-export', usePassword, password, keyFilePath),
+  backupImport: (filePath, password, options, keyFilePath) => ipcRenderer.invoke('backup-import', filePath, password, options, keyFilePath),
+  backupPickKeyfile: () => ipcRenderer.invoke('backup-pick-keyfile'),
   backupChooseImport: () => ipcRenderer.invoke('backup-choose-import'),
   backupCheckFile: (filePath) => ipcRenderer.invoke('backup-check-file', filePath),
   getBackupSettings: () => ipcRenderer.invoke('get-backup-settings'),
@@ -247,6 +313,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   unregisterSystem: () => ipcRenderer.invoke('unregister-system'),
   checkRegistration: () => ipcRenderer.invoke('check-registration'),
   showInstructions: () => ipcRenderer.invoke('show-instructions'),
+  clearCacheReload: () => ipcRenderer.invoke('clear-cache-reload'),
+  checkDefaultBrowser: () => ipcRenderer.invoke('check-default-browser'),
+  setDefaultBrowser: () => ipcRenderer.invoke('set-default-browser'),
+  sslCertsGet: () => ipcRenderer.invoke('ssl-certs-get'),
+  sslCertsAdd: () => ipcRenderer.invoke('ssl-certs-add'),
+  sslCertsToggle: (id, enabled) => ipcRenderer.invoke('ssl-certs-toggle', id, enabled),
+  sslCertsRemove: (id) => ipcRenderer.invoke('ssl-certs-remove', id),
+  sslCertsSetSystem: (enabled) => ipcRenderer.invoke('ssl-certs-set-system', enabled),
+  sslCertsSetService: (enabled) => ipcRenderer.invoke('ssl-certs-set-service', enabled),
 
   // Misc
   restartBrowser: () => ipcRenderer.invoke('restart-browser'),
@@ -314,6 +389,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   themeImport: (filePath) => ipcRenderer.invoke('theme-import', filePath),
   themeList: () => ipcRenderer.invoke('theme-list'),
   themeApply: (themeId) => ipcRenderer.invoke('theme-apply', themeId),
+  themeEditorExport: (payload) => ipcRenderer.invoke('theme-editor-export', payload),
   themeClear: () => ipcRenderer.invoke('theme-clear'),
   themeGetActive: () => ipcRenderer.invoke('theme-get-active'),
   themeGetCss: (themeId) => ipcRenderer.invoke('theme-get-css', themeId),
@@ -463,6 +539,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setKeybinding: (action, binding) => ipcRenderer.invoke('set-keybinding', action, binding),
   resetKeybindings: () => ipcRenderer.invoke('reset-keybindings'),
   setKeybindingRecording: (on) => ipcRenderer.send('keybinding-recording', on),
+  // Hotkeys overlay toggle (Settings → Hotkeys) — was shell-preload-only,
+  // leaving the overlay checkbox in Settings dead.
+  setHotkeysOverlay: (on) => ipcRenderer.invoke('set-hotkeys-overlay', on),
 
   // Session Guard — request for forced duplicate check
   sessionGuardScanAll: () => ipcRenderer.invoke('session-guard-scan'),
@@ -544,8 +623,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getContainers: () => ipcRenderer.invoke('get-containers'),
   setContainersEnabled: (val) => ipcRenderer.invoke('set-containers-enabled', val),
   saveContainers: (list) => ipcRenderer.invoke('save-containers', list),
-  clearContainerData: (containerId) => ipcRenderer.invoke('clear-container-data', containerId)
-});
+  clearContainerData: (containerId) => ipcRenderer.invoke('clear-container-data', containerId),
+
+  // ===== Update check (Settings → About + startup notification) =====
+  checkForUpdate: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  skipUpdateVersion: (ver) => ipcRenderer.invoke('skip-update-version', ver),
+
+  // ===== FilterHub blocklist catalog (Settings → Blocker) =====
+  getFilterhubCatalog: () => ipcRenderer.invoke('adblocker-get-filterhub-catalog'),
+  getFilterhubEnabled: () => ipcRenderer.invoke('adblocker-get-filterhub-enabled'),
+  setFilterhubEnabled: (nums) => ipcRenderer.invoke('adblocker-set-filterhub-enabled', nums),
+  setFilterhubPreset: (level) => ipcRenderer.invoke('adblocker-set-filterhub-preset', level)
+};
+contextBridge.exposeInMainWorld('electronAPI', _apiCapabilityFilter(_electronApi));
 } // end expose electronAPI (file:// only)
 
 var _optSettings = {};
@@ -569,98 +660,164 @@ try {
   }
 } catch(e) {}
 
-// Page dialog bridge (alert/confirm/prompt).
-// In some Electron builds the main process's contents.on('dialog') listener
-// does not fire for <webview> tags, so we install a backup path: the page
-// talks to us (isolated preload) via postMessage, we relay via ipcRenderer.
-// This makes the banner show up regardless of which path delivered the event.
-(function installPageDialogBridge() {
+// Stealth mode for authentication pages. Google's BotGuard (and similar)
+// flag any deviation from a stock browser: enumerable custom globals,
+// overridden alert/confirm/prompt, patched canvas APIs. On login pages we
+// inject NOTHING into the main world — the UA/UAData override happens at the
+// engine level (CDP) and stays. Vim, Super Drag, hover-translate and the
+// dialog banners are disabled on these hosts only.
+function _isSensitiveAuthPage() {
   try {
-    // Isolated-world side: receive requests from the page, forward to main.
-    window.addEventListener('message', function(e) {
-      var d = e.data;
-      if (!d || !d.__spzDialogReq || !d.id) return;
-      try {
-        ipcRenderer.invoke('dialog-request', {
-          type: d.type,
-          message: d.message || '',
-          defaultText: d.defaultText || ''
-        }).then(function(result) {
-          try {
-            window.postMessage({ __spzDialogResp: true, id: d.id, result: result }, '*');
-          } catch(_) {}
-        }).catch(function() {
-          try {
-            window.postMessage({ __spzDialogResp: true, id: d.id, result: null }, '*');
-          } catch(_) {}
-        });
-      } catch(err) {
-        try {
-          window.postMessage({ __spzDialogResp: true, id: d.id, result: null }, '*');
-        } catch(_) {}
-      }
-    });
+    var h = (location.hostname || '').toLowerCase();
+    return /(^|\.)accounts\.google\.com$/.test(h) ||
+           /(^|\.)myaccount\.google\.com$/.test(h) ||
+           /(^|\.)passwords\.google\.com$/.test(h) ||
+           /(^|\.)signin\.google\.com$/.test(h) ||
+           /(^|\.)pay\.google\.com$/.test(h) ||
+           /(^|\.)wallet\.google\.com$/.test(h) ||
+           /(^|\.)accounts\.youtube\.com$/.test(h) ||
+           /(^|\.)appleid\.apple\.com$/.test(h) ||
+           /(^|\.)login\.live\.com$/.test(h) ||
+           /(^|\.)login\.microsoftonline\.com$/.test(h);
+  } catch (e) { return false; }
+}
+var _authStealth = _isSensitiveAuthPage();
 
-    // Main-world side: override window.alert/confirm/prompt. The override is
-    // async-friendly (alert returns void, confirm/prompt return default values),
-    // because we cannot block JS execution. This matches how Chrome handles
-    // the same APIs on cross-origin iframes.
-    var overrideCode = '(function(){' +
-      'if(window.__spzDialogPatched)return;window.__spzDialogPatched=true;' +
-      'function _req(payload,cb){' +
-        'var id="d"+Math.random().toString(36).slice(2,10);' +
-        'function h(ev){if(ev.data&&ev.data.__spzDialogResp&&ev.data.id===id){window.removeEventListener("message",h);cb(ev.data.result);}}' +
-        'window.addEventListener("message",h);' +
-        'window.postMessage({__spzDialogReq:true,id:id,type:payload.type,message:payload.message||"",defaultText:payload.defaultText||""},"*");' +
-      '}' +
-      'try{window.alert=function(m){_req({type:"alert",message:String(m==null?"":m)},function(){});return undefined;};}catch(e){}' +
-      'try{window.confirm=function(m){_req({type:"confirm",message:String(m==null?"":m)},function(){});return false;};}catch(e){}' +
-      'try{window.prompt=function(m,d){_req({type:"prompt",message:String(m==null?"":m),defaultText:String(d==null?"":d)},function(){});return null;};}catch(e){}' +
+// Firefox profile on login pages: Google's Chromium-build fingerprinting
+// blocks any Electron build even with a perfect Chrome masquerade, but skips
+// the Chrome attestation entirely for Firefox UAs. Firefox has NO
+// navigator.userAgentData and NO window.chrome — remove both before any page
+// script runs (same winning timing as the other preload injections).
+(function installFirefoxProfile() {
+  try {
+    if (!_authStealth || !webFrame || !webFrame.executeJavaScript) return;
+    var code = '(function(){' +
+      'try{Object.defineProperty(Navigator.prototype,"userAgentData",{get:function(){return undefined;},configurable:true,enumerable:true});}catch(e){}' +
+      'try{if(navigator&&navigator.hasOwnProperty("userAgentData")){try{Object.defineProperty(navigator,"userAgentData",{get:function(){return undefined;},configurable:true});}catch(e2){}}' +
+      'try{delete Navigator.prototype.userAgentData;}catch(e3){}}catch(e4){}' +
+      'try{Object.defineProperty(window,"chrome",{get:function(){return undefined;},configurable:true});}catch(e){}' +
     '})();';
-    if (webFrame && webFrame.executeJavaScript) {
-      webFrame.executeJavaScript(overrideCode).catch(function() {});
-    }
-  } catch(e) {}
-})();
-
-// External-page postMessage bridges. Since electronAPI is no longer exposed to
-// https pages, features that run inside external page scripts (hover-translate,
-// element picker launcher) reach the preload via postMessage instead — exactly
-// like the dialog bridge above. The page never sees a window.electronAPI object.
-(function installExternalBridges() {
-  try {
-    window.addEventListener('message', function (e) {
-      var d = e.data;
-      if (!d) return;
-      // Translate: page → main → response posted back.
-      if (d.__spzTrReq && d.id) {
-        try {
-          ipcRenderer.invoke('translate-text', d.text, d.from, d.to).then(function (result) {
-            try { window.postMessage({ __spzTrResp: true, id: d.id, result: result }, '*'); } catch (_) {}
-          }).catch(function () {
-            try { window.postMessage({ __spzTrResp: true, id: d.id, result: null }, '*'); } catch (_) {}
-          });
-        } catch (err) {
-          try { window.postMessage({ __spzTrResp: true, id: d.id, result: null }, '*'); } catch (_) {}
-        }
-        return;
-      }
-      // Element picker launcher (renderer injects this trigger).
-      if (d.__spzPickerStart) {
-        try { _startElementPicker(); } catch (err) {}
-        return;
-      }
-      // Super Drag: page payload → main → renderer opens the background tab.
-      if (d.__spzSuperDrag && d.kind) {
-        try { ipcRenderer.send('super-drag-action', String(d.kind), String(d.payload || '')); } catch (err) {}
-        return;
-      }
-    });
+    webFrame.executeJavaScript(code).catch(function() {});
   } catch (e) {}
 })();
 
+// Global Privacy Control (Firefox-compatible): expose
+// navigator.globalPrivacyControl in the page world. Together with the
+// Sec-GPC: 1 HTTP header (added in main.js) this is the full GPC opt-out
+// signal ("do not sell or share my data"). Synchronous at document-start so
+// page scripts reading the property early see the right value.
+(function installGlobalPrivacyControl() {
+  try {
+    var gpcOn = true;
+    try { gpcOn = ipcRenderer.sendSync('spz-get-gpc') !== false; } catch (e0) {}
+    if (!webFrame || !webFrame.executeJavaScript) return;
+    var code = '(function(){' +
+      'try{Object.defineProperty(Navigator.prototype,"globalPrivacyControl",' +
+      '{get:function(){return ' + (gpcOn ? 'true' : 'undefined') + ';},configurable:true,enumerable:true});}catch(e){}' +
+    '})();';
+    webFrame.executeJavaScript(code).catch(function() {});
+  } catch (e) {}
+})();
+
+// Internal pages (Settings, Library, MainPage, …): no text selection and no
+// context menu OUTSIDE of lists and form fields — they should feel like a
+// native app UI, not a web page. Regular websites are not affected.
+if (_exposeFullAPI) {
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      var style = document.createElement('style');
+      style.textContent =
+        'body{user-select:none;-webkit-user-select:none !important;}' +
+        'input,textarea,select,[contenteditable="true"],.item,.ck-item,' +
+        '.password-item,.history-item,.shortcut,.dl-item,[data-url]' +
+        '{user-select:text;-webkit-user-select:text;}';
+      (document.head || document.documentElement).appendChild(style);
+    } catch (e) {}
+  });
+  document.addEventListener('contextmenu', function (e) {
+    try {
+      var t = e.target;
+      if (t && t.closest && t.closest(
+          'input,textarea,select,[contenteditable="true"],' +
+          '.item,.ck-item,.password-item,.history-item,.shortcut,.dl-item,[data-url]')) return;
+      e.preventDefault();
+    } catch (e0) {}
+  }, true);
+}
+
+// Main-world IPC shim + native-disguise helper. Both installed in ONE
+// injection so __spzNat exists before any other engine patches natives.
+// __spzNat(fn) registers fn in a WeakSet; a patched
+// Function.prototype.toString returns "function name() { [native code] }"
+// for registered functions — without it, BotGuard reads the override source
+// via fn.toString() and flags the browser as modified.
+// All injected globals are NON-ENUMERABLE: BotGuard enumerates window
+// properties and any visible __spz* marker is a spoof signal (this exact
+// vector caught the old __uaDataPatched flag).
+(function installMainWorldIpcShim() {
+  if (!webFrame || !webFrame.executeJavaScript) return;
+  // Per-page transport token: main only accepts __SPZIPC__ console lines
+  // that carry THIS token. A hostile page can still CALL window.__spzSend
+  // (that is the public API superdrag/mediacontrol legitimately use), but it
+  // can no longer FORGE transport lines with crafted ids/kinds bypassing
+  // the shim — callback-confusion and not-yet-exposed kinds are closed.
+  var _ipcToken = '';
+  try { _ipcToken = require('crypto').randomBytes(16).toString('hex'); } catch (eT) {
+    _ipcToken = String(Date.now()) + String(Math.random()).slice(2);
+  }
+  try { ipcRenderer.send('spz-ipc-token', _ipcToken); } catch (eS) {}
+  var shim = '(function(){' +
+    'if(window.__spzSend)return;' +
+    'var _cbs={};' +
+    'var _tok=' + JSON.stringify(_ipcToken) + ';' +
+    'var _send=function(kind,payload,cb){' +
+      'var id="i"+Math.random().toString(36).slice(2,10);' +
+      'if(cb)_cbs[id]=cb;' +
+      'try{console.log("__SPZIPC__"+JSON.stringify({kind:kind,id:id,payload:payload,t:_tok}));}catch(e){}' +
+      'return id;' +
+    '};' +
+    'var _resp=function(id,result){' +
+      'var cb=_cbs[id];' +
+      'if(cb){delete _cbs[id];try{cb(result);}catch(e){}}' +
+    '};' +
+    'try{Object.defineProperty(window,"__spzIpcCbs",{value:_cbs,enumerable:false,configurable:true});}catch(e){}' +
+    'try{Object.defineProperty(window,"__spzSend",{value:_send,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzSend=_send;}' +
+    'try{Object.defineProperty(window,"__spzIpcResponse",{value:_resp,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzIpcResponse=_resp;}' +
+    'var _oFTS=Function.prototype.toString;var _nat=new WeakSet();' +
+    'var _fts=function toString(){if(_nat.has(this))return "function "+(this.name||"")+"() { [native code] }";return _oFTS.call(this);};' +
+    '_nat.add(_fts);' +
+    'try{Object.defineProperty(Function.prototype,"toString",{value:_fts,configurable:true,writable:true});}catch(e){}' +
+    'var _reg=function(f){try{_nat.add(f);}catch(e){}return f;};' +
+    'try{Object.defineProperty(window,"__spzNat",{value:_reg,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzNat=_reg;}' +
+  '})();';
+  if (_authStealth) return; // no main-world injections on login pages
+  try { webFrame.executeJavaScript(shim).catch(function() {}); } catch (e) {}
+})();
+
+// Page dialogs (alert/confirm/prompt/beforeunload).
+// Since Electron 38 the webContents 'dialog' event fires for JavaScript
+// dialogs and gives TRUE synchronous semantics: Chromium pauses the page's
+// JS until the dialog callback answers (handler in main.js: banner in the
+// shell → 'webview-dialog-response' → callback(true/false/text)).
+// Overriding window.confirm here (the old console-transport bridge) made it
+// return false immediately — the real answer arrived later via
+// window.__spzIpcResponse, but nothing consumed it, so every confirm() on
+// every page silently resolved to "Cancel". Do NOT patch alert/confirm/
+// prompt: the native path already shows our custom banner and returns the
+// real result to the page.
+// (The __spzSend console transport shim below is still used by
+// hover-translate and Super Drag.)
+
+// External-page postMessage bridges are retired: postMessage from the main
+// world no longer reaches this isolated world in Electron 42. Dialogs,
+// hover-translate and Super Drag all go through the console transport shim
+// above (handled in the main process).
+
 (function injectSecurityScripts() {
   try {
+    // Stock browser on login pages: every patched prototype here is a
+    // BotGuard signal; the user is authenticating, not browsing.
+    if (_authStealth) return;
     var sec = (_all && _all.security) || {};
     var code = '';
     if (!sec.autoplayBlock) {
@@ -687,55 +844,124 @@ try {
         'if(window.webkitRTCPeerConnection)window.webkitRTCPeerConnection=window.RTCPeerConnection;' +
         '})();';
     }
-    if (sec.fingerprint) {
+    // ===== Fingerprint shield (default ON, opt-out) =====
+    // The SAFE anti-fingerprinting subset: value noise/normalization that
+    // never touches identity strings (UA/platform) and cannot break logins
+    // or capability checks. The heavy identity spoof stays behind the
+    // opt-in `fingerprint` toggle below (it changes navigator.userAgent).
+    if (sec.fpShield !== false) {
       code += '(function(){' +
-        'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&2)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|2,enumerable:false,configurable:true});}catch(e){}' +
-        'var _origToDataURL=HTMLCanvasElement.prototype.toDataURL;' +
-        'HTMLCanvasElement.prototype.toDataURL=function(){' +
-        '  var r=_origToDataURL.apply(this,arguments);' +
-        '  if(r && r.indexOf("data:")===0 && r.length>40){' +
-        '    var chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";' +
+        'var _n=window.__spzNat||function(f){return f;};' +
+        'var _fs=Symbol.for("spz");if(Navigator.prototype[_fs]&64)return;try{Object.defineProperty(Navigator.prototype,_fs,{value:(Navigator.prototype[_fs]||0)|64,enumerable:false,configurable:true});}catch(e){}' +
+        // Canvas 2D fingerprint — mutate a few base64 chars / LSB pixels.
+        'var _oTDU=HTMLCanvasElement.prototype.toDataURL;' +
+        'HTMLCanvasElement.prototype.toDataURL=_n(function toDataURL(){' +
+        '  var r=_oTDU.apply(this,arguments);' +
+        '  if(r&&r.indexOf("data:")===0&&r.length>40){' +
+        '    var ch="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";' +
         '    var pos=r.length-8-Math.floor(Math.random()*8);' +
-        '    if(pos>22 && r[pos]!=="="){r=r.slice(0,pos)+chars[Math.floor(Math.random()*chars.length)]+r.slice(pos+1);}' +
+        '    if(pos>22&&r[pos]!=="="){r=r.slice(0,pos)+ch[Math.floor(Math.random()*ch.length)]+r.slice(pos+1);}' +
         '  }' +
         '  return r;' +
-        '};' +
-        'var _origGetImageData=CanvasRenderingContext2D.prototype.getImageData;' +
-        'CanvasRenderingContext2D.prototype.getImageData=function(){' +
-        '  var d=_origGetImageData.apply(this,arguments);' +
-        '  if(d.data.length>100){' +
-        '    var step=Math.max(1000,Math.floor(d.data.length/4));' +
-        '    for(var i=0;i<d.data.length;i+=step){d.data[i]=d.data[i]^1;}' +
-        '  }' +
+        '});' +
+        'var _oGID=CanvasRenderingContext2D.prototype.getImageData;' +
+        'CanvasRenderingContext2D.prototype.getImageData=_n(function getImageData(){' +
+        '  var d=_oGID.apply(this,arguments);' +
+        '  if(d.data.length>100){var st=Math.max(1000,Math.floor(d.data.length/4));' +
+        '    for(var i=0;i<d.data.length;i+=st){d.data[i]=d.data[i]^1;}}' +
         '  return d;' +
-        '};' +
-        'var _np=Navigator.prototype;' +
-        'try{Object.defineProperty(_np,"platform",{get:function(){return "Win32";}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"hardwareConcurrency",{get:function(){return 4;}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"deviceMemory",{get:function(){return 4;}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"userAgent",{get:function(){return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"appVersion",{get:function(){return "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"languages",{get:function(){return ["en-US","en"];}});}catch(e){}' +
-        // sendBeacon — fire-and-forget tracking pings (analytics, ads). Noop silently.
-        'try{Navigator.prototype.sendBeacon=function(){return true;};}catch(e){}' +
-        // Battery Status API — strong fingerprint vector (level+charging+times).
-        // Return a stable, generic profile so the value is identical across users.
-        'try{Object.defineProperty(_np,"getBattery",{value:function(){return Promise.resolve({' +
+        '});' +
+        // Hardware fingerprint: CPU cores / RAM — identical for everyone.
+        'var _npS=Navigator.prototype;' +
+        'try{Object.defineProperty(_npS,"hardwareConcurrency",{get:function(){return 4;}});}catch(e){}' +
+        'try{Object.defineProperty(_npS,"deviceMemory",{get:function(){return 4;}});}catch(e){}' +
+        // sendBeacon — fire-and-forget tracking pings. Noop silently.
+        'try{Navigator.prototype.sendBeacon=_n(function sendBeacon(){return true;});}catch(e){}' +
+        // Battery Status API — stable, generic profile for every user.
+        'try{Object.defineProperty(_npS,"getBattery",{value:function(){return Promise.resolve({' +
           'charging:true,chargingTime:0,dischargingTime:Infinity,level:1,' +
           'addEventListener:function(){},removeEventListener:function(){}' +
           '});},configurable:true,writable:true});}catch(e){}' +
-        // MediaDevices.enumerateDevices — returns camera/mic list with stable IDs.
-        // Normalise to a single anonymous audioinput so the fingerprint is constant.
+        // MediaDevices — anonymous device list, no stable ids.
         'try{if(navigator.mediaDevices&&navigator.mediaDevices.enumerateDevices){' +
-          'var _origEnum=navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);' +
+          'var _oe=navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);' +
           'navigator.mediaDevices.enumerateDevices=function(){' +
-          '  return _origEnum().then(function(list){return list.map(function(d){' +
+          '  return _oe().then(function(list){return list.map(function(d){' +
           '    return {kind:d.kind,deviceId:"",groupId:"",label:""};});}).catch(function(){return [];});' +
-          '};' +
+          '  };' +
         '}}catch(e){}' +
         'try{if(navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints){' +
           'navigator.mediaDevices.getSupportedConstraints=function(){return {"echoCancellation":true,"noiseSuppression":true,"autoGainControl":true};};' +
         '}}catch(e){}' +
+        // Screen colour depth — normalize (varies per display setup).
+        'try{Object.defineProperty(Screen.prototype,"colorDepth",{get:function(){return 24;},configurable:true});}catch(e){}' +
+        'try{Object.defineProperty(Screen.prototype,"pixelDepth",{get:function(){return 24;},configurable:true});}catch(e){}' +
+        // Local font enumeration API — remove it outright.
+        'try{if(window.queryLocalFonts){try{delete window.queryLocalFonts;}catch(e0){}' +
+        'try{Object.defineProperty(window,"queryLocalFonts",{value:undefined,writable:false,configurable:false});}catch(e1){}}' +
+        '}catch(e){}' +
+        // Font-metrics fingerprinting: font enumeration measures text with
+        // sub-pixel precision to detect installed font versions/OS variants.
+        // Quantize TextMetrics to 0.25px with a stable per-page jitter — the
+        // sub-pixel signal is gone, normal layout uses internal metrics and
+        // is unaffected.
+        'function _qmk(m,k,v){try{var nv=Math.round((v+_mtJ)/0.25)*0.25;' +
+        'Object.defineProperty(m,k,{get:function(){return nv;},configurable:true});}catch(e){}}' +
+        'var _mtJ=(Math.floor(Math.random()*4))*0.0625;' +
+        'try{var _oMT=CanvasRenderingContext2D.prototype.measureText;' +
+        'CanvasRenderingContext2D.prototype.measureText=_n(function measureText(){' +
+        '  var m=_oMT.apply(this,arguments);' +
+        '  try{if(m){_qmk(m,"width",typeof m.width==="number"?m.width:0);' +
+        '    ["actualBoundingBoxLeft","actualBoundingBoxRight","actualBoundingBoxAscent","actualBoundingBoxDescent","fontBoundingBoxAscent","fontBoundingBoxDescent"].forEach(function(k){' +
+        '      if(typeof m[k]==="number")_qmk(m,k,m[k]);});}}catch(e){}' +
+        '  return m;});}catch(e){}' +
+        '})();';
+    }
+    // ===== localStorage quota (opt-in per-domain cap, 5 MB) =====
+    // Storage-hygiene guard: a site cannot stash unbounded data (the classic
+    // quota-filling tracking/DoS pattern). Internal pages are trusted.
+    if (sec.lsQuota && !_exposeFullAPI) {
+      code += '(function(){' +
+        'if(window.__spzLsQuota)return;' +
+        'try{Object.defineProperty(window,"__spzLsQuota",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzLsQuota=true;}' +
+        'var _LIMIT=5*1024*1024,_used=-1;' +
+        'function _calc(){var t=0;try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);' +
+        't+=(k.length+((localStorage.getItem(k)||"").length))*2;}}catch(e){}return t;}' +
+        'var _oSII=Storage.prototype.setItem;' +
+        'Storage.prototype.setItem=function(k,v){' +
+        '  try{' +
+        '    if(_used<0)_used=_calc();' +
+        '    var add=((k||"").length+String(v==null?"":v).length)*2;' +
+        '    var old=0;try{old=((k||"").length+(localStorage.getItem(k)||"").length)*2;}catch(e0){}' +
+        '    if(_used-old+add>_LIMIT){throw new DOMException("QuotaExceededError","QuotaExceededError");}' +
+        '    var r=_oSII.apply(this,arguments);_used=_used-old+add;return r;' +
+        '  }catch(e){if(e&&e.name==="QuotaExceededError")throw e;return _oSII.apply(this,arguments);}' +
+        '};' +
+        '})();';
+    }
+    if (sec.fingerprint) {
+      // Real-OS platform values for the spoof below (see the comment there).
+      var _fpRealPlatform = process.platform === 'win32' ? 'Win32'
+        : process.platform === 'darwin' ? 'MacIntel'
+        : 'Linux x86_64';
+      var _fpRealUaPlatform = process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64'
+        : process.platform === 'darwin' ? 'Macintosh; Intel Mac OS X 10_15_7'
+        : 'X11; Linux x86_64';
+      code += '(function(){' +
+        'var _n=window.__spzNat||function(f){return f;};' +
+        'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&2)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|2,enumerable:false,configurable:true});}catch(e){}' +
+        'var _np=Navigator.prototype;' +
+        // Identity spoof — the reason this whole block is OPT-IN: the fake
+        // StartPOZI userAgent breaks sites matching it against userAgentData
+        // /sec-ch-ua (Google sign-in etc.). The safe value noise now lives in
+        // the default-ON fpShield block above.
+        // Spoof the platform to match the REAL OS: claiming Win32 on Linux
+        // was itself a fingerprint (mismatch with sec-ch-ua-platform and
+        // other OS signals) and contradicted the anti-fingerprinting goal.
+        'try{Object.defineProperty(_np,"platform",{get:function(){return ' + JSON.stringify(_fpRealPlatform) + ';}});}catch(e){}' +
+        'try{Object.defineProperty(_np,"userAgent",{get:function(){return "Mozilla/5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}});}catch(e){}' +
+        'try{Object.defineProperty(_np,"appVersion",{get:function(){return "5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}});}catch(e){}' +
+        'try{Object.defineProperty(_np,"languages",{get:function(){return ["en-US","en"];}});}catch(e){}' +
         // AudioContext fingerprinting — sites render a silent oscillator and read
         // the float output, which varies per CPU/audio stack. Add tiny noise to
         // the least significant bits of getChannelData / copyFromChannel output.
@@ -749,26 +975,29 @@ try {
         '}catch(e){}' +
         '})();';
     }
-    if (sec.blockWebGL) {
+    // WebGL fingerprint — default ON (opt-out). Spoofing the vendor/
+    // renderer STRINGS never breaks rendering itself (Brave ships this
+    // always-on); only capability-detecting sites see generic values.
+    if (sec.blockWebGL !== false) {
       code += '(function(){' +
         'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&4)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|4,enumerable:false,configurable:true});}catch(e){}' +
         'var _getParam=WebGLRenderingContext.prototype.getParameter;' +
         'WebGLRenderingContext.prototype.getParameter=function(p){' +
-        '  if(p===37445)return "Intel Inc.";' +
-        '  if(p===37446)return "Intel Iris OpenGL Engine";' +
-        '  if(p===7937)return "Intel(R) HD Graphics 630";' +
-        '  if(p===7936)return "Intel Inc.";' +
-        '  if(p===37447)return "WebKit WebGL";' +
+        '  if(p===37445)return "StartPOZI";' +
+        '  if(p===37446)return "StartPOZI Browser Graphics Engine";' +
+        '  if(p===7937)return "StartPOZI Browser Graphics Engine";' +
+        '  if(p===7936)return "StartPOZI";' +
+        '  if(p===37447)return "WebGL 2.0";' +
         '  return _getParam.apply(this,arguments);' +
         '};' +
         'if(typeof WebGL2RenderingContext!=="undefined"){' +
         '  var _getParam2=WebGL2RenderingContext.prototype.getParameter;' +
         '  WebGL2RenderingContext.prototype.getParameter=function(p){' +
-        '    if(p===37445)return "Intel Inc.";' +
-        '    if(p===37446)return "Intel Iris OpenGL Engine";' +
-        '    if(p===7937)return "Intel(R) HD Graphics 630";' +
-        '    if(p===7936)return "Intel Inc.";' +
-        '    if(p===37447)return "WebKit WebGL";' +
+        '    if(p===37445)return "StartPOZI";' +
+        '    if(p===37446)return "StartPOZI Browser Graphics Engine";' +
+        '    if(p===7937)return "StartPOZI Browser Graphics Engine";' +
+        '    if(p===7936)return "StartPOZI";' +
+        '    if(p===37447)return "WebGL 2.0";' +
         '    return _getParam2.apply(this,arguments);' +
         '  };' +
         '}' +
@@ -847,14 +1076,89 @@ try {
         '}' +
         '})();';
     }
+    // ===== Spectre side-channel mitigations (default ON, opt-out) =====
+    // High-resolution timers + SharedArrayBuffer are the classical Spectre/
+    // side-channel toolkit in JS. Coarsen performance.now() to 1 ms (Tor
+    // Browser level) and remove SharedArrayBuffer from the main world.
+    // Limitations: page WORKERS run their own context (the SAB removal here
+    // covers the page itself), and when the opt-in COOP/COEP isolation is
+    // enabled (sec.coopCoep — crossOriginIsolated via response headers) SAB
+    // is KEPT: that is the proper, per-process-isolated mechanism sites like
+    // multithreaded WASM tools need.
+    if (sec.spectreShield !== false) {
+      code += '(function(){' +
+        'if(window.__spzSpectre)return;' +
+        'try{Object.defineProperty(window,"__spzSpectre",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzSpectre=true;}' +
+        'try{var _pn=performance.now.bind(performance);' +
+        'performance.now=function(){return Math.floor(_pn());};' +
+        'try{Object.defineProperty(performance,"now",{writable:true,configurable:true});}catch(e0){}' +
+        '}catch(e){}' +
+        (sec.coopCoep ? '' :
+        'try{if(window.SharedArrayBuffer){try{delete window.SharedArrayBuffer;}catch(e1){}' +
+        'try{Object.defineProperty(window,"SharedArrayBuffer",{value:undefined,writable:false,configurable:false});}catch(e2){}}' +
+        '}catch(e){}') +
+        '})();';
+    }
+    // ===== Audio fingerprint protection (default ON, opt-out via Settings) =====
+    // The "silent sound" fingerprint: sites render inaudible tones through
+    // OfflineAudioContext (+ DynamicsCompressor) or read an AnalyserNode —
+    // tiny hardware/DSP differences in the output form a stable tracker id
+    // (fingerprintjs, AliExpress & co). Farbling: add per-page-load
+    // deterministic micro-noise to the READ paths only. It is ~-140 dB
+    // (below any audible or DSP-relevant threshold), stable within a page
+    // (visualizers don't jitter) and different on every visit — the derived
+    // fingerprint stops being stable. Playback is NOT touched:
+    // createBuffer().getChannelData (the WRITE path synth apps use) is not
+    // patched; only rendered OUTPUT buffers get one farble pass.
+    if (sec.audioFp !== false) {
+      code += '(function(){' +
+        'if(window.__spzAudioFp)return;' +
+        'try{Object.defineProperty(window,"__spzAudioFp",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzAudioFp=true;}' +
+        'var _nat=window.__spzNat||function(f){return f;};' +
+        'var _seed=' + (Math.floor(Math.random() * 2147483646) + 1) + ';' +
+        'function _n(i){var x=Math.sin(i*12.9898+_seed)*43758.5453;return (x-Math.floor(x))-0.5;}' +
+        // Noise is relative to the value magnitude (~1e-7 … 2e-7): an
+        // absolute 1e-7 is BELOW float32 resolution for values >1 and the
+        // assignment rounds straight back (the farble silently did
+        // nothing). Scaling with max(1,|v|) guarantees >=1 ulp change while
+        // staying ~-134 dB — far below any audible or DSP threshold.
+        'function _f32(a,salt){for(var i=0;i<a.length;i++){var v=a[i];if(typeof v==="number"&&isFinite(v)&&v!==0){a[i]=v+_n(i+salt)*4.76837158e-7*Math.max(1,Math.abs(v));}}}' +
+        'function _u8(a,salt){for(var i=0;i<a.length;i++){var v=a[i];if(v>0&&v<255){var d=_n(i+salt);if(d>0.25)a[i]=Math.min(255,v+1);else if(d<-0.25)a[i]=Math.max(0,v-1);}}}' +
+        'function _p(proto,name,fn){try{var o=proto[name];if(!o)return;' +
+        'proto[name]=_nat(function(){var r=o.apply(this,arguments);try{fn.apply(null,arguments);}catch(e){}return r;});' +
+        'try{Object.defineProperty(proto[name],"name",{value:name,configurable:true});}catch(e){}}catch(e){}}' +
+        'if(window.AnalyserNode){' +
+        '  _p(AnalyserNode.prototype,"getFloatFrequencyData",function(a){_f32(a,0);});' +
+        '  _p(AnalyserNode.prototype,"getFloatTimeDomainData",function(a){_f32(a,7);});' +
+        '  _p(AnalyserNode.prototype,"getByteFrequencyData",function(a){_u8(a,13);});' +
+        '  _p(AnalyserNode.prototype,"getByteTimeDomainData",function(a){_u8(a,29);});' +
+        '}' +
+        'if(window.OfflineAudioContext){try{' +
+        '  var _sr=OfflineAudioContext.prototype.startRendering;' +
+        '  OfflineAudioContext.prototype.startRendering=_nat(function(){' +
+        '    var p=_sr.apply(this,arguments);' +
+        '    try{if(p&&typeof p.then==="function")p.then(function(buf){' +
+        '      try{if(buf&&buf.getChannelData&&buf.numberOfChannels){' +
+        '        for(var c=0;c<buf.numberOfChannels;c++){_f32(buf.getChannelData(c),101+c*7);}' +
+        '      }}catch(e){}});' + '}catch(e){}' +
+        '    return p;});' +
+        '}catch(e){}}' +
+        '})();';
+    }
     // ===== Super Drag =====
     // Drag selected text ≥55px → search it in a background tab; drag a link →
     // open in background tab; drag an image → reverse image search (Lens).
     // Drops into editable fields (input/textarea/contenteditable) are left to
     // the page — only "free" drops are intercepted.
-    if (sec.superDrag) {
+    // OFF on the browser's OWN pages (_exposeFullAPI = file:// inside the app
+    // dir): they have their own drag&drop — start-page site cards, Settings
+    // list rows, customize/theme chips — and the capture-phase drop hijack
+    // below broke it (dragging a site card opened a Lens reverse-image search
+    // instead of reordering the card). Regular web pages keep the feature.
+    if (sec.superDrag && !_exposeFullAPI) {
       code += '(function(){' +
-        'if(window.__spzSuperDrag)return;window.__spzSuperDrag=true;' +
+        'if(window.__spzSuperDrag)return;' +
+        'try{Object.defineProperty(window,"__spzSuperDrag",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzSuperDrag=true;}' +
         'var _di=null,_T=55;' +
         'document.addEventListener("dragstart",function(e){' +
         '  _di=null;' +
@@ -878,7 +1182,7 @@ try {
         '  e.preventDefault();e.stopPropagation();' +
         '  var dx=e.clientX-_di.startX,dy=e.clientY-_di.startY;' +
         '  if(Math.sqrt(dx*dx+dy*dy)>=_T){' +
-        '    try{window.postMessage({__spzSuperDrag:true,kind:_di.kind,payload:_di.payload},"*");}catch(x){}' +
+        '    try{window.__spzSend&&window.__spzSend("superdrag",{kind:_di.kind,payload:_di.payload});}catch(x){}' +
         '  }' +
         '  _di=null;' +
         '},true);' +
@@ -891,7 +1195,7 @@ try {
     // fooled: track settings look normal, no permission prompt appears.
     if (sec.fakeMedia) {
       code += '(function(){' +
-        'if(window.__spzFakeMedia)return;window.__spzFakeMedia=true;' +
+        'if(window.__spzFakeMedia)return;try{Object.defineProperty(window,"__spzFakeMedia",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzFakeMedia=true;}' +
         'if(!navigator.mediaDevices)return;' +
         'function _fakeVideoStream(w,h){' +
         '  var c=document.createElement("canvas");c.width=w;c.height=h;' +
@@ -936,6 +1240,21 @@ try {
         '};' +
         '})();';
     }
+    // ===== Internal-page drag marker =====
+    // Every drag started on a browser-internal page carries this marker so
+    // the shell's drop-to-open/drop-to-search system ignores it: internal UI
+    // drag&drop (Settings lists, customize chips, start-page site cards) is
+    // our own machinery — dropping it on the chrome must never open a search
+    // tab for the payload (it opened searches for button ids/JSON before).
+    if (_exposeFullAPI) {
+      code += '(function(){' +
+        'if(window.__spzUiDragMark)return;' +
+        'try{Object.defineProperty(window,"__spzUiDragMark",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzUiDragMark=true;}' +
+        'document.addEventListener("dragstart",function(e){' +
+        '  try{if(e.dataTransfer)e.dataTransfer.setData("application/x-startpozi-ui-drag","1");}catch(x){}' +
+        '},true);' +
+        '})();';
+    }
     if (code) {
       // Only executeJavaScript — bypasses CSP/Trusted Types. Injection via
       // <script>.textContent throws "TrustedScript assignment" on protected
@@ -964,10 +1283,11 @@ function applyDataSaver(on) {
   } catch(e) {}
 }
 (function installDataSaverEngine() {
+  if (_authStealth) return;
   if (!webFrame || !webFrame.executeJavaScript) return;
   var engineCode = '(' + function __spzDataSaverEngine() {
     if (window.__spzDataSaverInstalled) return;
-    window.__spzDataSaverInstalled = true;
+    try{Object.defineProperty(window,"__spzDataSaverInstalled",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzDataSaverInstalled=true;}
     var ON = false;
     var observer = null;
     var mutationObserver = null;
@@ -1043,7 +1363,7 @@ function applyDataSaver(on) {
         stop();
       }
     }
-    window.__spzDataSaverSet = setOn;
+    try{Object.defineProperty(window,"__spzDataSaverSet",{value:setOn,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzDataSaverSet=setOn;}
   }.toString() + ')();';
   try {
     webFrame.executeJavaScript(engineCode).then(function() {
@@ -1074,10 +1394,11 @@ ipcRenderer.on('data-saver', function(_, data) {
 var _ecoInstalled = false;
 var _ecoWanted = null; // desired state before the engine is installed (race on early IPC)
 (function installEcoEngine() {
+  if (_authStealth) return;
   if (!webFrame || !webFrame.executeJavaScript) return;
   var engineCode = '(' + function __spzEcoEngine() {
     if (window.__spzEcoInstalled) return;
-    window.__spzEcoInstalled = true;
+    try{Object.defineProperty(window,"__spzEcoInstalled",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzEcoInstalled=true;}
     var STYLE_ID = '__spz_eco_freeze';
     var ON = false;
     var _origRAF = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : null;
@@ -1149,8 +1470,9 @@ var _ecoWanted = null; // desired state before the engine is installed (race on 
         flush();
       }
     }
-    window.__spzEcoSet = setOn;
-    window.__spzEcoIsOn = function() { return ON; };
+    var _setOn = setOn, _isOn = function() { return ON; };
+    try{Object.defineProperty(window,"__spzEcoSet",{value:_setOn,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzEcoSet=_setOn;}
+    try{Object.defineProperty(window,"__spzEcoIsOn",{value:_isOn,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzEcoIsOn=_isOn;}
   }.toString() + ')();';
   try {
     webFrame.executeJavaScript(engineCode).then(function() {
@@ -1194,7 +1516,7 @@ ipcRenderer.on('eco-freeze', function(_, data) {
 // === Engine source (executed in the page's MAIN WORLD) ===
 function __spzVimEngine() {
   if (window.__spzVimInstalled) return;
-  window.__spzVimInstalled = true;
+  try{Object.defineProperty(window,"__spzVimInstalled",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzVimInstalled=true;}
 
   // ============ STATE ============
   var MAP = {};
@@ -1789,7 +2111,7 @@ function __spzVimEngine() {
   }, true);
 
   // ============ UPDATE ENTRY POINT ============
-  window.__spzVimUpdate = function (settings) {
+  var _vimUpdate = function (settings) {
     if (!settings) return;
     ENABLED = !!(settings && settings.enabled);
     MAP = buildMap((settings && settings.keys) || {});
@@ -1805,7 +2127,7 @@ function __spzVimEngine() {
   // The renderer calls this via tab.webview.executeJavaScript,
   // to switch modes / set marks / launch hint, etc.
   // from the QC command palette (instead of a separate in-page command bar).
-  window.__spzVimExec = function (action, arg) {
+  var _vimExec = function (action, arg) {
     if (action === 'isEnabled') return ENABLED;
     if (action === 'getMode') return MODE;
     if (action === 'getKeys') return JSON.parse(JSON.stringify(MAP));
@@ -1858,7 +2180,7 @@ function __spzVimEngine() {
   // whether it matched the MAP — the engine in NORMAL/VISUAL "swallows" it).
   // Returns false if the engine is disabled, in INSERT mode, or the key was
   // ignored (then chrome handles it itself).
-  window.__spzVimInjectKey = function (key, shiftKey, ctrlKey, altKey, metaKey) {
+  var _vimInject = function (key, shiftKey, ctrlKey, altKey, metaKey) {
     if (!ENABLED) return false;
     if (MODE === 'insert') return false;
     if (arguments.length < 1) return false;
@@ -1903,6 +2225,12 @@ function __spzVimEngine() {
       return false;
     }
   };
+
+  // Non-enumerable exposure (BotGuard enumerates window): the names stay the
+  // same — external callers (renderer, settings sync) use window.__spzVim*.
+  try { Object.defineProperty(window, '__spzVimUpdate', { value: _vimUpdate, enumerable: false, configurable: true, writable: true }); } catch (e) { window.__spzVimUpdate = _vimUpdate; }
+  try { Object.defineProperty(window, '__spzVimExec', { value: _vimExec, enumerable: false, configurable: true, writable: true }); } catch (e) { window.__spzVimExec = _vimExec; }
+  try { Object.defineProperty(window, '__spzVimInjectKey', { value: _vimInject, enumerable: false, configurable: true, writable: true }); } catch (e) { window.__spzVimInjectKey = _vimInject; }
 }
 
 (function injectVim() {
@@ -1931,7 +2259,7 @@ function __spzVimEngine() {
 
   // Engine installation + initial settings sync
   function syncInit(vim) {
-    var init = 'window.__spzVimInit = ' + JSON.stringify(vim || { enabled: false, keys: {} }) + ';';
+    var init = '(function(){var v=' + JSON.stringify(vim || { enabled: false, keys: {} }) + ';try{Object.defineProperty(window,"__spzVimInit",{value:v,enumerable:false,configurable:true,writable:true});}catch(e){window.__spzVimInit=v;}})();';
     try {
       webFrame.executeJavaScript(init).catch(function () {});
     } catch (e) {}
@@ -1939,6 +2267,7 @@ function __spzVimEngine() {
 
   try {
     if (webFrame && webFrame.executeJavaScript) {
+      if (_authStealth) return; // stock page on login screens
       // First set the init data, then launch the engine
       syncInit(_vimSettings);
       webFrame.executeJavaScript('(' + __spzVimEngine.toString() + ')()').catch(function () {});
@@ -1952,23 +2281,28 @@ function __spzVimEngine() {
 // so the level works independently of the other security toggles.
 (function injectTorSafer() {
   try {
+    // Nothing in the main world on login pages — a patched WebGL getter is a
+    // detection signal there (same contract as the other injections).
+    if (_authStealth) return;
     var sec = (_all && _all.security) || {};
     if (sec.torLevel !== 'safer') return;
-    var code = '(function(){' +
-      'var _g=Symbol.for("spzTor");if(Navigator.prototype[_g]&32)return;' +
+  var platformVersion = process.platform === 'win32' ? '15.0.0'
+    : process.platform === 'darwin' ? '10.15.7' : '6.5.0';
+  var code = '(function(){' +
+    'var _g=Symbol.for("spzTor");if(Navigator.prototype[_g]&32)return;' +
       'try{Object.defineProperty(Navigator.prototype,_g,{value:(Navigator.prototype[_g]||0)|32,enumerable:false,configurable:true});}catch(e){}' +
       // Spoofing WebGL parameters (similar to sec.blockWebGL, but for the safer level)
       'if(typeof WebGLRenderingContext!=="undefined"){' +
       '  var _gp=WebGLRenderingContext.prototype.getParameter;' +
       '  WebGLRenderingContext.prototype.getParameter=function(p){' +
-      '    if(p===37445||p===37446||p===7937||p===7936)return"Tor Browser";' +
+      '    if(p===37445||p===37446||p===7937||p===7936)return"StartPOZI Browser";' +
       '    return _gp.apply(this,arguments);' +
       '  };' +
       '}' +
       'if(typeof WebGL2RenderingContext!=="undefined"){' +
       '  var _gp2=WebGL2RenderingContext.prototype.getParameter;' +
       '  WebGL2RenderingContext.prototype.getParameter=function(p){' +
-      '    if(p===37445||p===37446||p===7937||p===7936)return"Tor Browser";' +
+      '    if(p===37445||p===37446||p===7937||p===7936)return"StartPOZI Browser";' +
       '    return _gp2.apply(this,arguments);' +
       '  };' +
       '}' +
@@ -1988,15 +2322,23 @@ function __spzVimEngine() {
 // can be empty. Google detects all this and blocks account sign-in.
 // We spoof it as Google Chrome. This code always runs.
 (function injectChromeBrands() {
+  // Skipped on login pages: there we present as Firefox (no userAgentData,
+  // no window.chrome at all) — see installFirefoxProfile.
+  if (_authStealth) return;
   var platform = process.platform === 'win32' ? 'Windows'
     : process.platform === 'darwin' ? 'macOS' : 'Linux';
+  // Must match the CDP metadata exactly (_buildUAOverrideMetadata in
+  // main.js) — a JS-vs-CDP mismatch is itself a spoof marker.
+  var platformVersion = process.platform === 'win32' ? '15.0.0'
+    : process.platform === 'darwin' ? '10.15.7' : '6.5.0';
   var code = '(function(){' +
-    // Guard via a private Symbol — NOT visible in Object.keys(window) / for-in.
-    // Previously this was window.__uaDataPatched — BotGuard found it by
-    // enumerating window properties and detected that the UA was spoofed.
     'var _g=Symbol();' +
     'if(Navigator.prototype[_g])return;' +
     'try{Object.defineProperty(Navigator.prototype,_g,{value:1,enumerable:false,configurable:false});}catch(e){return;}' +
+    // Outer wrapper: every section below is individually guarded, but this
+    // belt-and-suspenders try keeps a mid-section parse/runtime error from
+    // breaking the whole injection (its catch is the LAST }catch(e){}).
+    'try{' +
     // === Function.prototype.toString trap === BotGuard checks the descriptors
     // of overridden properties: Object.getOwnPropertyDescriptor(Navigator.prototype,
     // "userAgentData").get.toString() must return "...[native code]".
@@ -2012,10 +2354,10 @@ function __spzVimEngine() {
     'var _mn=function(fn){try{_nat.add(fn);}catch(e){}return fn;};' +
     '_nat.add(_mn);' +
     'try{' +
-    'var _brands=[{brand:"Chromium",version:"' + _chromeMajorVer + '"},{brand:"Not:A-Brand",version:"24"},{brand:"Google Chrome",version:"' + _chromeMajorVer + '"}];' +
+    'var _brands=[{brand:"StartPOZI Browser",version:"' + _chromeMajorVer + '"},{brand:"Not:A-Brand",version:"24"}];' +
     // fullVersionList for getHighEntropyValues — FULL versions, not major ones.
     // Google cross-checks uaFullVersion against fullVersionList — mismatch = spoof marker.
-    'var _brandsFull=[{brand:"Chromium",version:"' + _chromeFullVer + '"},{brand:"Not:A-Brand",version:"24.0.0.0"},{brand:"Google Chrome",version:"' + _chromeFullVer + '"}];' +
+    'var _brandsFull=[{brand:"StartPOZI Browser",version:"' + _chromeFullVer + '"},{brand:"Not:A-Brand",version:"24.0.0.0"}];' +
     // IMPORTANT: use Object.create(NavigatorUAData.prototype) if the prototype
     // exists — otherwise BotGuard detects it via instanceof / toString.
     'var _proto=(typeof NavigatorUAData!=="undefined")?NavigatorUAData.prototype:null;' +
@@ -2025,17 +2367,12 @@ function __spzVimEngine() {
     '  mobile:{value:false,enumerable:true,configurable:true},' +
     '  platform:{value:"' + platform + '",enumerable:true,configurable:true},' +
     '  getHighEntropyValues:{value:function(hints){' +
-    '    return Promise.resolve({' +
-    '      brands:_brands,' +
-    '      mobile:false,' +
-    '      platform:"' + platform + '",' +
-    '      platformVersion:"10.0.0",' +
-    '      architecture:"x86",' +
-    '      bitness:"64",' +
-    '      model:"",' +
-      '      uaFullVersion:"' + _chromeFullVer + '",' +
-      '      fullVersionList:_brandsFull' +
-    '    });' +
+      // Real Chrome returns the base set (brands/mobile/platform) plus ONLY
+      // the requested hints — returning everything for any query is a marker.
+      '    var _all={platformVersion:"' + platformVersion + '",architecture:"x86",bitness:"64",model:"",uaFullVersion:"' + _chromeFullVer + '",fullVersionList:_brandsFull,brands:_brands,mobile:false,platform:"' + platform + '"};' +
+      '    var _out={brands:_brands,mobile:false,platform:"' + platform + '"};' +
+      '    try{(hints||[]).forEach(function(h){if(Object.prototype.hasOwnProperty.call(_all,h))_out[h]=_all[h];});}catch(e){}' +
+      '    return Promise.resolve(_out);' +
     '  },enumerable:true,configurable:true},' +
     '  toJSON:{value:function(){return {brands:_brands,mobile:false,platform:"' + platform + '"};},enumerable:true,configurable:true}' +
     '});' +
@@ -2046,10 +2383,10 @@ function __spzVimEngine() {
     // would expose the default Electron UA containing "Electron".
     'try{Object.defineProperty(Navigator.prototype,"userAgent",{get:_mn(function(){return "Mozilla/5.0 (' +
       (platform === 'Windows' ? 'Windows NT 10.0; Win64; x64' : platform === 'macOS' ? 'Macintosh; Intel Mac OS X 10_15_7' : 'X11; Linux x86_64') +
-      ') AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}),configurable:true});}catch(e){}' +
+      ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}),configurable:true});}catch(e){}' +
     'try{Object.defineProperty(Navigator.prototype,"appVersion",{get:_mn(function(){return "5.0 (' +
       (platform === 'Windows' ? 'Windows NT 10.0; Win64; x64' : platform === 'macOS' ? 'Macintosh; Intel Mac OS X 10_15_7' : 'X11; Linux x86_64') +
-      ') AppleWebKit/537.36 (KHTML, like Gecko) Chrome/' + _chromeFullVer + ' Safari/537.36";}),configurable:true});}catch(e){}' +
+      ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}),configurable:true});}catch(e){}' +
     // Just in case, hide the webdriver flag (if any left)
     'try{Object.defineProperty(Navigator.prototype,"webdriver",{get:_mn(function(){return false;}),configurable:true});}catch(e){}' +
     // === window.chrome === real Chrome has a window.chrome object with runtime,
@@ -2070,26 +2407,41 @@ function __spzVimEngine() {
     '};}' +
     'if(!window.chrome.csi){window.chrome.csi=function(){return {startE:Date.now(),onloadT:Date.now(),pageT:Date.now()-performance.timing.navigationStart,tran:15};};}' +
     'if(!window.chrome.app){window.chrome.app={isInstalled:false,InstallState:{DISABLED:"disabled",INSTALLED:"installed",NOT_INSTALLED:"not_installed"},RunningState:{CANNOT_RUN:"cannot_run",READY_TO_RUN:"ready_to_run",RUNNING:"running"},getDetails:function(){return null;},getIsInstalled:function(){return false;}};}' +
-    // === navigator.plugins / mimeTypes === real Chrome exposes 3 built-in plugins
-    // (PDF Viewer, Chrome PDF Viewer, Chromium PDF Viewer). Electron may expose an empty
-    // list — Google/antibot systems check for this.
+    // === navigator.plugins / mimeTypes === real Chrome exposes 3 built-in
+    // plugins (PDF Viewer, Chrome PDF Viewer, Chromium PDF Viewer), each with
+    // 2 MIME types. Electron exposes an empty list — antibot checks compare.
+    // CRITICAL: instances must pass "instanceof PluginArray/Plugin/MimeType"
+    // — plain objects (the old fake) fail that check instantly.
     'try{' +
-    'var _fakePdfPlugin=function(name,desc,fn){' +
-    '  var p={name:name,description:desc,filename:fn,length:1};' +
-    '  var mt={type:"application/pdf",suffixes:"pdf",description:"Portable Document Format"};' +
-    '  try{Object.defineProperty(p,"0",{get:function(){return mt;}});}catch(e){}' +
-    '  return p;' +
-    '};' +
-    'var _plugins=[_fakePdfPlugin("PDF Viewer","Portable Document Format","internal-pdf-viewer"),_fakePdfPlugin("Chrome PDF Viewer","Portable Document Format","internal-pdf-viewer"),_fakePdfPlugin("Chromium PDF Viewer","Portable Document Format","internal-pdf-viewer")];' +
-    'var _makePluginArray=function(arr){' +
-    '  var o={length:arr.length};' +
-    '  for(var i=0;i<arr.length;i++){o[i]=arr[i];o.item=function(j){return arr[j]||null;};o.namedItem=function(n){return arr.find(function(p){return p.name===n;})||null;};}' +
-    '  return o;' +
-    '};' +
-    'var _pa=_makePluginArray(_plugins);' +
-    'var _ma=_makePluginArray([{type:"application/pdf",suffixes:"pdf",description:"Portable Document Format",enabledPlugin:_plugins[0]}]);' +
-    'try{Object.defineProperty(Navigator.prototype,"plugins",{get:_mn(function(){return _pa;}),configurable:true});}catch(e){}' +
-    'try{Object.defineProperty(Navigator.prototype,"mimeTypes",{get:_mn(function(){return _ma;}),configurable:true});}catch(e){}' +
+    'function _mkMT(type,plugin){' +
+      'var m=Object.create(MimeType.prototype);' +
+      'Object.defineProperties(m,{type:{value:type,enumerable:true},suffixes:{value:"pdf",enumerable:true},description:{value:"Portable Document Format",enumerable:true}});' +
+      'try{Object.defineProperty(m,"enabledPlugin",{get:_mn(function(){return plugin;}),enumerable:true,configurable:true});}catch(e2){}' +
+      'return m;' +
+    '}' +
+    'var _plugins=["PDF Viewer","Chrome PDF Viewer","Chromium PDF Viewer"].map(function(nm){' +
+      'var p=Object.create(Plugin.prototype);' +
+      'var m1=_mkMT("application/pdf",p);' +
+      'var m2=_mkMT("text/pdf",p);' +
+      'Object.defineProperties(p,{name:{value:nm,enumerable:true},description:{value:"Portable Document Format",enumerable:true},filename:{value:"internal-pdf-viewer",enumerable:true},length:{value:2}});' +
+      'try{' +
+        'Object.defineProperty(p,"0",{get:_mn(function(){return m1;}),enumerable:true,configurable:true});' +
+        'Object.defineProperty(p,"1",{get:_mn(function(){return m2;}),enumerable:true,configurable:true});' +
+      '}catch(e2){}' +
+      'p.item=_mn(function(i){return i===0?m1:(i===1?m2:null);});' +
+      'p.namedItem=_mn(function(t){return t==="application/pdf"?m1:(t==="text/pdf"?m2:null);});' +
+      'return p;' +
+    '});' +
+    'var _pa=Object.create(PluginArray.prototype);' +
+    'try{for(var _pi=0;_pi<_plugins.length;_pi++){Object.defineProperty(_pa,String(_pi),{get:_mn(function(idx){return function(){return _plugins[idx];};}(_pi)),enumerable:true,configurable:true});}}catch(e2){}' +
+    'Object.defineProperties(_pa,{length:{value:_plugins.length},item:{value:_mn(function(i){return _plugins[i]||null;}),enumerable:true},namedItem:{value:_mn(function(n){for(var i=0;i<_plugins.length;i++){if(_plugins[i].name===n)return _plugins[i];}return null;}),enumerable:true},refresh:{value:_mn(function(){}),enumerable:true}});' +
+    'var _ma=Object.create(MimeTypeArray.prototype);' +
+    'var _mimes=[_mkMT("application/pdf",_plugins[0]),_mkMT("text/pdf",_plugins[0])];' +
+    'try{for(var _mi=0;_mi<_mimes.length;_mi++){Object.defineProperty(_ma,String(_mi),{get:_mn(function(idx){return function(){return _mimes[idx];};}(_mi)),enumerable:true,configurable:true});}}catch(e2){}' +
+    'Object.defineProperties(_ma,{length:{value:_mimes.length},item:{value:_mn(function(i){return _mimes[i]||null;}),enumerable:true},namedItem:{value:_mn(function(t){for(var i=0;i<_mimes.length;i++){if(_mimes[i].type===t)return _mimes[i];}return null;}),enumerable:true}});' +
+    'try{Object.defineProperty(Navigator.prototype,"plugins",{get:_mn(function(){return _pa;}),configurable:true,enumerable:true});}catch(e){}' +
+    'try{Object.defineProperty(Navigator.prototype,"mimeTypes",{get:_mn(function(){return _ma;}),configurable:true,enumerable:true});}catch(e){}' +
+    '}catch(e){}' +
     // === window.outerWidth / outerHeight ===
     // In Electron with frameless window outerHeight===innerHeight.
     // Real Chrome: outerHeight = innerHeight + (tab bar ~36 + address bar ~48 + bookmarks ~28).
@@ -2125,6 +2477,23 @@ function __spzVimEngine() {
     'if(desc&&desc.name==="notifications"){return Promise.resolve({state:"prompt",onchange:null});}' +
     'return orig.call(navigator.permissions,desc);' +
     '};})(_origQuery);_nat.add(navigator.permissions.query);}' +
+    '}catch(e){}' +
+    // === speechSynthesis.getVoices() === Electron on Linux often returns an
+    // EMPTY voice list (no speech-dispatcher), while real Chrome ships system
+    // voices — an empty array is a known Electron fingerprint. Provide a
+    // standard voice set ONLY when the engine exposes none.
+    'try{' +
+    'if(window.speechSynthesis&&!speechSynthesis.getVoices().length){' +
+      'var _vset=[' +
+        '{name:"English (United States)",lang:"en-US",localService:true,default:true},' +
+        '{name:"English (United Kingdom)",lang:"en-GB",localService:true,default:false}' +
+      '].map(function(v){' +
+        'var o=Object.create(SpeechSynthesisVoice.prototype);' +
+        'Object.defineProperties(o,{name:{value:v.name,enumerable:true},lang:{value:v.lang,enumerable:true},localService:{value:v.localService,enumerable:true},default:{value:v.default,enumerable:true},voiceURI:{value:v.name,enumerable:true}});' +
+        'return o;' +
+      '});' +
+      'speechSynthesis.getVoices=_mn(function(){return _vset.slice();});' +
+    '}' +
     '}catch(e){}' +
     // === navigator.languages consistency === ensure array format matches Chrome
     'try{' +
@@ -2362,6 +2731,12 @@ function __spzVimEngine() {
 })();
 
 var _pickerActive = false;
+// NOTE: the picker is now launched exclusively by the main process via
+// executeJavaScript in the page's MAIN world (see _MAIN_WORLD_PICKER_CODE in
+// main.js) — isolated-world listeners proved unreliable on heavy sites and
+// cross-world postMessage is dead in Electron 42. The isolated-world picker
+// below remains only for internal file:// pages that call
+// electronAPI.startElementPicker() directly.
 function _startElementPicker() {
   if (_pickerActive) { _stopElementPicker(); return; }
   if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
@@ -2387,7 +2762,16 @@ function _startElementPicker() {
 
   var hint = document.createElement('div');
   hint.className = '__spz_hint';
-  hint.innerHTML = 'Click an element to <b>hide it forever</b>. <kbd>Esc</kbd> — cancel, <kbd>U</kbd> — undo last.';
+  // DOM API + textContent only: sites with a Trusted-Types CSP (YouTube)
+  // throw on innerHTML assignment, which used to kill the whole picker.
+  (function(){
+    function kbd(txt){ var k = document.createElement('kbd'); k.textContent = txt; return k; }
+    hint.appendChild(document.createTextNode('Click an element to '));
+    var b = document.createElement('b'); b.textContent = 'hide it forever'; hint.appendChild(b);
+    hint.appendChild(document.createTextNode('. ')); hint.appendChild(kbd('Esc'));
+    hint.appendChild(document.createTextNode(' — cancel, ')); hint.appendChild(kbd('U'));
+    hint.appendChild(document.createTextNode(' — undo last.'));
+  })();
   document.documentElement.appendChild(hint);
 
   var lastHover = null;
@@ -2443,6 +2827,17 @@ function _startElementPicker() {
     var t = e.target;
     if (t === overlay || t === hint) return;
     var sel = buildSelector(t);
+    if (!sel) {
+      // Unselectable target (html/body root / bare background). Keep the
+      // picker alive — silently closing on a stray click looks like the
+      // zapper stopped working. Flash the hint as feedback instead.
+      try {
+        hint.style.transition = 'opacity .12s';
+        hint.style.opacity = '0.25';
+        setTimeout(function() { try { hint.style.opacity = '1'; } catch(err) {} }, 200);
+      } catch(err) {}
+      return;
+    }
     _stopElementPicker();
     if (sel) {
       var domain = '';

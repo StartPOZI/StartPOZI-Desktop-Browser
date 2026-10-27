@@ -20,6 +20,12 @@
   --border-color-alpha: rgba(255, 255, 255, 0.08);
   --hover-bg: rgba(255, 255, 255, 0.08);
   --overlay-bg: rgba(28, 28, 38, 0.92);
+  /* Popover panels (toolbar menus, workspaces, autofill…): nearly opaque
+     and slightly darker than the chrome — the page must not shine through
+     a dropdown the user is trying to read. */
+  --panel-bg: rgba(30, 30, 34, 0.98);
+  --tabstrip-shade: rgba(0, 0, 0, 0.28);
+  --toolbar-bg-alpha: rgba(38, 38, 38, var(--win-opacity));
 }
 
 /* ===== DARK THEME (explicit) ===== */
@@ -34,6 +40,9 @@ body.theme-dark {
   --border-color-alpha: rgba(255, 255, 255, 0.08);
   --hover-bg: rgba(255, 255, 255, 0.08);
   --overlay-bg: rgba(28, 28, 38, 0.92);
+  --panel-bg: rgba(30, 30, 34, 0.98);
+  --tabstrip-shade: rgba(0, 0, 0, 0.28);
+  --toolbar-bg-alpha: rgba(38, 38, 38, var(--win-opacity));
   --bg-color-alpha: rgba(32, 32, 32, var(--win-opacity));
   --bg-secondary-alpha: rgba(45, 45, 45, var(--win-opacity));
 }
@@ -50,6 +59,9 @@ body.theme-light {
   --border-color-alpha: rgba(0, 0, 0, 0.08);
   --hover-bg: rgba(0, 0, 0, 0.05);
   --overlay-bg: rgba(245, 245, 247, 0.92);
+  --panel-bg: rgba(250, 250, 252, 0.98);
+  --tabstrip-shade: rgba(0, 0, 0, 0.07);
+  --toolbar-bg-alpha: rgba(250, 250, 252, var(--win-opacity));
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   --bg-color-alpha: rgba(245, 245, 247, var(--win-opacity));
   --bg-secondary-alpha: rgba(255, 255, 255, var(--win-opacity));
@@ -66,7 +78,11 @@ body {
   flex-direction: column;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  border-radius: 10px;
+  /* Rounded window corners (visible while the window is a normal floating
+     window on a transparent window; macOS/Win11 also round natively via the
+     roundedCorners BrowserWindow option). Square again when maximized or in
+     HTML-fullscreen — rounded corners there would clip page content. */
+  border-radius: 12px;
   overflow: hidden;
   /* Disable text selection across the chrome UI. Without this, dragging the
      frameless window (via -webkit-app-region: drag on .titlebar) triggers a
@@ -128,6 +144,20 @@ input, textarea,
   75% { background-position: 0% 100%; }
 }
 
+/* Square the WINDOW corners only (maximized / native fullscreen /
+   HTML-fullscreen): body + titlebar. The NAVBAR seam rounding stays in
+   every state — that is the toolbar's divider curve, not a window corner. */
+body.win-maximized,
+body.win-fullscreen,
+body.html-fullscreen {
+  border-radius: 0;
+}
+body.win-maximized .titlebar,
+body.win-fullscreen .titlebar,
+body.html-fullscreen .titlebar {
+  border-radius: 0;
+}
+
 /* Light-theme override: bright animated gradient behind the translucent body */
 body.theme-light .window-blur-bg::before {
   background: linear-gradient(135deg,
@@ -143,16 +173,20 @@ body.theme-light .window-blur-bg::before {
   filter: blur(100px) saturate(1.4) brightness(1.05);
 }
 
-/* Title Bar */
+/* Title Bar (hosts the tab strip). Slightly darker than the toolbar below
+   (shade layered over the translucent base color). Bottom edge is straight
+   and carries NO border: the divider between the panels belongs to the
+   TOOLBAR below (its border-top), so the line curves around the toolbar's
+   rounded top corners. */
 .titlebar {
   display: flex;
   align-items: center;
   height: var(--titlebar-height, 40px);
-  background: var(--bg-color-alpha);
-  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color-alpha);
+  background-image: linear-gradient(var(--tabstrip-shade), var(--tabstrip-shade));
   padding: 0 12px;
   -webkit-app-region: drag;
-  border-radius: 10px 10px 0 0;
+  border-radius: 12px 12px 0 0;
 }
 
 /* === Auto-hide top chrome ===
@@ -167,11 +201,39 @@ body.theme-light .window-blur-bg::before {
    ends up overlaid on the webview. Collapsing max-height to 0 removes the
    chrome from flow, so .browser-content slides up to fill the gap with the
    actual page — no hole, no transparency artefacts. */
+/* Vertical-tabs specifics: the workspace-btn is position:absolute, so it
+   escapes the collapsed titlebar — hide it directly. The sidebar (.tabs-bar)
+   collapses together with the top chrome: the body-level width override
+   beats the :root inline custom property for everything inside body, so
+   .navbar/.titlebar/.browser-content margins slide to 0 in one move and
+   the page fills the freed space. Revealed by the top OR the left edge
+   hotspot (both set body.chrome-revealed). */
+body.chrome-autohide.vertical-tabs .tabs-bar {
+  transition: width 0.18s ease, padding 0.18s ease, border-width 0.18s ease;
+}
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) {
+  --vertical-tabs-width: 0px;
+}
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .workspace-btn { display: none; }
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .tabs-bar {
+  top: 0;
+  width: 0;
+  padding: 0;
+  border-right-width: 0;
+  overflow: hidden;
+}
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .vtabs-resizer { display: none; }
+
+/* Smooth slide of the elements that follow the sidebar width. */
 body.chrome-autohide .titlebar,
 body.chrome-autohide .navbar {
   max-height: 120px;
   overflow: hidden;
-  transition: max-height 0.18s ease, padding 0.18s ease, border-width 0.18s ease, opacity 0.14s ease;
+  transition: max-height 0.18s ease, padding 0.18s ease, border-width 0.18s ease, opacity 0.14s ease, margin-left 0.18s ease, padding-left 0.18s ease;
+}
+body.chrome-autohide .browser-content,
+body.chrome-autohide #findBar {
+  transition: margin-left 0.18s ease, left 0.18s ease;
 }
 body.chrome-autohide:not(.chrome-revealed) .titlebar,
 body.chrome-autohide:not(.chrome-revealed) .navbar {
@@ -181,14 +243,6 @@ body.chrome-autohide:not(.chrome-revealed) .navbar {
   border-bottom-width: 0;
   opacity: 0;
 }
-
-/* Vertical-tabs specifics: the workspace-btn is position:absolute, so it
-   escapes the collapsed titlebar — hide it directly. The sidebar (.tabs-bar)
-   is pinned at top:var(--titlebar-height); once the titlebar is gone, shift it
-   up to the very top so there is no empty band above it. The sidebar itself
-   stays visible (it is navigation, not top chrome). */
-body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .workspace-btn { display: none; }
-body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .tabs-bar { top: 0; }
 
 /* The hotspot strip is shown ONLY while the chrome is collapsed, so it can
    catch the cursor entering the top edge. The moment chrome-revealed is set,
@@ -202,11 +256,24 @@ body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .tabs-bar { top: 0; }
 #autohideHotspot { display: none; }
 body.chrome-autohide:not(.chrome-revealed) #autohideHotspot { display: block; }
 
+/* Left-edge hotspot: active only when the vertical sidebar is collapsed
+   (same display-on-hover trap as the top strip). */
+#autohideLeftHotspot { display: none; }
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) #autohideLeftHotspot { display: block; }
+
 .titlebar-controls {
   display: flex;
   gap: 8px;
   -webkit-app-region: no-drag;
   margin-left: auto;
+}
+
+/* macOS: window controls live on the LEFT side of the title bar, like a
+   native Mac app. Linux/Windows keep them on the right (margin-left: auto). */
+body.os-mac .titlebar-controls {
+  order: -1;
+  margin-left: 0;
+  margin-right: 10px;
 }
 
 .titlebar-title {
@@ -292,8 +359,8 @@ body.win-inactive .mac-glyph    { opacity: 0 !important; }
    Toggled via body.win-controls — keeps the same DOM, just a different skin. */
 body.win-controls .titlebar-controls { gap: 0; }
 body.win-controls .mac-btn {
-  width: 46px;
-  height: 32px;
+  width: 38px;
+  height: 28px;
   border-radius: 0;
   background: transparent;
   transition: background-color .12s ease;
@@ -326,15 +393,21 @@ body.win-controls .mac-maximize:hover .mac-glyph path { fill: var(--text-primary
 /* keep the inactive/maximized state rules even in windows mode */
 body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 
-/* Navigation Bar */
+/* Navigation Bar (toolbar with the URL bar). The DIVIDER between the panels
+   is this bar's border-TOP: it curves around the toolbar's rounded top
+   corners (radius 10px) toward the tab strip — the line wraps the toolbar,
+   not the tab strip. Lighter own fill contrasts with the darker strip
+   above. */
 .navbar {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 8px 16px;
-  background: var(--bg-color-alpha);
+  background: var(--toolbar-bg-alpha);
+  border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
   gap: 12px;
+  border-radius: 10px 10px 0 0;
 }
 
 .search-container {
@@ -369,6 +442,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   font-size: 18px;
   font-weight: bold;
   transition: background 0.2s;
+  -webkit-app-region: no-drag;
 }
 
 .nav-btn:hover {
@@ -379,6 +453,216 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   opacity: 0.3;
   cursor: default;
 }
+
+/* ===== Ad-blocker shield: live status colors + page counter badge ===== */
+#adblockBtn {
+  position: relative;
+  overflow: visible;
+}
+
+#adblockBtn .ab-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: #28ca42;
+  color: #07130a;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bg-color, #1e1e1e);
+}
+
+/* ===== Dark Reader panel ===== */
+.dr-panel {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Light/Dark segmented control — the primary on/off for site darkening */
+.dr-mode-seg {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-secondary, #2a2a2a);
+  border: 1px solid var(--border-color, #3d3d3d);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 10px;
+}
+
+.dr-mode-seg button {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+.dr-mode-seg button.active {
+  background: var(--primary-color, #1da1f2);
+  color: #fff;
+}
+
+.dr-sched {
+  background: var(--bg-secondary, #2a2a2a);
+  border: 1px solid var(--border-color, #3d3d3d);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.dr-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--text-primary, #eee);
+}
+
+.dr-check input {
+  accent-color: var(--primary-color, #1da1f2);
+}
+
+.dr-times {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.dr-times label {
+  font-size: 11.5px;
+  color: var(--text-secondary, #999);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dr-times input[type=time] {
+  background: var(--bg-color, #202020);
+  border: 1px solid var(--border-color, #3d3d3d);
+  color: var(--text-primary, #eee);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color-scheme: dark;
+}
+
+.dr-mode-row select {
+  width: 100%;
+  background: var(--bg-secondary, #2a2a2a);
+  border: 1px solid var(--border-color, #3d3d3d);
+  color: var(--text-primary, #eee);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  margin-bottom: 8px;
+}
+
+.dr-sites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 90px;
+  overflow-y: auto;
+}
+
+.dr-site-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-secondary, #2a2a2a);
+  border: 1px solid var(--border-color, #3d3d3d);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  color: var(--text-primary, #eee);
+}
+
+.dr-site-chip .dr-chip-x {
+  cursor: pointer;
+  color: var(--text-secondary, #999);
+  font-size: 13px;
+}
+
+.dr-site-chip .dr-chip-x:hover {
+  color: #ff453a;
+}
+
+.dr-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--text-primary, #eee);
+}
+
+.dr-slider-row span {
+  flex: 0 0 86px;
+}
+
+.dr-slider-row input[type=range] {
+  flex: 1;
+  accent-color: var(--primary-color, #1da1f2);
+}
+
+.dr-slider-row b {
+  flex: 0 0 38px;
+  text-align: right;
+  font-size: 11.5px;
+  color: var(--text-secondary, #999);
+  font-weight: 600;
+}
+
+/* Educational "We blocked N trackers" nudge under the shield button */
+.ab-nudge {
+  position: absolute;
+  z-index: 9000;
+  max-width: 300px;
+  padding: 12px 34px 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-secondary, #2a2a2a);
+  border: 1px solid var(--border-color, #3d3d3d);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text-primary, #eee);
+  font-size: 12.5px;
+  line-height: 1.45;
+  animation: abNudgeIn 0.25s ease;
+}
+
+.ab-nudge .ab-nudge-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #999);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.ab-nudge b {
+  color: #28ca42;
+}
+
+@keyframes abNudgeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 
 #downloadsBtn {
   position: relative;
@@ -437,7 +721,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   right: 52px;
   width: 340px;
   max-height: 360px;
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
@@ -543,7 +827,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   top: 76px;
   right: 52px;
   width: 280px;
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
@@ -603,12 +887,119 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 .ab-toggle input:checked + .ab-slider { background-color: #28ca42; }
 .ab-toggle input:checked + .ab-slider:before { transform: translateX(18px); }
 
-.ab-panel-stats { display: flex; padding: 14px; gap: 4px; }
-.ab-stat { flex: 1; text-align: center; }
+/* --- Detailed panel interior --- */
+/* Status strip: green "Enabled" / gray "Disabled" */
+.ab-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(40, 202, 66, 0.1);
+  border: 1px solid rgba(40, 202, 66, 0.25);
+  color: #28ca42;
+}
+.ab-status .ab-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex-shrink: 0;
+}
+.ab-status .ab-status-text {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.ab-status.off {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+/* Section labels */
+.ab-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 14px 14px 6px;
+}
+
+/* "This page" row: domain + blocked counter */
+.ab-page-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.ab-page-domain {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.ab-page-count {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.ab-page-num {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary-color);
+  line-height: 1;
+}
+.ab-page-sub {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.ab-site-toggle {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ab-site-toggle:hover { background: var(--hover-bg); color: var(--text-primary); }
+.ab-site-toggle.whitelisted { background: rgba(255,107,107,0.15); border-color: rgba(255,107,107,0.3); color: #ff6b6b; }
+
+/* Session stats — card grid */
+.ab-panel-stats {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px;
+}
+.ab-stat {
+  flex: 1;
+  text-align: center;
+  padding: 10px 4px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+}
 
 .ab-stat-num {
   display: block;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--primary-color);
   line-height: 1.2;
@@ -623,38 +1014,131 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   letter-spacing: 0.5px;
 }
 
-.ab-panel-site {
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-color);
+/* Action buttons: report a problem / check this site (stacked — the
+   Russian labels do not fit side by side in a 280px panel) */
+.ab-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 12px 0;
+}
+.ab-action-btn {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-#abSiteName {
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-}
-
-.ab-site-toggle {
-  padding: 5px 10px;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 6px;
   border: 1px solid var(--border-color);
+  border-radius: 8px;
   background: transparent;
   color: var(--text-secondary);
-  border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
 }
+.ab-action-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+}
 
-.ab-site-toggle:hover { background: var(--hover-bg); color: var(--text-primary); }
-.ab-site-toggle.whitelisted { background: rgba(255,107,107,0.15); border-color: rgba(255,107,107,0.3); color: #ff6b6b; }
+/* Engine diagnostics row: how many lists built the engine + reload button */
+.ab-engine-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary, rgba(255,255,255,0.04));
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.ab-engine-row.ab-engine-warn {
+  border-color: rgba(255,152,0,.55);
+  color: #ffb347;
+}
+.ab-engine-reload {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.ab-engine-reload:hover { color: var(--primary-color); }
+.ab-engine-reload.spinning { animation: ab-spin 0.9s linear infinite; display: inline-block; }
+@keyframes ab-spin { to { transform: rotate(360deg); } }
+
+/* Expandable full statistics (category breakdown + cookies) */
+.ab-fullstats-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% - 24px);
+  margin: 10px 12px 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ab-fullstats-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--primary-color);
+  background: var(--hover-bg);
+}
+.ab-fullstats-toggle-label { flex: 1; text-align: left; }
+.ab-fullstats-chevron { transition: transform 0.15s; }
+.ab-fullstats-toggle.open .ab-fullstats-chevron { transform: rotate(180deg); }
+.ab-fullstats {
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-secondary, rgba(255,255,255,0.04));
+}
+.ab-fullstats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.ab-fullstats-row b {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ab-fullstats-cookies {
+  border-top: 1px solid var(--border-color);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+/* Footer settings link */
+.ab-panel-settings {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ab-panel-settings:hover { background: var(--hover-bg); color: var(--text-primary); }
 
 .download-panel {
   position: absolute;
@@ -662,7 +1146,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   right: 16px;
   width: 380px;
   max-height: 420px;
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
@@ -744,6 +1228,8 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 
 .dl-item-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 .dl-item-meta .dl-status-progress { color: var(--primary-color); }
+.dl-item-meta .dl-status-paused { color: #b8860b; }
+.dl-progress-paused .dl-item-progress-bar { opacity: 0.5; }
 .dl-item-meta .dl-status-done { color: #28ca42; }
 .dl-item-meta .dl-status-failed { color: #ff5f57; }
 .dl-item-meta .dl-status-missing { color: #e5a00d; font-size: 11px; }
@@ -800,7 +1286,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   top: 76px;
   right: 16px;
   width: 320px;
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
@@ -956,6 +1442,12 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   height: 36px;
   transition: border-color 0.2s, box-shadow 0.2s;
   margin: 0 auto;
+  /* Must stay ABOVE the fullscreen suggestions overlay (z-index 4600) but
+     BELOW the big overlays (Quick Commands etc. start at 5000) — at 7100
+     the bar poked through EVERY overlay (QC palette, tab search…).
+     Partial selection/copy inside the URL bar works via the 4700 > 4600 gap. */
+  position: relative;
+  z-index: 4700;
 }
 
 .url-bar:focus-within {
@@ -1022,6 +1514,16 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 .url-reveal-btn:hover { opacity: 1; color: var(--text-primary); }
 .url-reveal-btn.revealed { color: var(--primary-color); opacity: 1; }
 
+/* Bookmark button in the address bar (replaces the reveal "eye" on
+   non-search-engine pages). Filled star when the page is bookmarked. */
+#urlBookmarkBtn.bookmarked {
+  opacity: 1;
+  color: var(--primary-color);
+}
+#urlBookmarkBtn.bookmarked svg {
+  fill: currentColor;
+}
+
 /* Tabs Bar */
 .tabs-bar {
   display: flex;
@@ -1033,7 +1535,10 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   scrollbar-color: var(--border-color) transparent;
   gap: 1px;
   min-width: 0;
-  -webkit-app-region: no-drag;
+  /* The empty space of the tab strip is a window-drag handle (like Chrome:
+     grab the strip next to the tabs and move the window). The interactive
+     children (.tab, .nav-btn, .tab-new-btn) re-opt-out below. */
+  -webkit-app-region: drag;
 }
 
 .tabs-bar-btns {
@@ -1097,6 +1602,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
   transition: background 0.2s;
   border-radius: 6px;
   user-select: none;
+  -webkit-app-region: no-drag;
   position: relative;
   flex-shrink: 1;
   overflow: hidden;
@@ -1180,7 +1686,7 @@ body.win-controls.win-inactive .mac-btn:hover { background: transparent; }
 .tab-preview {
   position: fixed;
   z-index: 2500;
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color, #333);
   border-radius: 10px;
   padding: 6px;
@@ -1423,7 +1929,7 @@ body.translucent-mode .browser-content {
 .qc-container {
   width: 520px;
   max-width: 90vw;
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color, #ddd);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
@@ -1696,8 +2202,24 @@ body.translucent-mode .browser-content {
   transition: background 0.1s;
   white-space: nowrap;
 }
+/* Menu items are real <button>s: reset UA styles, keep the visual identity. */
+button.hm-item {
+  background: none;
+  border: none;
+  font: inherit;
+  width: 100%;
+  text-align: left;
+}
 .hm-item:hover { background: rgba(74, 144, 217, 0.12); }
 .hm-item:active { background: rgba(74, 144, 217, 0.2); }
+
+/* Accessibility: a visible focus ring for keyboard navigation across the
+   whole chrome UI (tabs, toolbar, omnibox, menus). */
+:focus-visible {
+  outline: 2px solid var(--accent-color, #4a90d9);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
 
 .hm-icon {
   width: 18px;
@@ -1722,6 +2244,98 @@ body.translucent-mode .browser-content {
   height: 1px;
   background: var(--border-color, #eee);
   margin: 4px 12px;
+}
+
+/* ===== Hamburger menu customize mode (Settings → "Open menu customization") ===== */
+.hm-customize-panel {
+  margin: 6px 10px 8px;
+  padding: 10px;
+  border: 1px dashed rgba(59, 125, 216, 0.55);
+  border-radius: 10px;
+  background: rgba(59, 125, 216, 0.06);
+}
+.hm-customize-panel .hm-cust-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  margin-bottom: 2px;
+}
+.hm-customize-panel .hm-cust-hint {
+  font-size: 10px;
+  color: var(--text-secondary, #888);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.hm-cust-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.hm-cust-pool:empty::after {
+  content: 'All items are in the menu';
+  font-size: 10px;
+  font-style: italic;
+  color: var(--text-secondary, #888);
+  width: 100%;
+  text-align: center;
+  padding: 4px 0;
+}
+.hm-cust-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  font-size: 11px;
+  color: var(--text-primary, #222);
+  background: var(--bg-secondary-alpha, rgba(127,127,127,0.12));
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 7px;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+}
+.hm-cust-chip:hover { border-color: #3b7dd8; }
+.hm-cust-chip.dragging { opacity: 0.4; }
+.hm-cust-chip svg { width: 13px; height: 13px; }
+.hm-customize-panel .hm-cust-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+.hm-cust-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.hm-cust-btn.done { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+.hm-cust-btn.done:hover { filter: brightness(1.1); }
+.hm-cust-btn.reset { background: var(--hover-bg, rgba(127,127,127,0.15)); color: var(--text-primary, #222); }
+.hm-cust-btn.reset:hover { filter: brightness(1.15); }
+/* Live-menu drag affordances while customizing */
+.hamburger-menu.hm-customizing .hm-item { cursor: grab; }
+.hamburger-menu.hm-customizing .hm-divider { cursor: grab; min-height: 8px; position: relative; }
+.hamburger-menu.hm-customizing .hm-divider::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 3px; bottom: 3px;
+  border-top: 1px dashed var(--border-color, #eee);
+}
+.hamburger-menu.hm-customizing .hm-item.dragging { opacity: 0.35; }
+.hamburger-menu.hm-drag-over {
+  border-color: #3b7dd8;
+  box-shadow: 0 0 0 2px rgba(59, 125, 216, 0.35), 0 8px 28px rgba(0,0,0,0.18);
+}
+.hamburger-menu.hm-customizing .hm-item.hm-drop-before {
+  box-shadow: inset 0 2px 0 #3b7dd8;
+}
+.hamburger-menu.hm-customizing .hm-item.hm-drop-after {
+  box-shadow: inset 0 -2px 0 #3b7dd8;
 }
 
 /* Reader Mode */
@@ -2126,7 +2740,7 @@ body.translucent-mode .browser-content {
 .dialog-overlay.active { display: flex; }
 
 .dialog-box {
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 24px 28px 20px;
@@ -2195,7 +2809,7 @@ body.translucent-mode .browser-content {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 7000;
+  z-index: 4600;
   display: none;
   -webkit-app-region: no-drag;
 }
@@ -2204,7 +2818,8 @@ body.translucent-mode .browser-content {
 
 .url-suggestions {
   position: fixed;
-  background: var(--bg-secondary-alpha);
+  z-index: 4600;
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-top: none;
   border-radius: 0 0 10px 10px;
@@ -2306,7 +2921,9 @@ body.vertical-tabs .tab.active {
   border-left-color: var(--primary-color);
 }
 
-body.vertical-tabs .tab .tab-title { max-width: 130px; }
+body.vertical-tabs .tab .tab-title { max-width: none; }
+/* The title flexes to fill the tab, so the close × pins to the right edge
+   and follows the panel width exactly like the tab's selection highlight. */
 
 body.vertical-tabs .titlebar { padding-left: var(--vertical-tabs-width, 180px); }
 body.vertical-tabs .navbar { margin-left: var(--vertical-tabs-width, 180px); border-bottom: 1px solid var(--border-color); }
@@ -2341,21 +2958,44 @@ body.vertical-tabs .vtab-new-btn {
   color: var(--text-color);
 }
 
+/* ===== Vertical tabs: drag-to-resize handle ===== */
+.vtabs-resizer {
+  display: none;
+  position: absolute;
+  left: var(--vertical-tabs-width, 180px);
+  top: var(--titlebar-height, 40px);
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 12;
+  -webkit-app-region: no-drag;
+}
+body.vertical-tabs .vtabs-resizer { display: block; }
+/* Auto-hide chrome: the side panel starts at the very top when hidden. */
+body.chrome-autohide.vertical-tabs:not(.chrome-revealed) .vtabs-resizer { top: 0; }
+.vtabs-resizer::after {
+  content: '';
+  position: absolute;
+  left: 2px; top: 0; bottom: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.vtabs-resizer:hover::after,
+body.vtabs-resizing .vtabs-resizer::after { background: var(--primary-color); }
+body.vtabs-resizing {
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* Webviews swallow mousemove — make them transparent for the drag (the same
+   trick the tab tear-out uses). */
+body.vtabs-resizing webview { pointer-events: none !important; }
+
+/* Active dark-mode button: a NORMAL look — no glow, no pulse animation,
+   just the accent-colored icon (same pattern as the adblock shield). */
 #darkModeBtn.active {
-  background: #5c6bc0;
-  color: #fff;
-  box-shadow: 0 0 8px rgba(92, 107, 192, 0.5);
-  transition: all 0.25s ease;
-}
-
-#darkModeBtn.active svg {
-  animation: darkModePulse 1.5s ease-in-out;
-}
-
-@keyframes darkModePulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.25) rotate(-15deg); }
-  100% { transform: scale(1); }
+  color: var(--primary-color, #1da1f2);
 }
 
 /* Media Controls Panel */
@@ -3023,7 +3663,7 @@ body.theme-light .perm-popup {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.45);
-  z-index: 3000;
+  z-index: 5000;
   display: none;
   justify-content: center;
   padding-top: 60px;
@@ -3034,7 +3674,7 @@ body.theme-light .perm-popup {
 .findall-container {
   width: 560px;
   max-height: calc(100vh - 120px);
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color, #ddd);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.25);
@@ -3525,7 +4165,7 @@ body.compact-mode .ws-btn-name {
   left: 0;
   width: 260px;
   max-height: 380px;
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 0 0 12px 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
@@ -3648,7 +4288,7 @@ body.compact-mode .ws-btn-name {
 .ws-create-overlay.open { display: flex; }
 
 .ws-create-content {
-  background: var(--bg-secondary-alpha);
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 24px;
@@ -4287,6 +4927,42 @@ body.theme-light .qc-bar {
    the host document is the drop target for the detach gesture. */
 body.tear-dragging webview { pointer-events: none !important; }
 
+/* File drop indicator on the tab strip */
+#fileDropHint {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(20, 23, 30, 0.95);
+  color: #4a90d9;
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px dashed #4a90d9;
+  border-radius: 12px;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .2s ease, transform .2s ease;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+}
+#fileDropHint.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+#fileDropHint svg {
+  width: 18px;
+  height: 18px;
+}
+/* Highlight the tab strip itself while dragging a file over it */
+body.file-drop-hover .tabs-bar {
+  background: rgba(74, 144, 217, 0.08);
+  box-shadow: inset 0 -2px 0 #4a90d9;
+}
+
 #tearOutHint {
   position: fixed;
   left: 50%;
@@ -4318,3 +4994,84 @@ body.foreign-tab-over .tabs-bar {
   outline-offset: -2px;
   border-radius: 8px;
 }
+
+/* ==== Matte popover surfaces ==================================================
+   Toolbar menus and panels float directly over the page (webview). The old
+   translucent fills tied to --win-opacity (or the near-white panel-bg in the
+   light theme) made popovers practically invisible over white sites — white
+   text and controls on a white page. Popover surfaces now use a SEMI-TRANSPARENT,
+   slightly dimmed matte tint (independent of window transparency) with a
+   backdrop blur: readable over any page, yet still frosted-glass matte.
+   NOTE: backdrop-filter does not blur webview content (separate composited
+   layer) — over pages the tint does the readability work; the blur affects
+   chrome-UI content that may sit under a panel. */
+body.theme-dark, :root {
+  --popover-bg: rgba(30, 30, 35, 0.88);
+}
+body.theme-light {
+  --popover-bg: rgba(237, 237, 243, 0.90);
+}
+.hamburger-menu,
+.profile-dropdown,
+.bookmarks-sidebar,
+.dr-panel,
+.autofill-panel,
+.adblock-panel,
+.download-panel,
+.scripts-panel,
+.media-panel,
+.tts-panel,
+.site-info-panel,
+.eq-panel,
+.ht-panel,
+.workspace-panel,
+.customize-panel,
+.url-suggestions,
+.qc-container,
+.dialog-box,
+.findall-container,
+.ws-create-content,
+.tab-preview {
+  background: var(--popover-bg);
+  backdrop-filter: blur(20px) saturate(1.15);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+}
+
+/* Microphone-in-use badge on the tab: RED mic icon slowly pulsing while the
+   page is capturing audio; greyed out with a strike-through when muted via
+   the badge click (click again to unmute). */
+.tab-mic {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: #f44336; /* recording red — must read as "you are being listened to" */
+  line-height: 1;
+  padding: 0 2px;
+  margin-right: 2px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  animation: tabMicPulse 2.2s ease-in-out infinite;
+}
+.tab-mic.mic-muted {
+  animation: none;
+  color: var(--text-primary);
+  opacity: 0.45;
+}
+.tab-mic.mic-muted::after {
+  /* strike-through over the icon (text-decoration does not cross SVG) */
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: 50%;
+  height: 1.5px;
+  background: currentColor;
+  transform: rotate(-45deg);
+}
+@keyframes tabMicPulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+
+

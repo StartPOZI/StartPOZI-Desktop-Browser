@@ -756,13 +756,24 @@ if (_exposeFullAPI) {
 // vector caught the old __uaDataPatched flag).
 (function installMainWorldIpcShim() {
   if (!webFrame || !webFrame.executeJavaScript) return;
+  // Per-page transport token: main only accepts __SPZIPC__ console lines
+  // that carry THIS token. A hostile page can still CALL window.__spzSend
+  // (that is the public API superdrag/mediacontrol legitimately use), but it
+  // can no longer FORGE transport lines with crafted ids/kinds bypassing
+  // the shim — callback-confusion and not-yet-exposed kinds are closed.
+  var _ipcToken = '';
+  try { _ipcToken = require('crypto').randomBytes(16).toString('hex'); } catch (eT) {
+    _ipcToken = String(Date.now()) + String(Math.random()).slice(2);
+  }
+  try { ipcRenderer.send('spz-ipc-token', _ipcToken); } catch (eS) {}
   var shim = '(function(){' +
     'if(window.__spzSend)return;' +
     'var _cbs={};' +
+    'var _tok=' + JSON.stringify(_ipcToken) + ';' +
     'var _send=function(kind,payload,cb){' +
       'var id="i"+Math.random().toString(36).slice(2,10);' +
       'if(cb)_cbs[id]=cb;' +
-      'try{console.log("__SPZIPC__"+JSON.stringify({kind:kind,id:id,payload:payload}));}catch(e){}' +
+      'try{console.log("__SPZIPC__"+JSON.stringify({kind:kind,id:id,payload:payload,t:_tok}));}catch(e){}' +
       'return id;' +
     '};' +
     'var _resp=function(id,result){' +
@@ -833,6 +844,101 @@ if (_exposeFullAPI) {
         'if(window.webkitRTCPeerConnection)window.webkitRTCPeerConnection=window.RTCPeerConnection;' +
         '})();';
     }
+    // ===== Fingerprint shield (default ON, opt-out) =====
+    // The SAFE anti-fingerprinting subset: value noise/normalization that
+    // never touches identity strings (UA/platform) and cannot break logins
+    // or capability checks. The heavy identity spoof stays behind the
+    // opt-in `fingerprint` toggle below (it changes navigator.userAgent).
+    if (sec.fpShield !== false) {
+      code += '(function(){' +
+        'var _n=window.__spzNat||function(f){return f;};' +
+        'var _fs=Symbol.for("spz");if(Navigator.prototype[_fs]&64)return;try{Object.defineProperty(Navigator.prototype,_fs,{value:(Navigator.prototype[_fs]||0)|64,enumerable:false,configurable:true});}catch(e){}' +
+        // Canvas 2D fingerprint — mutate a few base64 chars / LSB pixels.
+        'var _oTDU=HTMLCanvasElement.prototype.toDataURL;' +
+        'HTMLCanvasElement.prototype.toDataURL=_n(function toDataURL(){' +
+        '  var r=_oTDU.apply(this,arguments);' +
+        '  if(r&&r.indexOf("data:")===0&&r.length>40){' +
+        '    var ch="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";' +
+        '    var pos=r.length-8-Math.floor(Math.random()*8);' +
+        '    if(pos>22&&r[pos]!=="="){r=r.slice(0,pos)+ch[Math.floor(Math.random()*ch.length)]+r.slice(pos+1);}' +
+        '  }' +
+        '  return r;' +
+        '});' +
+        'var _oGID=CanvasRenderingContext2D.prototype.getImageData;' +
+        'CanvasRenderingContext2D.prototype.getImageData=_n(function getImageData(){' +
+        '  var d=_oGID.apply(this,arguments);' +
+        '  if(d.data.length>100){var st=Math.max(1000,Math.floor(d.data.length/4));' +
+        '    for(var i=0;i<d.data.length;i+=st){d.data[i]=d.data[i]^1;}}' +
+        '  return d;' +
+        '});' +
+        // Hardware fingerprint: CPU cores / RAM — identical for everyone.
+        'var _npS=Navigator.prototype;' +
+        'try{Object.defineProperty(_npS,"hardwareConcurrency",{get:function(){return 4;}});}catch(e){}' +
+        'try{Object.defineProperty(_npS,"deviceMemory",{get:function(){return 4;}});}catch(e){}' +
+        // sendBeacon — fire-and-forget tracking pings. Noop silently.
+        'try{Navigator.prototype.sendBeacon=_n(function sendBeacon(){return true;});}catch(e){}' +
+        // Battery Status API — stable, generic profile for every user.
+        'try{Object.defineProperty(_npS,"getBattery",{value:function(){return Promise.resolve({' +
+          'charging:true,chargingTime:0,dischargingTime:Infinity,level:1,' +
+          'addEventListener:function(){},removeEventListener:function(){}' +
+          '});},configurable:true,writable:true});}catch(e){}' +
+        // MediaDevices — anonymous device list, no stable ids.
+        'try{if(navigator.mediaDevices&&navigator.mediaDevices.enumerateDevices){' +
+          'var _oe=navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);' +
+          'navigator.mediaDevices.enumerateDevices=function(){' +
+          '  return _oe().then(function(list){return list.map(function(d){' +
+          '    return {kind:d.kind,deviceId:"",groupId:"",label:""};});}).catch(function(){return [];});' +
+          '  };' +
+        '}}catch(e){}' +
+        'try{if(navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints){' +
+          'navigator.mediaDevices.getSupportedConstraints=function(){return {"echoCancellation":true,"noiseSuppression":true,"autoGainControl":true};};' +
+        '}}catch(e){}' +
+        // Screen colour depth — normalize (varies per display setup).
+        'try{Object.defineProperty(Screen.prototype,"colorDepth",{get:function(){return 24;},configurable:true});}catch(e){}' +
+        'try{Object.defineProperty(Screen.prototype,"pixelDepth",{get:function(){return 24;},configurable:true});}catch(e){}' +
+        // Local font enumeration API — remove it outright.
+        'try{if(window.queryLocalFonts){try{delete window.queryLocalFonts;}catch(e0){}' +
+        'try{Object.defineProperty(window,"queryLocalFonts",{value:undefined,writable:false,configurable:false});}catch(e1){}}' +
+        '}catch(e){}' +
+        // Font-metrics fingerprinting: font enumeration measures text with
+        // sub-pixel precision to detect installed font versions/OS variants.
+        // Quantize TextMetrics to 0.25px with a stable per-page jitter — the
+        // sub-pixel signal is gone, normal layout uses internal metrics and
+        // is unaffected.
+        'function _qmk(m,k,v){try{var nv=Math.round((v+_mtJ)/0.25)*0.25;' +
+        'Object.defineProperty(m,k,{get:function(){return nv;},configurable:true});}catch(e){}}' +
+        'var _mtJ=(Math.floor(Math.random()*4))*0.0625;' +
+        'try{var _oMT=CanvasRenderingContext2D.prototype.measureText;' +
+        'CanvasRenderingContext2D.prototype.measureText=_n(function measureText(){' +
+        '  var m=_oMT.apply(this,arguments);' +
+        '  try{if(m){_qmk(m,"width",typeof m.width==="number"?m.width:0);' +
+        '    ["actualBoundingBoxLeft","actualBoundingBoxRight","actualBoundingBoxAscent","actualBoundingBoxDescent","fontBoundingBoxAscent","fontBoundingBoxDescent"].forEach(function(k){' +
+        '      if(typeof m[k]==="number")_qmk(m,k,m[k]);});}}catch(e){}' +
+        '  return m;});}catch(e){}' +
+        '})();';
+    }
+    // ===== localStorage quota (opt-in per-domain cap, 5 MB) =====
+    // Storage-hygiene guard: a site cannot stash unbounded data (the classic
+    // quota-filling tracking/DoS pattern). Internal pages are trusted.
+    if (sec.lsQuota && !_exposeFullAPI) {
+      code += '(function(){' +
+        'if(window.__spzLsQuota)return;' +
+        'try{Object.defineProperty(window,"__spzLsQuota",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzLsQuota=true;}' +
+        'var _LIMIT=5*1024*1024,_used=-1;' +
+        'function _calc(){var t=0;try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);' +
+        't+=(k.length+((localStorage.getItem(k)||"").length))*2;}}catch(e){}return t;}' +
+        'var _oSII=Storage.prototype.setItem;' +
+        'Storage.prototype.setItem=function(k,v){' +
+        '  try{' +
+        '    if(_used<0)_used=_calc();' +
+        '    var add=((k||"").length+String(v==null?"":v).length)*2;' +
+        '    var old=0;try{old=((k||"").length+(localStorage.getItem(k)||"").length)*2;}catch(e0){}' +
+        '    if(_used-old+add>_LIMIT){throw new DOMException("QuotaExceededError","QuotaExceededError");}' +
+        '    var r=_oSII.apply(this,arguments);_used=_used-old+add;return r;' +
+        '  }catch(e){if(e&&e.name==="QuotaExceededError")throw e;return _oSII.apply(this,arguments);}' +
+        '};' +
+        '})();';
+    }
     if (sec.fingerprint) {
       // Real-OS platform values for the spoof below (see the comment there).
       var _fpRealPlatform = process.platform === 'win32' ? 'Win32'
@@ -844,55 +950,18 @@ if (_exposeFullAPI) {
       code += '(function(){' +
         'var _n=window.__spzNat||function(f){return f;};' +
         'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&2)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|2,enumerable:false,configurable:true});}catch(e){}' +
-        'var _origToDataURL=HTMLCanvasElement.prototype.toDataURL;' +
-        'HTMLCanvasElement.prototype.toDataURL=_n(function toDataURL(){' +
-        '  var r=_origToDataURL.apply(this,arguments);' +
-        '  if(r && r.indexOf("data:")===0 && r.length>40){' +
-        '    var chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";' +
-        '    var pos=r.length-8-Math.floor(Math.random()*8);' +
-        '    if(pos>22 && r[pos]!=="="){r=r.slice(0,pos)+chars[Math.floor(Math.random()*chars.length)]+r.slice(pos+1);}' +
-        '  }' +
-        '  return r;' +
-        '});' +
-        'var _origGetImageData=CanvasRenderingContext2D.prototype.getImageData;' +
-        'CanvasRenderingContext2D.prototype.getImageData=_n(function getImageData(){' +
-        '  var d=_origGetImageData.apply(this,arguments);' +
-        '  if(d.data.length>100){' +
-        '    var step=Math.max(1000,Math.floor(d.data.length/4));' +
-        '    for(var i=0;i<d.data.length;i+=step){d.data[i]=d.data[i]^1;}' +
-        '  }' +
-        '  return d;' +
-        '});' +
         'var _np=Navigator.prototype;' +
+        // Identity spoof — the reason this whole block is OPT-IN: the fake
+        // StartPOZI userAgent breaks sites matching it against userAgentData
+        // /sec-ch-ua (Google sign-in etc.). The safe value noise now lives in
+        // the default-ON fpShield block above.
         // Spoof the platform to match the REAL OS: claiming Win32 on Linux
         // was itself a fingerprint (mismatch with sec-ch-ua-platform and
         // other OS signals) and contradicted the anti-fingerprinting goal.
         'try{Object.defineProperty(_np,"platform",{get:function(){return ' + JSON.stringify(_fpRealPlatform) + ';}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"hardwareConcurrency",{get:function(){return 4;}});}catch(e){}' +
-        'try{Object.defineProperty(_np,"deviceMemory",{get:function(){return 4;}});}catch(e){}' +
         'try{Object.defineProperty(_np,"userAgent",{get:function(){return "Mozilla/5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}});}catch(e){}' +
         'try{Object.defineProperty(_np,"appVersion",{get:function(){return "5.0 (' + _fpRealUaPlatform + ') AppleWebKit/537.36 (KHTML, like Gecko) StartPOZI/1.0 Safari/537.36";}});}catch(e){}' +
         'try{Object.defineProperty(_np,"languages",{get:function(){return ["en-US","en"];}});}catch(e){}' +
-        // sendBeacon — fire-and-forget tracking pings (analytics, ads). Noop silently.
-        'try{Navigator.prototype.sendBeacon=_n(function sendBeacon(){return true;});}catch(e){}' +
-        // Battery Status API — strong fingerprint vector (level+charging+times).
-        // Return a stable, generic profile so the value is identical across users.
-        'try{Object.defineProperty(_np,"getBattery",{value:function(){return Promise.resolve({' +
-          'charging:true,chargingTime:0,dischargingTime:Infinity,level:1,' +
-          'addEventListener:function(){},removeEventListener:function(){}' +
-          '});},configurable:true,writable:true});}catch(e){}' +
-        // MediaDevices.enumerateDevices — returns camera/mic list with stable IDs.
-        // Normalise to a single anonymous audioinput so the fingerprint is constant.
-        'try{if(navigator.mediaDevices&&navigator.mediaDevices.enumerateDevices){' +
-          'var _origEnum=navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);' +
-          'navigator.mediaDevices.enumerateDevices=function(){' +
-          '  return _origEnum().then(function(list){return list.map(function(d){' +
-          '    return {kind:d.kind,deviceId:"",groupId:"",label:""};});}).catch(function(){return [];});' +
-          '};' +
-        '}}catch(e){}' +
-        'try{if(navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints){' +
-          'navigator.mediaDevices.getSupportedConstraints=function(){return {"echoCancellation":true,"noiseSuppression":true,"autoGainControl":true};};' +
-        '}}catch(e){}' +
         // AudioContext fingerprinting — sites render a silent oscillator and read
         // the float output, which varies per CPU/audio stack. Add tiny noise to
         // the least significant bits of getChannelData / copyFromChannel output.
@@ -906,7 +975,10 @@ if (_exposeFullAPI) {
         '}catch(e){}' +
         '})();';
     }
-    if (sec.blockWebGL) {
+    // WebGL fingerprint — default ON (opt-out). Spoofing the vendor/
+    // renderer STRINGS never breaks rendering itself (Brave ships this
+    // always-on); only capability-detecting sites see generic values.
+    if (sec.blockWebGL !== false) {
       code += '(function(){' +
         'var _f=Symbol.for("spz");if(Navigator.prototype[_f]&4)return;try{Object.defineProperty(Navigator.prototype,_f,{value:(Navigator.prototype[_f]||0)|4,enumerable:false,configurable:true});}catch(e){}' +
         'var _getParam=WebGLRenderingContext.prototype.getParameter;' +
@@ -1004,12 +1076,86 @@ if (_exposeFullAPI) {
         '}' +
         '})();';
     }
+    // ===== Spectre side-channel mitigations (default ON, opt-out) =====
+    // High-resolution timers + SharedArrayBuffer are the classical Spectre/
+    // side-channel toolkit in JS. Coarsen performance.now() to 1 ms (Tor
+    // Browser level) and remove SharedArrayBuffer from the main world.
+    // Limitations: page WORKERS run their own context (the SAB removal here
+    // covers the page itself), and when the opt-in COOP/COEP isolation is
+    // enabled (sec.coopCoep — crossOriginIsolated via response headers) SAB
+    // is KEPT: that is the proper, per-process-isolated mechanism sites like
+    // multithreaded WASM tools need.
+    if (sec.spectreShield !== false) {
+      code += '(function(){' +
+        'if(window.__spzSpectre)return;' +
+        'try{Object.defineProperty(window,"__spzSpectre",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzSpectre=true;}' +
+        'try{var _pn=performance.now.bind(performance);' +
+        'performance.now=function(){return Math.floor(_pn());};' +
+        'try{Object.defineProperty(performance,"now",{writable:true,configurable:true});}catch(e0){}' +
+        '}catch(e){}' +
+        (sec.coopCoep ? '' :
+        'try{if(window.SharedArrayBuffer){try{delete window.SharedArrayBuffer;}catch(e1){}' +
+        'try{Object.defineProperty(window,"SharedArrayBuffer",{value:undefined,writable:false,configurable:false});}catch(e2){}}' +
+        '}catch(e){}') +
+        '})();';
+    }
+    // ===== Audio fingerprint protection (default ON, opt-out via Settings) =====
+    // The "silent sound" fingerprint: sites render inaudible tones through
+    // OfflineAudioContext (+ DynamicsCompressor) or read an AnalyserNode —
+    // tiny hardware/DSP differences in the output form a stable tracker id
+    // (fingerprintjs, AliExpress & co). Farbling: add per-page-load
+    // deterministic micro-noise to the READ paths only. It is ~-140 dB
+    // (below any audible or DSP-relevant threshold), stable within a page
+    // (visualizers don't jitter) and different on every visit — the derived
+    // fingerprint stops being stable. Playback is NOT touched:
+    // createBuffer().getChannelData (the WRITE path synth apps use) is not
+    // patched; only rendered OUTPUT buffers get one farble pass.
+    if (sec.audioFp !== false) {
+      code += '(function(){' +
+        'if(window.__spzAudioFp)return;' +
+        'try{Object.defineProperty(window,"__spzAudioFp",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzAudioFp=true;}' +
+        'var _nat=window.__spzNat||function(f){return f;};' +
+        'var _seed=' + (Math.floor(Math.random() * 2147483646) + 1) + ';' +
+        'function _n(i){var x=Math.sin(i*12.9898+_seed)*43758.5453;return (x-Math.floor(x))-0.5;}' +
+        // Noise is relative to the value magnitude (~1e-7 … 2e-7): an
+        // absolute 1e-7 is BELOW float32 resolution for values >1 and the
+        // assignment rounds straight back (the farble silently did
+        // nothing). Scaling with max(1,|v|) guarantees >=1 ulp change while
+        // staying ~-134 dB — far below any audible or DSP threshold.
+        'function _f32(a,salt){for(var i=0;i<a.length;i++){var v=a[i];if(typeof v==="number"&&isFinite(v)&&v!==0){a[i]=v+_n(i+salt)*4.76837158e-7*Math.max(1,Math.abs(v));}}}' +
+        'function _u8(a,salt){for(var i=0;i<a.length;i++){var v=a[i];if(v>0&&v<255){var d=_n(i+salt);if(d>0.25)a[i]=Math.min(255,v+1);else if(d<-0.25)a[i]=Math.max(0,v-1);}}}' +
+        'function _p(proto,name,fn){try{var o=proto[name];if(!o)return;' +
+        'proto[name]=_nat(function(){var r=o.apply(this,arguments);try{fn.apply(null,arguments);}catch(e){}return r;});' +
+        'try{Object.defineProperty(proto[name],"name",{value:name,configurable:true});}catch(e){}}catch(e){}}' +
+        'if(window.AnalyserNode){' +
+        '  _p(AnalyserNode.prototype,"getFloatFrequencyData",function(a){_f32(a,0);});' +
+        '  _p(AnalyserNode.prototype,"getFloatTimeDomainData",function(a){_f32(a,7);});' +
+        '  _p(AnalyserNode.prototype,"getByteFrequencyData",function(a){_u8(a,13);});' +
+        '  _p(AnalyserNode.prototype,"getByteTimeDomainData",function(a){_u8(a,29);});' +
+        '}' +
+        'if(window.OfflineAudioContext){try{' +
+        '  var _sr=OfflineAudioContext.prototype.startRendering;' +
+        '  OfflineAudioContext.prototype.startRendering=_nat(function(){' +
+        '    var p=_sr.apply(this,arguments);' +
+        '    try{if(p&&typeof p.then==="function")p.then(function(buf){' +
+        '      try{if(buf&&buf.getChannelData&&buf.numberOfChannels){' +
+        '        for(var c=0;c<buf.numberOfChannels;c++){_f32(buf.getChannelData(c),101+c*7);}' +
+        '      }}catch(e){}});' + '}catch(e){}' +
+        '    return p;});' +
+        '}catch(e){}}' +
+        '})();';
+    }
     // ===== Super Drag =====
     // Drag selected text ≥55px → search it in a background tab; drag a link →
     // open in background tab; drag an image → reverse image search (Lens).
     // Drops into editable fields (input/textarea/contenteditable) are left to
     // the page — only "free" drops are intercepted.
-    if (sec.superDrag) {
+    // OFF on the browser's OWN pages (_exposeFullAPI = file:// inside the app
+    // dir): they have their own drag&drop — start-page site cards, Settings
+    // list rows, customize/theme chips — and the capture-phase drop hijack
+    // below broke it (dragging a site card opened a Lens reverse-image search
+    // instead of reordering the card). Regular web pages keep the feature.
+    if (sec.superDrag && !_exposeFullAPI) {
       code += '(function(){' +
         'if(window.__spzSuperDrag)return;' +
         'try{Object.defineProperty(window,"__spzSuperDrag",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzSuperDrag=true;}' +
@@ -1092,6 +1238,21 @@ if (_exposeFullAPI) {
         '  try{if(wantA){var as=_fakeAudioStream();if(as)out.addTrack(as.getAudioTracks()[0]);}}catch(e){}' +
         '  return new Promise(function(res){setTimeout(function(){res(out);},60+Math.random()*120);});' +
         '};' +
+        '})();';
+    }
+    // ===== Internal-page drag marker =====
+    // Every drag started on a browser-internal page carries this marker so
+    // the shell's drop-to-open/drop-to-search system ignores it: internal UI
+    // drag&drop (Settings lists, customize chips, start-page site cards) is
+    // our own machinery — dropping it on the chrome must never open a search
+    // tab for the payload (it opened searches for button ids/JSON before).
+    if (_exposeFullAPI) {
+      code += '(function(){' +
+        'if(window.__spzUiDragMark)return;' +
+        'try{Object.defineProperty(window,"__spzUiDragMark",{value:true,enumerable:false,configurable:true});}catch(e){window.__spzUiDragMark=true;}' +
+        'document.addEventListener("dragstart",function(e){' +
+        '  try{if(e.dataTransfer)e.dataTransfer.setData("application/x-startpozi-ui-drag","1");}catch(x){}' +
+        '},true);' +
         '})();';
     }
     if (code) {

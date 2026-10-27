@@ -85,6 +85,14 @@ let mainWindow;
 
 var _pendingDialogs = {};
 var _pendingPermRequests = {};
+// ===== Console transport tokens (see installMainWorldIpcShim in
+// preload-webview.js): per-webContents secret that __SPZIPC__ lines must
+// carry. Registered over the trusted ipcRenderer channel; pages cannot
+// read it (it lives in the shim's closure).
+var _ipcTokens = new Map();
+ipcMain.on('spz-ipc-token', function (event, tok) {
+  try { _ipcTokens.set(event.sender.id, String(tok || '')); } catch (e) {}
+});
 // Per-session (until browser restart) permission grants from the popup's
 // "Allow while on this site" button. Cleared on app quit. Not persisted to disk.
 // Shape: { [domain]: { [permissionCamel]: true } }
@@ -158,7 +166,9 @@ ipcMain.on('spz-get-app-dir', (event) => { event.returnValue = __dirname; });
 // Global Privacy Control state for the webview preload (synchronous: the
 // navigator.globalPrivacyControl property must exist before page scripts).
 ipcMain.on('spz-get-gpc', (event) => {
-  try { event.returnValue = ((readStorage().security || {}).gpc) !== false; }
+  // Runs at document-start of EVERY page/frame via sendSync — must not
+  // deep-clone the whole settings.json (peek() reads the live cache).
+  try { event.returnValue = ((storage.peek().security || {}).gpc) !== false; }
   catch (e) { event.returnValue = true; }
 });
 
@@ -265,7 +275,8 @@ app.on('before-quit', function () {
 // partitions are in-memory and are destroyed automatically.
 function _clearCookiesOnExitSessions() {
   var store = readStorage();
-  if (!(store.security && store.security.clearCookiesOnExit)) return false;
+  var s = store.security || {};
+  if (!(s.clearCookiesOnExit || s.clearCacheOnExit)) return false;
   var sessionsToClear = [session.defaultSession];
   try {
     (store.containers || []).forEach(function (c) {
@@ -275,14 +286,19 @@ function _clearCookiesOnExitSessions() {
     });
   } catch (e1) {}
   Promise.all(sessionsToClear.map(function (ses) {
-    try { return ses.clearStorageData({ storages: ['cookies'] }); } catch (e2) { return Promise.resolve(); }
+    var jobs = [];
+    try { if (s.clearCookiesOnExit) jobs.push(ses.clearStorageData({ storages: ['cookies'] })); } catch (e2) {}
+    // HTTP cache wipe kills ETag/cache-based cross-session tracking.
+    try { if (s.clearCacheOnExit) jobs.push(ses.clearCache()); } catch (e3) {}
+    return Promise.all(jobs);
   })).catch(function () {});
   return true;
 }
 app.on('will-quit', function (event) {
   try {
     var store = readStorage();
-    if (!(store.security && store.security.clearCookiesOnExit)) return;
+    var s = store.security || {};
+    if (!(s.clearCookiesOnExit || s.clearCacheOnExit)) return;
     event.preventDefault();
     var sessionsToClear = [session.defaultSession];
     try {
@@ -293,7 +309,10 @@ app.on('will-quit', function (event) {
       });
     } catch (e1) {}
     Promise.all(sessionsToClear.map(function (ses) {
-      try { return ses.clearStorageData({ storages: ['cookies'] }); } catch (e2) { return Promise.resolve(); }
+      var jobs = [];
+      try { if (s.clearCookiesOnExit) jobs.push(ses.clearStorageData({ storages: ['cookies'] })); } catch (e2) {}
+      try { if (s.clearCacheOnExit) jobs.push(ses.clearCache()); } catch (e3) {}
+      return Promise.all(jobs);
     })).then(function () { app.exit(0); }, function () { app.exit(0); });
   } catch (e) {
     // Never trap the user in a quitting app because of a cleanup failure.
@@ -332,10 +351,17 @@ var _dnsThroughProxyActive = false; // host-resolver-rules ~NOTFOUND is active
 
     // Only an explicit Tor configuration gets the DNS lockdown.
     var proxyFile = path.join(app.getPath('userData'), 'proxy.json');
+    var anyProxyAtBoot = false;
     if (fs3.existsSync(proxyFile)) {
       try {
         var proxy = JSON.parse(fs3.readFileSync(proxyFile, 'utf-8'));
         if (proxy && proxy.enabled && proxy.host && proxy.type === 'tor') needsTorHardening = true;
+        // ANY enabled proxy (not just Tor) must suppress DoH: DoH queries
+        // go DIRECT to the resolver over HTTPS, bypassing the tunnel — the
+        // DoH provider then sees the user's real IP and the proxy operator
+        // sees SFX traffic with mismatched DNS. This closes the documented
+        // DoH+proxy leak ("DoH is enabled while a regular proxy is active").
+        if (proxy && proxy.enabled && proxy.host) anyProxyAtBoot = true;
       } catch(e) {}
     }
 
@@ -361,7 +387,7 @@ var _dnsThroughProxyActive = false; // host-resolver-rules ~NOTFOUND is active
     // Can only be set before app ready.
     // (was `!needsProxyDns` — an undefined identifier throwing ReferenceError,
     // silently swallowed by the outer catch, so DoH NEVER applied)
-    if (!needsTorHardening) {
+    if (!needsTorHardening && !anyProxyAtBoot) {
       try {
         var settingsFile = path.join(app.getPath('userData'), 'settings.json');
         var _early = fs3.existsSync(settingsFile)
@@ -768,6 +794,7 @@ function _permIcon(permKey) {
     case 'fullscreen': return 'maximize';
     case 'midi':
     case 'midiSysex': return 'music';
+    case 'localNetworkAccess': return 'lan';
     case 'openExternal': return 'external';
     case 'pointerLock': return 'pointer';
     case 'persistentStorage': return 'database';
@@ -808,6 +835,27 @@ function _attachDownloadHandler(session) {
       let n = 1;
       while (fs.existsSync(path.join(downloadDir, base + ' (' + n + ')' + ext))) n++;
       savePath = path.join(downloadDir, base + ' (' + n + ')' + ext);
+    }
+
+    // Drive-by download mitigation (opt-in): confirm every download before
+    // it hits the disk. Hidden/navigational-triggered saves get cancelled.
+    if (store.security && store.security.confirmDownloads) {
+      try {
+        const { dialog, BrowserWindow } = require('electron');
+        var dlWin = (webContents && !webContents.isDestroyed())
+          ? BrowserWindow.fromWebContents(webContents) : null;
+        if (!dlWin) dlWin = _mainWindow || null;
+        var dlHost = '';
+        try { dlHost = new URL(item.getURL() || '').hostname; } catch (eH) {}
+        var dlChoice = dialog.showMessageBoxSync(dlWin, {
+          type: 'question',
+          buttons: ['Save', 'Cancel'],
+          defaultId: 0, cancelId: 1,
+          message: 'Download file?',
+          detail: (dlHost ? dlHost + ' — ' : '') + safeName
+        });
+        if (dlChoice !== 0) { event.preventDefault(); return; }
+      } catch (eD) { /* never block downloads over a dialog failure */ }
     }
 
     item.setSavePath(savePath);
@@ -1704,6 +1752,8 @@ function _normalizeLaunchUrl(url) {
     if (m[1] === 'newtab' || m[1] === 'home') return 'MainPage/index.html';
     // customize-toolbar is signaled to the renderer as a mode toggle.
     if (m[1] === 'customize-toolbar') return '__customize_toolbar__';
+    // customize-menu — the in-shell hamburger menu editor (same pattern).
+    if (m[1] === 'customize-menu') return '__customize_menu__';
     return null; // unknown internal protocol target — ignore
   }
   return null;
@@ -1715,6 +1765,10 @@ function _openLaunchUrl(url) {
   if (!shell) return;
   if (normalized === '__customize_toolbar__') {
     shell.webContents.send('toggle-customize-mode');
+    return;
+  }
+  if (normalized === '__customize_menu__') {
+    shell.webContents.send('toggle-menu-customize-mode');
     return;
   }
   shell.webContents.send('open-in-new-tab', normalized);
@@ -1951,9 +2005,18 @@ app.whenReady().then(async () => {
         var msg = (event && typeof event.message === 'string') ? event.message : '';
         if (!msg || msg.indexOf('__SPZIPC__') !== 0) return;
         var req = JSON.parse(msg.slice(10));
+        // Transport token: only lines signed with the page's token (issued
+        // by preload-webview over the trusted ipcRenderer channel) pass.
+        // Forged console lines with crafted ids/kinds are dropped.
+        var _tok = _ipcTokens.get(webContents.id);
+        if (!_tok || req.t !== _tok) return;
         _handlePageIpc(webContents, req);
       } catch(e) {}
     });
+    try {
+      var _tokWcId = webContents.id;
+      webContents.once('destroyed', function () { try { _ipcTokens.delete(_tokWcId); } catch (e) {} });
+    } catch (eD) {}
 
     // Site Info panel data source: capture TLS certificate details + main
     // document metadata via CDP (see _trackSecurityDetails above).
@@ -1964,6 +2027,16 @@ app.whenReady().then(async () => {
     // our default-session listener does not work. Without this Google in incognito
     // sees "Electron" again and blocks login.
     try { _ensureChromeHeadersOnSession(webContents.session); } catch(e) {}
+    // Response hardening (CSP/Tor-hardening/cookie-strip/COOP-COEP) for
+    // partition sessions — every incognito/container tab. The default
+    // session is configured in applySecuritySettings(); new partitions get
+    // the CURRENT handler here. This used to be the deferred gap: private
+    // windows had no hardening at all.
+    try {
+      if (_secHeadersHandler) {
+        webContents.session.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, _secHeadersHandler);
+      }
+    } catch (eHdr) {}
     // Apply the current proxy settings to the new webview session (Tor/proxy),
     // otherwise incognito and new tabs go directly bypassing the proxy.
     try { _ensureProxyOnSession(webContents.session); } catch(e) {}
@@ -2127,6 +2200,11 @@ function writeStorage(data) {
 }
 function updateStorage(fn) {
   return storage.update(fn);
+}
+// Debounced variant for hot paths (page navigations): mutates the cache
+// immediately, coalesces the disk write. See storage.js.
+function updateStorageSoon(fn) {
+  return storage.updateSoon(fn);
 }
 
 // ============== BACKGROUND IMAGE PERSISTENCE ==============
@@ -2638,6 +2716,207 @@ function cleanTrackingUrl(rawUrl) {
 
 var _dntEnabled = true;
 var _gpcEnabled = true;
+// ===== DNS REBINDING PROTECTION =====
+// A public DNS name that resolves to a private/loopback address is the
+// classic rebinding attack on the local network (router panels, IoT).
+// Checked for main-frame navigations only; direct private-IP/localhost
+// browsing is handled by the renderer's HTTP-consent flow; skipped while a
+// proxy/Tor is active (the proxy resolves remotely — local answers are
+// meaningless there and would false-positive).
+var _dnsRebindCache = new Map(); // host → { priv, t } (60 s TTL, capped)
+var _dnsRebindProxyCache = { v: null, t: 0 };
+function _isPrivateIp(ip) {
+  if (!ip) return false;
+  var low = String(ip).toLowerCase();
+  if (low.indexOf(':') !== -1) {
+    return low === '::1' || low === '::' || low.indexOf('fc') === 0 ||
+      low.indexOf('fd') === 0 || low.indexOf('fe80') === 0 || low.indexOf('::ffff:127.') === 0;
+  }
+  var m = low.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  var a = +m[1], b = +m[2];
+  if (a === 127 || a === 10 || a === 0) return true;              // loopback / 10/8 / "this host"
+  if (a === 172 && b >= 16 && b <= 31) return true;               // 172.16/12
+  if (a === 192 && b === 168) return true;                        // 192.168/16
+  if (a === 169 && b === 254) return true;                        // link-local
+  if (a === 100 && b >= 64 && b <= 127) return true;              // CGNAT 100.64/10
+  return false;
+}
+function _dnsRebindSkipHost(host) {
+  var h = String(host || '').toLowerCase();
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(h) || h.indexOf(':') !== -1) return true; // IP literals
+  return h === 'localhost' || h.endsWith('.local') || h.endsWith('.lan') ||
+    h.endsWith('.onion') || h.endsWith('.internal');
+}
+function _dnsRebindProxyActive() {
+  var now = Date.now();
+  if (_dnsRebindProxyCache.v === null || now - _dnsRebindProxyCache.t > 15000) {
+    var on = false;
+    try {
+      var pf = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'proxy.json'), 'utf8'));
+      on = !!(pf && pf.enabled);
+    } catch (e) {}
+    _dnsRebindProxyCache = { v: on, t: now };
+  }
+  return _dnsRebindProxyCache.v;
+}
+function _dnsRebindBlockUrl(url, callback) {
+  try {
+    var errUrl = require('url').pathToFileURL(path.join(__dirname, 'ErrorPage', 'index.html')).href +
+      '?code=DNS_REBIND&url=' + encodeURIComponent(url);
+    callback({ redirectURL: errUrl });
+  } catch (e) { callback({ cancel: true }); }
+}
+function _checkDnsRebinding(host, url, callback) {
+  var now = Date.now();
+  var hit = _dnsRebindCache.get(host);
+  if (hit && now - hit.t < 60000) {
+    if (hit.priv) _dnsRebindBlockUrl(url, callback); else callback({});
+    return;
+  }
+  require('dns').promises.lookup(host, { all: true }).then(function (addrs) {
+    var priv = (addrs || []).some(function (a) { return _isPrivateIp(a.address); });
+    if (_dnsRebindCache.size > 500) _dnsRebindCache.clear();
+    _dnsRebindCache.set(host, { priv: priv, t: Date.now() });
+    if (priv) _dnsRebindBlockUrl(url, callback); else callback({});
+  }).catch(function () { callback({}); }); // resolution failure → Chromium shows its own error
+}
+
+// ===== LOCAL NETWORK ACCESS GATE (Private Network Access style) =====
+// Page subresources from a PUBLIC origin aimed at LAN hosts (private IPs,
+// localhost, *.local/*.lan) must be explicitly allowed by the user — the
+// same ask-once-per-site flow as camera/notifications. Pages that are
+// THEMSELVES local (router panels, IoT UIs) keep full access.
+function _isLanHost(h) {
+  h = String(h || '').toLowerCase();
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) return _isPrivateIp(h); // private IP literals
+  if (h.indexOf(':') !== -1) return _isPrivateIp(h);           // IPv6 literals
+  return h === 'localhost' || h.endsWith('.local') || h.endsWith('.lan') || h.endsWith('.internal');
+}
+var _lanAskQueues = {}; // originHost → { dialogId, cbs: [webRequest callbacks] }
+function _askLanAccess(originHost, webContentsId, cb) {
+  var q = _lanAskQueues[originHost];
+  if (q) { q.cbs.push(cb); return; } // a dialog is already open — queue
+  var shell = null;
+  try {
+    var wc = webContentsId ? webContents.fromId(webContentsId) : null;
+    if (wc && !wc.isDestroyed()) shell = _shellWindowOf(wc);
+  } catch (eW) {}
+  if (!shell) shell = _mainWindow || null;
+  if (!shell || shell.isDestroyed()) { cb({ cancel: true }); return; }
+  var dialogId = 'perm-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+  _lanAskQueues[originHost] = { dialogId: dialogId, cbs: [cb] };
+  // Ride the standard permission-response pipeline: the popup decision is
+  // persisted as sitePermissions[originHost].localNetworkAccess for us.
+  _pendingPermRequests[dialogId] = {
+    callback: function (allowed) {
+      var queue = _lanAskQueues[originHost];
+      delete _lanAskQueues[originHost];
+      if (queue) queue.cbs.forEach(function (c) {
+        try { c(allowed ? {} : { cancel: true }); } catch (e) {}
+      });
+    },
+    domain: originHost,
+    permission: 'localNetworkAccess'
+  };
+  try {
+    shell.webContents.send('permission-request', {
+      dialogId: dialogId,
+      domain: originHost,
+      permission: 'localNetworkAccess',
+      icon: _permIcon('localNetworkAccess')
+    });
+  } catch (eS) {
+    delete _lanAskQueues[originHost];
+    delete _pendingPermRequests[dialogId];
+    cb({ cancel: true });
+    return;
+  }
+  // Auto-deny after 60 s — same timeout as the native permission flow.
+  setTimeout(function () {
+    if (_pendingPermRequests[dialogId]) {
+      var req = _pendingPermRequests[dialogId];
+      delete _pendingPermRequests[dialogId];
+      try { shell.webContents.send('permission-request-timeout', { dialogId: dialogId }); } catch (e) {}
+      req.callback(false);
+    }
+  }, 60000);
+}
+
+// ===== NETWORK INSIGHT (third-party request log + per-site blocks) =====
+// Lightweight request observer: third-party subresource hosts per site
+// (shown in the Site Info panel) + user-managed per-site block lists
+// (store.netBlocks[origin][targetHost]). Records ride the same
+// _secBeforeRequest hook the adblocker installs on EVERY session, so
+// incognito and containers are covered too.
+var _netInsight = new Map(); // originHost → Map(targetHost → count)
+function _registrable(h) {
+  var p = String(h || '').toLowerCase().split('.');
+  return p.length <= 2 ? p.join('.') : p.slice(-2).join('.');
+}
+function _netWcUrl(details) {
+  try {
+    var wc = details.webContentsId ? webContents.fromId(details.webContentsId) : null;
+    if (wc && !wc.isDestroyed()) return wc.getURL() || '';
+  } catch (e) {}
+  return '';
+}
+function _netInsightRecord(details, durl) {
+  if (durl.indexOf('http://') !== 0 && durl.indexOf('https://') !== 0) return;
+  var oUrl = _netWcUrl(details);
+  if (oUrl.indexOf('http://') !== 0 && oUrl.indexOf('https://') !== 0) return;
+  var tHost, oHost;
+  try { tHost = new URL(durl).hostname; oHost = new URL(oUrl).hostname; } catch (e) { return; }
+  if (!tHost || !oHost) return;
+  if (oHost === tHost || oHost.endsWith('.' + tHost) || tHost.endsWith('.' + oHost) ||
+      _registrable(oHost) === _registrable(tHost)) return; // first-party
+  var site = _netInsight.get(oHost);
+  if (!site) {
+    if (_netInsight.size > 200) _netInsight.clear();
+    site = new Map();
+    _netInsight.set(oHost, site);
+  }
+  site.set(tHost, (site.get(tHost) || 0) + 1);
+  if (site.size > 150) {
+    var minK = null, minV = Infinity;
+    site.forEach(function (v, k) { if (v < minV) { minV = v; minK = k; } });
+    if (minK) site.delete(minK);
+  }
+}
+var _netBlockCache = null, _netBlockCacheT = 0;
+function _netBlocks() {
+  if (_netBlockCache && Date.now() - _netBlockCacheT < 3000) return _netBlockCache;
+  try { _netBlockCache = readStorage().netBlocks || {}; } catch (e) { _netBlockCache = {}; }
+  _netBlockCacheT = Date.now();
+  return _netBlockCache;
+}
+function _netBlockMatch(details, durl) {
+  try {
+    if (durl.indexOf('http://') !== 0 && durl.indexOf('https://') !== 0) return false;
+    var oUrl = _netWcUrl(details);
+    if (oUrl.indexOf('http://') !== 0 && oUrl.indexOf('https://') !== 0) return false;
+    var tHost, oHost;
+    try { tHost = new URL(durl).hostname; oHost = new URL(oUrl).hostname; } catch (e) { return false; }
+    if (!tHost || !oHost) return false;
+    var nb = _netBlocks()[oHost];
+    if (!nb) return false;
+    if (nb[tHost]) return true;
+    var parts = tHost.split('.');
+    for (var i = 1; i < parts.length - 1; i++) {
+      if (nb[parts.slice(i).join('.')]) return true;
+    }
+    return false;
+  } catch (e) { return false; }
+}
+function _netSuffixBlocked(nb, host) {
+  if (nb[host]) return true;
+  var parts = String(host).split('.');
+  for (var i = 1; i < parts.length - 1; i++) {
+    if (nb[parts.slice(i).join('.')]) return true;
+  }
+  return false;
+}
+
 function applySecuritySettings() {
   if (!_mainWindow) return;
   var ses = _mainWindow.webContents.session;
@@ -2645,11 +2924,60 @@ function applySecuritySettings() {
   var sec = store.security || {};
   if (_secBeforeSendHeaders) { try { ses.webRequest.onBeforeSendHeaders(null); } catch(e) {} _secBeforeSendHeaders = null; }
 
-  var needBeforeRequest = sec.httpsOnly || sec.blockMixedContent || sec.urlClean;
+  var needBeforeRequest = sec.httpsOnly || sec.blockMixedContent || sec.urlClean || sec.blockDnsRebinding !== false;
   if (needBeforeRequest) {
     _secBeforeRequest = function(details, callback) {
       var durl = details.url;
       if (!durl) { callback({}); return; }
+
+      // DNS rebinding gate (main frame only): public name → private IP.
+      if (details.resourceType === 'mainFrame' && sec.blockDnsRebinding !== false &&
+          (durl.indexOf('http://') === 0 || durl.indexOf('https://') === 0) &&
+          !_dnsRebindProxyActive()) {
+        var rbHost = '';
+        try { rbHost = new URL(durl).hostname; } catch (eU) {}
+        if (rbHost && !_dnsRebindSkipHost(rbHost)) {
+          _checkDnsRebinding(rbHost, durl, callback);
+          return;
+        }
+      }
+
+      // Local network access gate (subresources): a PUBLIC page touching LAN
+      // hosts must hold the localNetworkAccess permission (ask-once flow).
+      // Local/internal origins are exempt — router panels keep working.
+      if (details.resourceType !== 'mainFrame' && sec.askLanAccess !== false &&
+          (durl.indexOf('http://') === 0 || durl.indexOf('https://') === 0 ||
+           durl.indexOf('ws://') === 0 || durl.indexOf('wss://') === 0)) {
+        try {
+          var lanHost = new URL(durl).hostname;
+          if (_isLanHost(lanHost)) {
+            var originHost = '';
+            var lanWc = details.webContentsId ? webContents.fromId(details.webContentsId) : null;
+            if (lanWc && !lanWc.isDestroyed()) {
+              try { originHost = new URL(lanWc.getURL() || '').hostname; } catch (eO) {}
+            }
+            if (originHost && !_isLanHost(originHost) && !_isInternalPage(lanWc.getURL())) {
+              var lanOk = (_sitePermFor(originHost, 'localNetworkAccess') === true) ||
+                (_sessionPermissions[originHost] &&
+                 _sessionPermissions[originHost].localNetworkAccess === true);
+              if (!lanOk) {
+                if (_sitePermFor(originHost, 'localNetworkAccess') === false) {
+                  callback({ cancel: true });
+                  return;
+                }
+                _askLanAccess(originHost, details.webContentsId, callback);
+                return;
+              }
+            }
+          }
+        } catch (eL) { /* never break browsing over the gate */ }
+      }
+
+      // Network insight: record third-party hosts; honour user net-blocks.
+      if (details.resourceType !== 'mainFrame') {
+        try { _netInsightRecord(details, durl); } catch (eN) {}
+        if (_netBlockMatch(details, durl)) { callback({ cancel: true }); return; }
+      }
 
       // URL cleaning: strip tracking params, extract redirects
       if (sec.urlClean && (durl.indexOf('http://') === 0 || durl.indexOf('https://') === 0)) {
@@ -2817,7 +3145,32 @@ function applySecuritySettings() {
   var th = sec.torHardening || {};
   var anyHardening = th.js || th.fonts || th.plugins || th.iframes || th.base;
   // webgl separately — via preload-webview (CSP does not block it correctly).
-  ses.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, function(details, callback) {
+  // The handler is a FACTORY product stored in a module-level var: new
+  // partition sessions (every incognito tab, every container) pick it up in
+  // web-contents-created, and applySecuritySettings re-registers it on every
+  // existing session — previously only the DEFAULT session got CSP hardening
+  // and per-site cookie stripping; private windows were the LEAST hardened
+  // context in the browser.
+  _secHeadersHandler = _buildSecHeadersHandler(th, anyHardening, sec);
+  ses.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, _secHeadersHandler);
+  try {
+    var _hdrSeen = new Set([ses]);
+    webContents.getAllWebContents().forEach(function (wc) {
+      try {
+        var s2 = wc.session;
+        if (!s2 || _hdrSeen.has(s2)) return;
+        _hdrSeen.add(s2);
+        s2.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, _secHeadersHandler);
+      } catch (e2) {}
+    });
+  } catch (e3) {}
+}
+// Module-level: the current hardening response handler, shared by ALL
+// sessions. Null until the first applySecuritySettings() run.
+var _secHeadersHandler = null;
+function _buildSecHeadersHandler(th, anyHardening, sec) {
+  th = th || {}; sec = sec || {};
+return function(details, callback) {
     try {
       var durl = details.url || '';
       var csp = null;
@@ -2851,7 +3204,9 @@ function applySecuritySettings() {
 
       if (!csp) {
         // Even without a CSP to inject, per-site cookie blocking must strip
-        // Set-Cookie from the response.
+        // Set-Cookie from the response — and COOP/COEP (opt-in) may still
+        // need to be applied.
+        var _cooped0 = false;
         try {
           var _ckHost0 = '';
           try { _ckHost0 = new URL(durl).hostname; } catch(e) {}
@@ -2861,11 +3216,17 @@ function applySecuritySettings() {
             Object.keys(_hdrs0).forEach(function(k) {
               if (k && k.toLowerCase() === 'set-cookie') delete _hdrs0[k];
             });
+            if (sec.coopCoep && !Array.isArray(_hdrs0)) { _applyCoopCoep(_hdrs0); _cooped0 = true; }
+            callback({ responseHeaders: _hdrs0 });
+            return;
+          }
+          if (sec.coopCoep && _hdrs0 && !Array.isArray(_hdrs0)) {
+            _applyCoopCoep(_hdrs0);
             callback({ responseHeaders: _hdrs0 });
             return;
           }
         } catch(e2) {}
-        callback({});
+        if (!_cooped0) callback({});
         return;
       }
       var headers = details.responseHeaders;
@@ -2897,6 +3258,7 @@ function applySecuritySettings() {
         } else {
           headers['Content-Security-Policy'] = csp;
         }
+        if (sec.coopCoep) _applyCoopCoep(headers);
         callback({ responseHeaders: headers });
         return;
       }
@@ -2916,7 +3278,22 @@ function applySecuritySettings() {
     } catch(e) {
       callback({});
     }
-  });
+  };
+}
+// Cross-Origin isolation for sites that need SharedArrayBuffer: replaces
+// the opener/embedder policies so the response lands in a cross-origin
+// isolated context (then spectreShield keeps SAB in place — see
+// preload-webview.js). Opt-in: require-corp breaks cross-origin subresources
+// that do not send CORP, which is why it is NOT a default.
+function _applyCoopCoep(headers) {
+  try {
+    Object.keys(headers).forEach(function(k) {
+      var lk = k.toLowerCase();
+      if (lk === 'cross-origin-opener-policy' || lk === 'cross-origin-embedder-policy') delete headers[k];
+    });
+    headers['Cross-Origin-Opener-Policy'] = 'same-origin';
+    headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
+  } catch (e) {}
 }
 
 // === Substitute sec-ch-ua / User-Agent to Chrome ===
@@ -3057,18 +3434,20 @@ try {
 app.on('before-quit', () => {
   _saveWindowState();
   _clearSessionMarker();
-  const store = readStorage();
-  store.saveTabs = saveTabsSetting;
-  store.saveInternalPages = saveInternalPagesSetting;
-  store.savedTabs = savedTabs;
-  writeStorage(store);
+  updateStorage(function (store) {
+    store.saveTabs = saveTabsSetting;
+    store.saveInternalPages = saveInternalPagesSetting;
+    store.savedTabs = savedTabs;
+  });
+  // Coalesced writes (history/session counters) must hit the disk before
+  // the process goes away.
+  storage.flush();
 });
 
 ipcMain.handle('save-current-tabs', (_, tabsData) => {
   savedTabs = tabsData;
-  const store = readStorage();
-  store.savedTabs = tabsData;
-  writeStorage(store);
+  // Hot path (fires per navigation via autoSaveTabs) — coalesced write.
+  updateStorageSoon(function (store) { store.savedTabs = tabsData; });
   return { success: true };
 });
 
@@ -3127,6 +3506,9 @@ ipcMain.on('permission-response', (event, data) => {
       if (!store.sitePermissions[req.domain]) store.sitePermissions[req.domain] = {};
       store.sitePermissions[req.domain][req.permission] = (decision === 'allow');
       writeStorage(store);
+      // The webRequest LAN gate (and other cache consumers) must see the
+      // new decision immediately.
+      _refreshSitePermCache();
     } catch(e) {}
   } else if (decision === 'session') {
     if (!_sessionPermissions[req.domain]) _sessionPermissions[req.domain] = {};
@@ -4103,7 +4485,9 @@ ipcMain.handle('set-blocker-log-persistent', (_, val) => {
 
 // ============== SECURITY SETTINGS ==============
 ipcMain.on('get-all-security-settings-sync', (event) => {
-  const store = readStorage();
+  // Runs via sendSync at document-start of every page — peek() avoids a
+  // full deep clone of settings.json per page load.
+  const store = storage.peek();
   var _vimMerged = (function() {
     var v = store.vim || {};
     var keys = _defaultVimKeys();
@@ -4126,7 +4510,7 @@ ipcMain.on('get-all-security-settings-sync', (event) => {
 ipcMain.on('get-geo-override-sync', (event, domain) => {
   try {
     if (!domain) { event.returnValue = null; return; }
-    const store = readStorage();
+    const store = storage.peek();
     var p = store.sitePermissions && store.sitePermissions[domain];
     if (p && p.geoOverride && typeof p.geoOverride.lat === 'number') {
       event.returnValue = p.geoOverride;
@@ -4136,11 +4520,44 @@ ipcMain.on('get-geo-override-sync', (event, domain) => {
   event.returnValue = null;
 });
 
-ipcMain.handle('get-security-setting', (_, key) => {
-  const store = readStorage();
-  // Opt-out settings: absent means ENABLED (DNT/GPC signals, external services).
+// ===== Network insight IPC (Site Info panel) =====
+ipcMain.handle('net-insight-get', (_, domain) => {
+  var out = [];
+  var site = _netInsight.get(String(domain || ''));
+  var nb = _netBlocks()[domain] || {};
+  if (site) {
+    site.forEach(function (count, host) {
+      out.push({ host: host, count: count, blocked: _netSuffixBlocked(nb, host) });
+    });
+    out.sort(function (a, b) { return b.count - a.count; });
+  }
+  return { success: true, hosts: out.slice(0, 60) };
+});
+ipcMain.handle('net-block-set', (_, domain, host, blocked) => {
+  try {
+    domain = String(domain || '');
+    host = String(host || '');
+    if (!domain || !host || !/^[a-z0-9.\-:*]+$/i.test(host)) return { success: false };
+    var store = readStorage();
+    if (!store.netBlocks) store.netBlocks = {};
+    if (!store.netBlocks[domain]) store.netBlocks[domain] = {};
+    if (blocked) store.netBlocks[domain][host] = true;
+    else delete store.netBlocks[domain][host];
+    writeStorage(store);
+    _netBlockCache = null; // immediate effect
+    return { success: true };
+  } catch (e) { return { success: false }; }
+});
+
+ipcMain.handle('get-security-setting', (_, key) => {  const store = readStorage();
+  // Opt-out settings: absent means ENABLED (DNT/GPC signals, external
+  // services). audioFp lives here too: the audio-fingerprint farble is a
+  // pure protection (Brave/Firefox ship it always-on) — the user opts OUT
+  // only if a site misbehaves.
   var optOutKeys = ['dnt', 'gpc', 'suggestEnabled', 'translateEnabled', 'hibpEnabled', 'diagnosticsEnabled', 'updateChecks',
-    'omniboxFrequentSuggestions', 'omniboxBookmarkSuggestions'];
+    'omniboxFrequentSuggestions', 'omniboxBookmarkSuggestions', 'audioFp',
+    // Default-ON protections (absent = enabled, explicit false = off):
+    'fpShield', 'blockWebGL', 'spectreShield', 'blockDnsRebinding', 'askLanAccess'];
   if (optOutKeys.indexOf(key) !== -1) {
     if (!store.security || store.security[key] === undefined) return true;
     return !!store.security[key];
@@ -5151,22 +5568,29 @@ ipcMain.handle('get-history', (event) => {
 });
 
 ipcMain.handle('add-history', (_, entry) => {
-  const store = readStorage();
-  if (!store.history) store.history = [];
-  const existing = store.history.findIndex(h => h.url === entry.url);
-  if (existing !== -1) {
-    store.history[existing].time = Date.now();
-    store.history[existing].title = entry.title || store.history[existing].title;
-    store.history[existing].visitCount = (store.history[existing].visitCount || 0) + 1;
-  } else {
-    store.history.push({
-      url: entry.url,
-      title: entry.title || '',
-      time: Date.now(),
-      visitCount: 1
-    });
-  }
-  writeStorage(store);
+  // Hot path: fires on every navigation (twice for SPA sites). Must not
+  // serialize + write the whole settings.json synchronously — it stalled
+  // the main process (and with it every webRequest callback) on each load.
+  updateStorageSoon(function (store) {
+    if (!store.history) store.history = [];
+    const existing = store.history.findIndex(h => h.url === entry.url);
+    if (existing !== -1) {
+      store.history[existing].time = Date.now();
+      store.history[existing].title = entry.title || store.history[existing].title;
+      store.history[existing].visitCount = (store.history[existing].visitCount || 0) + 1;
+    } else {
+      store.history.push({
+        url: entry.url,
+        title: entry.title || '',
+        time: Date.now(),
+        visitCount: 1
+      });
+    }
+    // Hard cap: history used to grow unbounded, and settings.json is
+    // serialized as a whole on every (now coalesced) write — a multi-MB
+    // file lagged the entire browser.
+    if (store.history.length > 5000) store.history = store.history.slice(-5000);
+  });
   return { success: true };
 });
 
@@ -5200,16 +5624,17 @@ ipcMain.handle('record-frequent-visit', (_, url) => {
   try {
     var u = new URL(String(url || ''));
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return { success: false };
-    const store = readStorage();
-    var sec = store.security || {};
+    // Hot path (every navigation) — coalesced write, no full-file clone.
+    const sec = storage.peek().security || {};
     if (sec.omniboxFrequentSuggestions === false) return { success: true, skipped: true };
-    if (!store.frequentSites) store.frequentSites = {};
-    var now = Date.now();
-    _pruneFrequentVisits(store.frequentSites, now);
-    var arr = store.frequentSites[u.origin] || (store.frequentSites[u.origin] = []);
-    arr.push(now);
-    if (arr.length > 20) store.frequentSites[u.origin] = arr.slice(-20);
-    writeStorage(store);
+    updateStorageSoon(function (store) {
+      if (!store.frequentSites) store.frequentSites = {};
+      var now = Date.now();
+      _pruneFrequentVisits(store.frequentSites, now);
+      var arr = store.frequentSites[u.origin] || (store.frequentSites[u.origin] = []);
+      arr.push(now);
+      if (arr.length > 20) store.frequentSites[u.origin] = arr.slice(-20);
+    });
     return { success: true };
   } catch (e) {
     return { success: false };
@@ -5919,6 +6344,24 @@ ipcMain.handle('save-toolbar-buttons', (_, data) => {
   writeStorage(store);
   _allShells().forEach(function (sh) {
     try { sh.webContents.send('toolbar-buttons-changed', data); } catch(e) {}
+  });
+  return { success: true };
+});
+
+// ============== HAMBURGER MENU ==============
+// Custom order/set of the hamburger menu items (ids match index.html:
+// hmSettings, hmDivider1, …). null/absent = the default HTML order.
+ipcMain.handle('get-menu-items', () => {
+  const store = readStorage();
+  return { success: true, items: store.menuItems || null };
+});
+
+ipcMain.handle('save-menu-items', (_, data) => {
+  const store = readStorage();
+  store.menuItems = data;
+  writeStorage(store);
+  _allShells().forEach(function (sh) {
+    try { sh.webContents.send('menu-items-changed', data); } catch(e) {}
   });
   return { success: true };
 });
@@ -9222,6 +9665,8 @@ ipcMain.handle('open-url-from-settings', (event, url) => {
   if (win) {
     if (url === 'startpozi://customize-toolbar') {
       win.webContents.send('toggle-customize-mode');
+    } else if (url === 'startpozi://customize-menu') {
+      win.webContents.send('toggle-menu-customize-mode');
     } else {
       win.webContents.send('open-in-new-tab', url);
     }
@@ -9826,10 +10271,11 @@ ipcMain.handle('get-workspace-tabs', (_, workspaceId) => {
 });
 
 ipcMain.handle('set-workspace-tabs', (_, workspaceId, tabsData) => {
-  const store = readStorage();
-  if (!store.workspaceTabs) store.workspaceTabs = {};
-  store.workspaceTabs[workspaceId] = tabsData;
-  writeStorage(store);
+  // Hot path (fires per navigation via autoSaveTabs) — coalesced write.
+  updateStorageSoon(function (store) {
+    if (!store.workspaceTabs) store.workspaceTabs = {};
+    store.workspaceTabs[workspaceId] = tabsData;
+  });
   return { success: true };
 });
 
@@ -9914,8 +10360,12 @@ ipcMain.handle('get-privacy-stats', async () => {
   const sec = store.security || {};
   var enabledFeatures = 0;
   var totalFeatures = 13;
-  var featureKeys = ['urlClean','sanitizeUrl','webrtcLeak','fingerprint','autoplayBlock','siteIsolation','httpsOnly','referrerPolicy','blockThirdPartyCookies','blockMixedContent','blockNotifications','blockGeolocation','blockWebGL','blockClipboard'];
-  featureKeys.forEach(function(k) { if (sec[k]) enabledFeatures++; });
+  var featureKeys = ['urlClean','sanitizeUrl','webrtcLeak','fingerprint','autoplayBlock','siteIsolation','httpsOnly','referrerPolicy','blockThirdPartyCookies','blockMixedContent','blockNotifications','blockGeolocation','blockWebGL','blockClipboard','fpShield','spectreShield','blockDnsRebinding','audioFp','clearCacheOnExit','askLanAccess'];
+  var _optOutFeatures = { fpShield:1, blockWebGL:1, spectreShield:1, blockDnsRebinding:1, audioFp:1, askLanAccess:1 };
+  featureKeys.forEach(function(k) {
+    var on = _optOutFeatures[k] ? (sec[k] !== false) : !!sec[k];
+    if (on) enabledFeatures++;
+  });
 
   // Real cookie COUNT (the old code reported the Cookies-db SIZE in KB,
   // which said nothing about how many cookies are actually stored).

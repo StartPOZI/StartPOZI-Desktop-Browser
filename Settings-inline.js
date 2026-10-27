@@ -304,6 +304,7 @@ var loadSbStats = null;
 (function() {
     var abToggle = document.getElementById('abSettingsToggle');
     var abStatus = document.getElementById('abStatusText');
+    var _t = function (s) { return (window.i18n && window.i18n.t(s)) || s; };
 
     if (api.adblockerIsEnabled) {
         api.adblockerIsEnabled().then(function(r) {
@@ -340,7 +341,7 @@ var loadSbStats = null;
         if (data.builtin && data.builtin.length) {
             var h = document.createElement('div');
             h.style.cssText = 'font-size:12px;font-weight:500;color:var(--text-color);margin:8px 0 4px;';
-            h.textContent = 'Built-in lists (' + data.builtin.length + ')';
+            h.textContent = _t('Built-in lists') + ' (' + data.builtin.length + ')';
             listsContainer.appendChild(h);
             data.builtin.forEach(function(url) {
                 var row = document.createElement('div');
@@ -358,7 +359,7 @@ var loadSbStats = null;
         if (data.custom && data.custom.length) {
             var h2 = document.createElement('div');
             h2.style.cssText = 'font-size:12px;font-weight:500;color:var(--text-color);margin:12px 0 4px;';
-            h2.textContent = 'Custom lists (' + data.custom.length + ')';
+            h2.textContent = _t('Custom lists') + ' (' + data.custom.length + ')';
             listsContainer.appendChild(h2);
             data.custom.forEach(function(url) {
                 var row = document.createElement('div');
@@ -415,7 +416,7 @@ var loadSbStats = null;
         function fhUpdateStatus() {
             var n = Object.keys(fhEnabledSet).length;
             fhStatusEl.style.color = 'var(--secondary-text)';
-            fhStatusEl.textContent = n + ' of 44 lists enabled';
+            fhStatusEl.textContent = _t('Enabled lists:') + ' ' + n + ' / 44';
         }
         function fhRender() {
             fhCatalogEl.innerHTML = '';
@@ -425,7 +426,7 @@ var loadSbStats = null;
                 if (!inCat.length) return;
                 var head = document.createElement('div');
                 head.style.cssText = 'font-size:12px;font-weight:500;color:var(--text-color);margin:12px 0 6px;';
-                head.textContent = FH_CAT_LABELS[cat] + ' (' + inCat.length + ')';
+                head.textContent = _t(FH_CAT_LABELS[cat]) + ' (' + inCat.length + ')';
                 fhCatalogEl.appendChild(head);
                 inCat.forEach(function(l) {
                     var row = document.createElement('label');
@@ -446,8 +447,8 @@ var loadSbStats = null;
                     if (l.warn) {
                         var warn = document.createElement('span');
                         warn.style.cssText = 'font-size:10px;color:#ffb347;background:rgba(255,179,71,0.12);padding:1px 6px;border-radius:4px;white-space:nowrap;';
-                        warn.textContent = '⚠ ' + (FH_WARN_LABELS[l.warn] || l.warn);
-                        warn.title = FH_WARN_LABELS[l.warn] || l.warn;
+                        warn.textContent = '⚠ ' + _t(FH_WARN_LABELS[l.warn] || l.warn);
+                        warn.title = _t(FH_WARN_LABELS[l.warn] || l.warn);
                         row.appendChild(warn);
                     }
                     row.appendChild(metaSpan);
@@ -479,18 +480,18 @@ var loadSbStats = null;
                 ((r && r.enabled) || []).forEach(function(n) { fhEnabledSet[n] = true; });
                 fhSyncCheckboxes();
                 fhStatusEl.style.color = '#4CAF50';
-                fhStatusEl.textContent = '✓ ' + Object.keys(fhEnabledSet).length + ' lists enabled';
+                fhStatusEl.textContent = '✓ ' + _t('Enabled lists:') + ' ' + Object.keys(fhEnabledSet).length;
             }).catch(function() {
                 fhApplying = false;
                 fhStatusEl.style.color = 'var(--secondary-text)';
-                fhStatusEl.textContent = 'Failed to apply, please retry.';
+                fhStatusEl.textContent = _t('Failed to apply, please retry.');
             });
         }
         function fhPreset(level) {
             if (fhApplying) return;
             fhApplying = true;
             fhStatusEl.style.color = '#ffb347';
-            fhStatusEl.textContent = 'Applying ' + level + ' preset…';
+            fhStatusEl.textContent = _t('Applying preset…');
             api.setFilterhubPreset(level).then(function(r) {
                 fhApplying = false;
                 if (r && r.success) {
@@ -498,15 +499,15 @@ var loadSbStats = null;
                     (r.enabled || []).forEach(function(n) { fhEnabledSet[n] = true; });
                     fhSyncCheckboxes();
                     fhStatusEl.style.color = '#4CAF50';
-                    fhStatusEl.textContent = '✓ ' + level + ' preset: ' + Object.keys(fhEnabledSet).length + ' lists enabled';
+                    fhStatusEl.textContent = '✓ ' + _t('Preset applied') + ': ' + Object.keys(fhEnabledSet).length;
                 } else {
                     fhStatusEl.style.color = 'var(--secondary-text)';
-                    fhStatusEl.textContent = 'Failed to apply preset.';
+                    fhStatusEl.textContent = _t('Failed to apply preset.');
                 }
             }).catch(function() {
                 fhApplying = false;
                 fhStatusEl.style.color = 'var(--secondary-text)';
-                fhStatusEl.textContent = 'Failed to apply preset.';
+                fhStatusEl.textContent = _t('Failed to apply preset.');
             });
         }
         ['light', 'medium', 'full'].forEach(function(level) {
@@ -542,6 +543,22 @@ var loadSbStats = null;
     updateListsBtn.addEventListener('click', function() {
         if (api.updateFilterLists) api.updateFilterLists();
     });
+
+    // Labels composed in JS (counts, statuses) are not covered by the i18n
+    // text-node walker — re-render them once the dictionary is ready and on
+    // every live language switch.
+    function rerenderI18nLabels() { renderFilterLists(); if (fhCatalog) fhRender(); }
+    var i18nTries = 0;
+    (function waitI18n() {
+        i18nTries++;
+        var ok = false;
+        try { ok = !!(window.i18n && window.i18n.isReady && window.i18n.isReady()); } catch (e) {}
+        if (ok) { rerenderI18nLabels(); return; }
+        if (i18nTries < 40) setTimeout(waitI18n, 150);
+    })();
+    if (window.electronAPI && window.electronAPI.onLanguageChanged) {
+        try { window.electronAPI.onLanguageChanged(function() { setTimeout(rerenderI18nLabels, 100); }); } catch (e) {}
+    }
 
     // Custom styles
     var stylesArea = document.getElementById('abCustomStyles');
@@ -619,6 +636,15 @@ var loadSbStats = null;
         'secSanitizeUrl': 'sanitizeUrl',
         'secWebRTC': 'webrtcLeak',
         'secFingerprint': 'fingerprint',
+        'secAudioFp': 'audioFp',
+        'secFpShield': 'fpShield',
+        'secSpectreShield': 'spectreShield',
+        'secBlockDnsRebinding': 'blockDnsRebinding',
+        'secAskLanAccess': 'askLanAccess',
+        'secConfirmDownloads': 'confirmDownloads',
+        'secCoopCoep': 'coopCoep',
+        'secLsQuota': 'lsQuota',
+        'secClearCacheOnExit': 'clearCacheOnExit',
         'secAutoplay': 'autoplayBlock',
         'secSiteIsolation': 'siteIsolation',
         'secHttpsOnly': 'httpsOnly',
@@ -1142,15 +1168,27 @@ document.querySelectorAll('nav a').forEach(link => {
     });
 
     // Bilingual placeholder (i18n loads async).
-    (function applyPh() {
+    function applyPh() {
         var ru = false;
         try { ru = !!(window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru'); } catch (e0) {}
         input.placeholder = ru ? (input.getAttribute('data-ru-ph') || input.placeholder)
                                : (input.getAttribute('data-en-ph') || input.placeholder);
-        if (window.electronAPI && window.electronAPI.onLanguageChanged) {
-            try { window.electronAPI.onLanguageChanged(function () { setTimeout(applyPh, 80); }); } catch (e1) {}
-        }
+    }
+    applyPh();
+    // On a normal start `language-changed` never fires, so the initial
+    // applyPh() can run before the async language load and pick English.
+    // Re-apply once i18n reports readiness (bounded poll), and on switches.
+    var phTries = 0;
+    (function waitPhReady() {
+        phTries++;
+        var ok = false;
+        try { ok = !!(window.i18n && window.i18n.isReady && window.i18n.isReady()); } catch (e2) {}
+        if (ok) { applyPh(); return; }
+        if (phTries < 40) setTimeout(waitPhReady, 150);
     })();
+    if (window.electronAPI && window.electronAPI.onLanguageChanged) {
+        try { window.electronAPI.onLanguageChanged(function () { setTimeout(applyPh, 80); }); } catch (e1) {}
+    }
 
     // Deep link: ?q=… / #q=… / #search=…
     (function deepLink() {
@@ -2196,16 +2234,57 @@ if (winControlsSelect) {
 (function() {
     var sel = document.getElementById('tab-vertical-width-select');
     if (!sel) return;
+    var customW = null; // currently applied non-preset width, if any
+
+    function customLabel(w) {
+        var t = function(s) { return (window.i18n && window.i18n.t(s)) || s; };
+        return t('Custom width') + ' (' + w + ' ' + t('px') + ')';
+    }
+    // Select the matching preset, or show a "Custom width (N px)" pseudo-entry
+    // when the bar was resized manually and no preset fits (an empty select
+    // would otherwise be displayed).
+    function applyWidth(w) {
+        if (!w) return;
+        var known = Array.prototype.some.call(sel.options, function(o) {
+            return o.value !== 'custom' && parseInt(o.value, 10) === w;
+        });
+        var opt = sel.querySelector('option[value="custom"]');
+        if (known) {
+            if (opt) opt.remove();
+            customW = null;
+            sel.value = String(w);
+        } else {
+            customW = w;
+            if (!opt) { opt = document.createElement('option'); opt.value = 'custom'; sel.appendChild(opt); }
+            opt.textContent = customLabel(w);
+            sel.value = 'custom';
+        }
+    }
     sel.addEventListener('change', function() {
+        if (sel.value === 'custom') return; // informational entry, not a preset
         saveCustomizationSettings({ verticalTabWidth: parseInt(sel.value, 10) });
     });
     if (window.electronAPI && window.electronAPI.getCustomizationSettings) {
         window.electronAPI.getCustomizationSettings().then(function(r) {
             if (r && r.settings && r.settings.verticalTabWidth) {
-                sel.value = String(r.settings.verticalTabWidth);
+                applyWidth(parseInt(r.settings.verticalTabWidth, 10));
             }
         });
     }
+    // The bar can also be resized by dragging it in the main window — keep
+    // the select in sync live.
+    if (window.electronAPI && window.electronAPI.onCustomizationUpdated) {
+        window.electronAPI.onCustomizationUpdated(function(s) {
+            if (s && s.verticalTabWidth) applyWidth(parseInt(s.verticalTabWidth, 10));
+        });
+    }
+    // Re-label the pseudo-entry when the UI language changes.
+    document.addEventListener('i18nlanguagechange', function() {
+        if (customW !== null) {
+            var opt = sel.querySelector('option[value="custom"]');
+            if (opt) opt.textContent = customLabel(customW);
+        }
+    });
 })();
 
 // Auto-hide top bar toggle
@@ -2326,6 +2405,13 @@ let availableButtonsConfig = {};
 document.getElementById('open-toolbar-customization').addEventListener('click', async () => {
     if (window.electronAPI && window.electronAPI.openUrlFromSettings) {
         window.electronAPI.openUrlFromSettings('startpozi://customize-toolbar');
+    }
+});
+
+// Open the in-shell hamburger menu customize mode (same flow as above)
+document.getElementById('open-menu-customization').addEventListener('click', async () => {
+    if (window.electronAPI && window.electronAPI.openUrlFromSettings) {
+        window.electronAPI.openUrlFromSettings('startpozi://customize-menu');
     }
 });
 
@@ -3904,6 +3990,7 @@ function loadProfiles() {
     Promise.all([api.getProfiles(), api.getActiveProfile()]).then(([data, active]) => {
         const profiles = data.profiles || [];
         const activeId = active ? active.id : 'default';
+        const dateLocale = (window.i18n && window.i18n.getLanguage && window.i18n.getLanguage()) === 'ru' ? 'ru-RU' : 'en-US';
 
         if (profiles.length === 0) {
             listEl.innerHTML = '<div class="empty-message">No profiles</div>';
@@ -3922,7 +4009,7 @@ function loadProfiles() {
                             <span id="profile-name-${escapeHtml(p.id)}">${escapeHtml(p.name || 'Profile')}</span>
                             ${isActive ? '<span style="font-size:11px;color:#4CAF50;font-weight:500;">● Active</span>' : ''}
                         </div>
-                        <div class="plugin-version">Created: ${p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-US') : '—'}</div>
+                        <div class="plugin-version"><span>Created:</span> ${p.createdAt ? new Date(p.createdAt).toLocaleDateString(dateLocale) : '—'}</div>
                     </div>
                     <div class="plugin-actions" style="flex-direction: column; gap: 4px;">
                         ${!isActive ? `<button class="password-action-btn" data-action="switch-profile" data-id="${escapeHtml(p.id)}">Switch</button>` : ''}
@@ -4128,8 +4215,14 @@ function loadPrivacyDashboard() {
         var total = stats.totalFeatures || 1;
         var pct = Math.round((enabled / total) * 100);
         var level = pct >= 80 ? 'High' : pct >= 50 ? 'Medium' : 'Low';
-        if (scoreEl) scoreEl.textContent = level;
+        // Dedicated keys so the word agrees with "Protection level" (masc.)
+        // instead of reusing unrelated one-word dictionary entries.
+        var lvlKey = pct >= 80 ? 'High security' : pct >= 50 ? 'Medium security' : 'Low security';
+        // t() echoes the key while no dictionary is loaded (lang === 'en') —
+        // fall back to the plain word in that case.
+        if (scoreEl) scoreEl.textContent = (window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() !== 'en' && window.i18n.t(lvlKey)) || level;
         if (recList) {
+            var _pt = function(s) { return (window.i18n && window.i18n.t(s)) || s; };
             var recs = [];
             if (!stats.adblockerEnabled) recs.push('Enable the ad blocker to protect against trackers');
             if (!stats.httpsOnly) recs.push('Enable "HTTPS only" for secure connections');
@@ -4137,12 +4230,17 @@ function loadPrivacyDashboard() {
             if (!stats.fingerprintProtection) recs.push('Enable fingerprinting protection');
             if (!stats.webRTCProtection) recs.push('Enable WebRTC IP leak protection');
             recList.innerHTML = recs.length > 0
-                ? recs.map(function(r) { return '<div style="padding:4px 0;border-bottom:1px solid var(--border-color);">• ' + r + '</div>'; }).join('')
-                : '<div style="color:#4caf50;">All core protection measures are enabled!</div>';
+                ? recs.map(function(r) { return '<div style="padding:4px 0;border-bottom:1px solid var(--border-color);">• ' + _pt(r) + '</div>'; }).join('')
+                : '<div style="color:#4caf50;">' + _pt('All core protection measures are enabled!') + '</div>';
         }
     }).catch(function() {});
 }
 if (document.getElementById('privBlockedCount')) loadPrivacyDashboard();
+// The dictionary loads asynchronously: re-render once the UI language has
+// been applied so recommendations and the score word are translated.
+document.addEventListener('i18nlanguagechange', function (ev) {
+    if (ev.detail && ev.detail.language !== 'en' && document.getElementById('privBlockedCount')) loadPrivacyDashboard();
+});
 
 // ============== MULTI-SEARCH ENGINES ==============
 (function() {
@@ -5648,7 +5746,7 @@ function renderZapperRules(rules) {
         if (!pat) { customAlert('Specify a rule pattern'); return; }
         // Validate regex
         if (typeEl && typeEl.value === 'regex') {
-            try { new RegExp(pat); } catch(e) { customAlert('Invalid regex: ' + e.message); return; }
+            try { new RegExp(pat); } catch(e) { customAlert(((window.i18n && window.i18n.t('Invalid regex: ')) || 'Invalid regex: ') + e.message); return; }
         }
         _sgRules.push({
             id: 'r' + Date.now() + Math.random().toString(36).slice(2,6),

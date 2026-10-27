@@ -39,7 +39,21 @@ var _SVG = {
   '📥': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   '🔍': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
   '📓': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
-  '⚙': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+  '⚙': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  '🧩': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.966 1.02z"/></svg>',
+  '🔒': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  '⚠': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  '🪟': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20"/><path d="M10 4v4"/><path d="M6 4v4"/></svg>',
+  '🗣': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  '📷': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  '📘': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  '📜': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  '🔑': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+  '🟢': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="10"/></svg>',
+  '🟣': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><circle cx="12" cy="12" r="10"/></svg>',
+  '🗓': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  '🛡': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  '🗂': '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M2 10h20"/></svg>'
 };
 
 function _icon(emoji, w, h) {
@@ -1727,7 +1741,8 @@ function customPrompt(msg, def) {
     hid: 'HID devices',
     bluetooth: 'Bluetooth',
     idleDetection: 'Idle detection',
-    windowManagement: 'Window management'
+    windowManagement: 'Window management',
+    localNetworkAccess: 'Local network access'
   };
 
   var PERM_VERBS = {
@@ -1744,7 +1759,8 @@ function customPrompt(msg, def) {
     pointerLock: 'lock your mouse pointer',
     persistentStorage: 'store data permanently',
     usb: 'access USB devices',
-    notifications: 'send notifications'
+    notifications: 'send notifications',
+    localNetworkAccess: 'access devices on your local network'
   };
 
   // Inline SVG icons keyed by the icon hint main.js sends.
@@ -1759,6 +1775,7 @@ function customPrompt(msg, def) {
     pointer: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>',
     database: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
     usb: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3" r="1.5"/><path d="M12 6v9"/><path d="M9 9h6l-3 6-3-6z"/></svg>',
+    lan: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="6" height="6" rx="1"/><rect x="16" y="14" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M12 8v3"/><path d="M5 14v-1a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1"/><path d="M12 11v3"/></svg>',
     shield: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
   };
 
@@ -2244,14 +2261,14 @@ function updateSuggestions(query) {
       tabsHeader.className = 'url-suggestion-item qc-header';
       tabsHeader.style.borderTop = '1px solid var(--border-color-alpha)';
       tabsHeader.style.marginTop = '4px';
-      tabsHeader.innerHTML = '<span class="url-suggestion-icon">\uD83E\uDDE9</span>' +
+      tabsHeader.innerHTML = '<span class="url-suggestion-icon">' + _icon('\uD83E\uDDE9') + '</span>' +
         '<span class="url-suggestion-text" style="font-weight:600;font-size:11px;color:var(--secondary-text);text-transform:uppercase;letter-spacing:.5px;">' +
         (_isRuTabs ? 'Открытые вкладки' : 'Open tabs') + '</span>';
       _suggestEl.appendChild(tabsHeader);
       openTabMatches.slice(0, 3).forEach(function(mt) {
         var item = document.createElement('div');
         item.className = 'url-suggestion-item';
-        item.innerHTML = '<span class="url-suggestion-icon">\uD83E\uDDE9</span>' +
+        item.innerHTML = '<span class="url-suggestion-icon">' + _icon('\uD83E\uDDE9') + '</span>' +
           '<span class="url-suggestion-text">' + escapeHtmlSimple(mt.title) + '</span>' +
           '<span class="url-suggestion-url">' + escapeHtmlSimple(mt.url) + '</span>';
         item.addEventListener('mousedown', function(e) {
@@ -2721,6 +2738,49 @@ function applyVerticalTabWidth(px) {
   if (n > 400) n = 400;
   document.documentElement.style.setProperty('--vertical-tabs-width', n + 'px');
 }
+
+// ===== Vertical tabs: drag the panel edge to resize =====
+// Live width while dragging (CSS var only), persisted on mouseup via the
+// customization settings store (it merges, so a single key is safe). The
+// same limits as applyVerticalTabWidth apply; double-click resets to 180px.
+(function setupVerticalTabsResizer() {
+  var handle = document.getElementById('verticalTabsResizer');
+  if (!handle) return;
+  var dragging = false;
+  var pendingWidth = null;
+  handle.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    dragging = true;
+    pendingWidth = null;
+    e.preventDefault();
+    document.body.classList.add('vtabs-resizing');
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var n = Math.round(Math.min(400, Math.max(100, e.clientX)));
+    applyVerticalTabWidth(n);
+    pendingWidth = n;
+  });
+  function persist(n) {
+    if (!n) return;
+    if (window.electronAPI && window.electronAPI.saveCustomizationSettings) {
+      try {
+        window.electronAPI.saveCustomizationSettings({ verticalTabWidth: n });
+      } catch (e) {}
+    }
+  }
+  window.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('vtabs-resizing');
+    persist(pendingWidth);
+    pendingWidth = null;
+  });
+  handle.addEventListener('dblclick', function() {
+    applyVerticalTabWidth(180);
+    persist(180);
+  });
+})();
 
 function applyAutohideTopbar(on) {
   document.body.classList.toggle('chrome-autohide', !!on);
@@ -3618,10 +3678,15 @@ function createNewTab(url, lazy, opts) {
       }
       // Frequent-sites counter for the omnibox (48h rolling window, per
       // origin). Incognito never records; the main process also gates on the
-      // Settings toggle and prunes the map itself.
+      // Settings toggle and prunes the map itself. The local map is bumped
+      // OPTIMISTICALLY — reloading the whole map per navigation caused an
+      // extra full-settings clone round-trip on every page load.
       if (!tabData.isIncognito && window.electronAPI && window.electronAPI.recordFrequentVisit) {
         try {
-          window.electronAPI.recordFrequentVisit(e.url).then(function() { loadFrequentSites(); }).catch(function() {});
+          var _freqOrigin = '';
+          try { _freqOrigin = new URL(e.url).origin; } catch (_) {}
+          if (_freqOrigin) _frequentSites[_freqOrigin] = (_frequentSites[_freqOrigin] || 0) + 1;
+          window.electronAPI.recordFrequentVisit(e.url).catch(function() {});
         } catch(_) {}
       }
       injectCosmetics(webview, e.url);
@@ -3631,7 +3696,9 @@ function createNewTab(url, lazy, opts) {
       _sbLastVid[tabData.id] = null;
       injectSponsorBlock(tabData);
       injectCookieBannerBlocker(tabData);
-      autoSaveTabs();
+      // Debounced session save (2 s of quiet) — an immediate save per
+      // navigation used to hammer settings.json on every page load.
+      _scheduleTabSave();
       // Refresh the shield counter as soon as the new page is in place.
       try { if (window._updateAbShield) window._updateAbShield(); } catch(e) {}
     }
@@ -4730,8 +4797,18 @@ settingsBtn.addEventListener('click', function() {
     _ahHotspot.addEventListener('mouseenter', _ahReveal);
     _ahHotspot.addEventListener('mousemove', _ahReveal); // safety net
   }
+  // Left-edge hotspot — same reveal path for the collapsed vertical sidebar.
+  var _ahLeftHotspot = document.getElementById('autohideLeftHotspot');
+  if (_ahLeftHotspot) {
+    _ahLeftHotspot.addEventListener('mouseenter', _ahReveal);
+    _ahLeftHotspot.addEventListener('mousemove', _ahReveal);
+  }
   _ahBindHover(_ahTitlebar);
   _ahBindHover(_ahNavbar);
+  // In vertical mode the sidebar collapses with the chrome and reappears on
+  // reveal — keep it open while the cursor is on it. (In horizontal mode the
+  // tabs-bar lives inside the collapsed titlebar, so this is a no-op there.)
+  _ahBindHover(document.querySelector('.tabs-bar'));
   // Window blur / minimize → hide immediately (so the chrome doesn't stay
   // floating over a backgrounded window).
   if (api.onWindowFocusChanged) {
@@ -4765,7 +4842,11 @@ settingsBtn.addEventListener('click', function() {
     if (htc) htc.className = 'hm-check' + (_hoverTranslateSettings.enabled ? ' active' : '');
   }
 
-  // Hide menu items whose buttons are already on the toolbar.
+  // Hide menu items whose buttons are already on the toolbar, and items the
+  // user removed from the custom menu layout. Membership (hmMembers below)
+  // is AUTHORITATIVE state — never derived from style.display: dedup-hidden
+  // items must stay members, so when their toolbar button is later removed
+  // they reappear in the menu.
   function updateHmVisibility() {
     try {
       var tbs = (typeof _getToolbarButtons === 'function') ? _getToolbarButtons() : (_currentToolbarButtons || _defaultToolbarButtons || []);
@@ -4792,10 +4873,15 @@ settingsBtn.addEventListener('click', function() {
         hmIncognito:  'incognito',
         hmBreakLoupe: 'breakLoupe'
       };
-      Object.keys(HMMAP).forEach(function(hmId) {
-        var el = document.getElementById(hmId);
-        if (!el) return;
-        el.style.display = (tbs.indexOf(HMMAP[hmId]) !== -1) ? 'none' : '';
+      Array.prototype.forEach.call(hmMenu.children, function(ch) {
+        var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+        if (!key || key === 'hmCustomizePanel') return;
+        if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return;
+        if (HM_DEFAULT_ORDER.indexOf(key) === -1) return; // not a catalog item
+        var member = hmMembers.indexOf(key) !== -1;
+        var tb = HMMAP[key];
+        var onToolbar = tb && tbs.indexOf(tb) !== -1;
+        ch.style.display = (member && !onToolbar) ? '' : 'none';
       });
     } catch(e) { /* never break the renderer over a missing item */ }
   }
@@ -4803,12 +4889,16 @@ settingsBtn.addEventListener('click', function() {
 
   hmBtn.addEventListener('click', function(e) {
     e.stopPropagation();
+    // While the in-shell menu customize mode is active the menu must stay
+    // open — it is the editing canvas.
+    if (window._menuCustomizeModeActive && window._menuCustomizeModeActive()) return;
     var isOpen = hmMenu.classList.contains('open');
     if (isOpen) { hmMenu.classList.remove('open'); }
     else { updateHmChecks(); updateHmVisibility(); hmMenu.classList.add('open'); }
   });
 
   document.addEventListener('click', function(e) {
+    if (window._menuCustomizeModeActive && window._menuCustomizeModeActive()) return;
     if (!hmMenu.contains(e.target) && e.target !== hmBtn) hmMenu.classList.remove('open');
   });
 
@@ -4883,7 +4973,288 @@ settingsBtn.addEventListener('click', function() {
   bind('hmIncognito', function() { if (typeof window.startIncognitoMode === 'function') window.startIncognitoMode(); });
   bind('hmBreakLoupe', function() { clickBtn('breakLoupeBtn'); });
 
+  // ===== Custom menu contents (in-shell customize mode, see the
+  // menuCustomizeMode IIFE below). hmMembers is the AUTHORITATIVE item
+  // membership (order = list order). Visibility = member AND no toolbar
+  // twin (updateHmVisibility above) — never the other way round, so a
+  // dedup-hidden member reappears in the menu as soon as its button leaves
+  // the toolbar.
+  var HM_DEFAULT_ORDER = ['hmSettings','hmHelp','hmDivider1','hmLibrary','hmBookmarks','hmHistory','hmDownloads','hmAutofill','hmAdblock','hmScripts','hmDivider2','hmDark','hmReader','hmTts','hmMedia','hmEq','hmHoverTr','hmDivider3','hmQr','hmSplit','hmScreenshot','hmFindAll','hmAutoscroll','hmNewWindow','hmIncognito','hmBreakLoupe'];
+  var hmMembers = HM_DEFAULT_ORDER.slice(); // ids currently IN the menu
+  window._applyMenuLayout = function(items) {
+    if (!Array.isArray(items) || !items.length) return;
+    // Sanitize: known catalog ids only, first occurrence wins.
+    var seen = {};
+    hmMembers = [];
+    items.forEach(function(id) {
+      if (HM_DEFAULT_ORDER.indexOf(id) !== -1 && !seen[id]) { seen[id] = true; hmMembers.push(id); }
+    });
+    var byId = {};
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return; // customize panel etc.
+      var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+      if (key && !byId[key]) byId[key] = ch;
+    });
+    hmMembers.forEach(function(id) {
+      var el = byId[id];
+      if (!el) return;
+      el.style.display = '';
+      hmMenu.appendChild(el);
+    });
+    // Non-members stay hidden (members' toolbar dedup is applied by
+    // updateHmVisibility — but NOT while the customize mode is open: the
+    // editor must show the full membership, hidden twins included).
+    Object.keys(byId).forEach(function(k) {
+      if (hmMembers.indexOf(k) === -1) byId[k].style.display = 'none';
+    });
+    if (!(window._menuCustomizeModeActive && window._menuCustomizeModeActive())) {
+      try { updateHmVisibility(); } catch(e) {}
+    }
+  };
+  // Current membership in DOM order (authoritative — includes items that
+  // are temporarily hidden because their button is on the toolbar).
+  window._hmGetLayout = function() {
+    var order = [];
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return;
+      var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+      if (key && key !== 'hmCustomizePanel') order.push(key);
+    });
+    return order.filter(function(k) { return hmMembers.indexOf(k) !== -1; });
+  };
+  if (window.electronAPI && window.electronAPI.getMenuItems) {
+    window.electronAPI.getMenuItems().then(function(r) {
+      if (r && r.success && Array.isArray(r.items)) window._applyMenuLayout(r.items);
+    }).catch(function() {});
+  }
+  if (window.electronAPI && window.electronAPI.onMenuItemsChanged) {
+    window.electronAPI.onMenuItemsChanged(function(items) { window._applyMenuLayout(items); });
+  }
+  // Default order kept for external callers (reset, editors).
+  window._hmDefaultOrder = HM_DEFAULT_ORDER.slice();
+
   try { updateHmVisibility(); } catch(e) {}
+})();
+
+// ===== In-shell hamburger menu customize mode =====
+// Opened from Settings → "Open menu customization" (startpozi://customize-menu
+// → toggle-menu-customize-mode — the exact same flow as the toolbar's
+// customize mode). The LIVE menu becomes the editing canvas: drag items to
+// reorder, double-click (or drop onto the pool) to remove, drag chips from
+// the in-menu pool to add back. Every change applies and saves immediately
+// (menu-items-changed keeps other windows in sync).
+(function() {
+  var hmMenu = document.getElementById('hamburgerMenu');
+  var panel = document.getElementById('hmCustomizePanel');
+  var pool = document.getElementById('hmCustPool');
+  if (!hmMenu || !panel || !pool || !window._applyMenuLayout || !window._hmGetLayout) return;
+
+  var active = false;
+  var dragId = null, dragFromPool = false;
+  var attached = []; // listeners to detach on close
+
+  window._menuCustomizeModeActive = function() { return active; };
+
+  function on(el, type, fn, capture) {
+    el.addEventListener(type, fn, capture);
+    attached.push({ el: el, type: type, fn: fn, capture: !!capture });
+  }
+  function hmKeyOf(el) { return el.id || (el.getAttribute && el.getAttribute('data-hm-id')); }
+  function isCatalogEl(el) {
+    return el && el.nodeType === 1 && el !== panel &&
+      !(el.getAttribute && el.getAttribute('data-hm-skip')) && hmKeyOf(el);
+  }
+  function applyAndSave(list) {
+    window._applyMenuLayout(list);
+    if (window.electronAPI && window.electronAPI.saveMenuItems) {
+      window.electronAPI.saveMenuItems(list).catch(function() {});
+    }
+  }
+
+  function clearDropHints() {
+    hmMenu.classList.remove('hm-drag-over');
+    hmMenu.querySelectorAll('.hm-drop-before,.hm-drop-after').forEach(function(el) {
+      el.classList.remove('hm-drop-before', 'hm-drop-after');
+    });
+  }
+
+  // ---- pool (items missing from the current layout) ----
+  function chipHtml(key) {
+    if (key.indexOf('hmDivider') === 0) {
+      return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="12" x2="20" y2="12"/></svg><span>Separator</span>';
+    }
+    var src = hmMenu.querySelector('#' + key + ' .hm-icon');
+    var label = key;
+    if (src && src.parentNode) label = (src.parentNode.textContent || '').trim() || key;
+    return (src ? src.innerHTML : '') + '<span>' + label + '</span>';
+  }
+  function refreshPool() {
+    pool.innerHTML = '';
+    var layout = window._hmGetLayout();
+    (window._hmDefaultOrder || []).forEach(function(key) {
+      if (layout.indexOf(key) !== -1) return;
+      var chip = document.createElement('div');
+      chip.className = 'hm-cust-chip';
+      chip.innerHTML = chipHtml(key);
+      chip.draggable = true;
+      chip.addEventListener('dragstart', function(e) {
+        dragId = key; dragFromPool = true;
+        e.dataTransfer.setData('text/plain', key);
+        e.dataTransfer.setData('application/x-startpozi-ui-drag', '1');
+        e.dataTransfer.effectAllowed = 'move';
+        chip.classList.add('dragging');
+      });
+      chip.addEventListener('dragend', function() { chip.classList.remove('dragging'); dragId = null; clearDropHints(); });
+      chip.addEventListener('dblclick', function() {
+        var list = window._hmGetLayout();
+        list.push(key);
+        applyAndSave(list);
+        refreshPool();
+      });
+      pool.appendChild(chip);
+    });
+  }
+
+  function insertIntoMenu(key, beforeKey) {
+    var list = window._hmGetLayout().filter(function(k) { return k !== key; });
+    if (beforeKey) {
+      var idx = list.indexOf(beforeKey);
+      if (idx !== -1) { list.splice(idx, 0, key); } else { list.push(key); }
+    } else {
+      list.push(key);
+    }
+    applyAndSave(list);
+    refreshPool();
+  }
+  function removeFromMenu(key) {
+    applyAndSave(window._hmGetLayout().filter(function(k) { return k !== key; }));
+    refreshPool();
+  }
+
+  function openMenuCustomizeMode() {
+    active = true;
+    panel.style.display = '';
+    hmMenu.classList.add('open');
+    hmMenu.classList.add('hm-customizing');
+    // While editing, show the FULL membership — including items temporarily
+    // hidden by the toolbar dedup: they are menu members, the pool only
+    // holds true non-members.
+    var mem = window._hmGetLayout();
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      var key = ch.id || (ch.getAttribute && ch.getAttribute('data-hm-id'));
+      if (!key || key === 'hmCustomizePanel') return;
+      if (ch.getAttribute && ch.getAttribute('data-hm-skip')) return;
+      if (window._hmDefaultOrder.indexOf(key) === -1) return;
+      ch.style.display = mem.indexOf(key) !== -1 ? '' : 'none';
+    });
+    // While editing, clicks on menu items must NOT run their actions.
+    on(hmMenu, 'click', function(e) {
+      if (!active) return;
+      if (e.target.closest && e.target.closest('.hm-item')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+    // Live items: drag to reorder, dblclick to remove.
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (!isCatalogEl(ch)) return;
+      ch.draggable = true;
+      on(ch, 'dragstart', function(e) {
+        dragId = hmKeyOf(ch); dragFromPool = false;
+        e.dataTransfer.setData('text/plain', dragId);
+        e.dataTransfer.setData('application/x-startpozi-ui-drag', '1');
+        e.dataTransfer.effectAllowed = 'move';
+        ch.classList.add('dragging');
+      });
+      on(ch, 'dragend', function() { ch.classList.remove('dragging'); dragId = null; clearDropHints(); });
+      on(ch, 'dblclick', function() { removeFromMenu(hmKeyOf(ch)); });
+    });
+    // The menu is the reorder drop zone.
+    on(hmMenu, 'dragover', function(e) {
+      if (!active || !dragId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      hmMenu.classList.add('hm-drag-over');
+      clearDropHints();
+      var it = e.target.closest && e.target.closest('.hm-item');
+      if (it) {
+        var r = it.getBoundingClientRect();
+        it.classList.add(e.clientY < r.top + r.height / 2 ? 'hm-drop-before' : 'hm-drop-after');
+      }
+    });
+    on(hmMenu, 'drop', function(e) {
+      if (!active || !dragId) return;
+      e.preventDefault();
+      clearDropHints();
+      var key = dragId;
+      dragId = null; dragFromPool = false;
+      var it = e.target.closest && e.target.closest('.hm-item');
+      var beforeKey = null;
+      if (it) {
+        var itKey = hmKeyOf(it);
+        var r = it.getBoundingClientRect();
+        var after = e.clientY >= r.top + r.height / 2;
+        var list = window._hmGetLayout();
+        var idx = list.indexOf(itKey);
+        if (idx !== -1) beforeKey = after ? (list[idx + 1] || null) : itKey;
+      }
+      insertIntoMenu(key, beforeKey);
+    });
+    on(hmMenu, 'dragleave', function(e) {
+      if (!hmMenu.contains(e.relatedTarget)) { hmMenu.classList.remove('hm-drag-over'); clearDropHints(); }
+    });
+    // Dropping an item onto the pool removes it from the menu.
+    on(pool, 'dragover', function(e) { if (active && dragId) { e.preventDefault(); pool.style.outline = '1px dashed #3b7dd8'; } });
+    on(pool, 'dragleave', function() { pool.style.outline = ''; });
+    on(pool, 'drop', function(e) {
+      e.preventDefault();
+      pool.style.outline = '';
+      if (!active || !dragId) return;
+      var key = dragId;
+      dragId = null; dragFromPool = false;
+      removeFromMenu(key);
+    });
+    // Panel controls.
+    var doneBtn = document.getElementById('hmCustDone');
+    var resetBtn = document.getElementById('hmCustReset');
+    if (doneBtn) doneBtn.onclick = closeMenuCustomizeMode;
+    if (resetBtn) resetBtn.onclick = function() {
+      applyAndSave((window._hmDefaultOrder || []).slice());
+      refreshPool();
+    };
+    refreshPool();
+  }
+
+  function closeMenuCustomizeMode() {
+    active = false;
+    attached.splice(0).forEach(function(a) {
+      try { a.el.removeEventListener(a.type, a.fn, a.capture); } catch(e) {}
+    });
+    Array.prototype.forEach.call(hmMenu.children, function(ch) {
+      if (isCatalogEl(ch)) ch.draggable = false;
+    });
+    panel.style.display = 'none';
+    pool.style.outline = '';
+    hmMenu.classList.remove('hm-customizing', 'hm-drag-over');
+    clearDropHints();
+    hmMenu.classList.remove('open');
+    // Re-assert the toolbar-dedup rules on the final layout.
+    if (window._updateHmVisibility) { try { window._updateHmVisibility(); } catch(e) {} }
+  }
+
+  window._toggleMenuCustomizeMode = function() {
+    if (active) closeMenuCustomizeMode();
+    else openMenuCustomizeMode();
+  };
+
+  if (window.electronAPI && window.electronAPI.onToggleMenuCustomizeMode) {
+    window.electronAPI.onToggleMenuCustomizeMode(function() {
+      window._toggleMenuCustomizeMode();
+    });
+  }
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && active) closeMenuCustomizeMode();
+  });
 })();
 
 // Site info panel (lock icon)
@@ -4981,7 +5352,10 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
       fReferrer: 'Ссылающийся URL', fModified: 'Последнее изменение', fMeta: 'Мета теги',
       renderStandards: 'Режим соответствия стандартам', renderQuirks: 'Режим совместимости (quirks)',
       metaNone: 'нет', permsHint: 'Разрешения сайта. Изменения применятся при следующем запросе или перезагрузке.',
-      reload: 'Перезагрузить страницу'
+      reload: 'Перезагрузить страницу',
+      netTitle: 'Сторонние запросы', netEmpty: 'Сторонних запросов не замечено',
+      netBlock: 'Блокировать', netAllow: 'Разрешить', netReqs: 'запр.',
+      netHint: 'Домены, к которым обращался этот сайт. Блокировка применяется сразу (для новых запросов).'
     } : {
       connSecure: 'You are connected to this site over a secure connection',
       connInsecure: 'Connection is not secure. Data can be intercepted by third parties.',
@@ -5001,7 +5375,10 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
       fReferrer: 'Referring URL', fModified: 'Last modified', fMeta: 'Meta tags',
       renderStandards: 'Standards compliance mode', renderQuirks: 'Quirks mode',
       metaNone: 'none', permsHint: 'Site permissions. Changes apply on next request or reload.',
-      reload: 'Reload page'
+      reload: 'Reload page',
+      netTitle: 'Third-party requests', netEmpty: 'No third-party requests observed',
+      netBlock: 'Block', netAllow: 'Allow', netReqs: 'reqs',
+      netHint: 'Domains this site has contacted. Blocking applies immediately (to new requests).'
     };
     function _fmtTs(secVal) {
       var n = Number(secVal);
@@ -5021,7 +5398,7 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
     html += '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;padding:8px 10px;border-radius:8px;border:1px solid ' +
       (isHttps ? 'rgba(46,164,79,0.35)' : 'rgba(220,68,55,0.4)') + ';background:' +
       (isHttps ? 'rgba(46,164,79,0.08)' : 'rgba(220,68,55,0.08)') + ';">';
-    html += '<span style="font-size:14px;line-height:1.3;">' + (isHttps ? '\uD83D\uDD12' : '\u26A0\uFE0F') + '</span>';
+    html += '<span style="font-size:14px;line-height:1.3;display:inline-flex;align-items:center;">' + _icon(isHttps ? '\uD83D\uDD12' : '\u26A0') + '</span>';
     html += '<span style="font-size:12px;line-height:1.45;">' + (isHttps ? siL.connSecure : siL.connInsecure) + '</span></div>';
     // Certificate block (real details from the page's own TLS handshake).
     html += '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-secondary);margin:2px 0 6px;">' + siL.tlsTitle + '</div>';
@@ -5139,6 +5516,13 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
     html += '</select>';
     html += '</div>';
 
+    // Third-party requests (Network insight) — collapsible, loaded lazily.
+    html += '<div id="siNetToggle" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-color);cursor:pointer;padding:6px 2px;margin-top:4px;user-select:none;-webkit-user-select:none;"><span id="siNetArrow" style="display:inline-block;transition:transform .12s;">\u25B8</span>' + siL.netTitle + '</div>';
+    html += '<div id="siNetBody" style="display:none;margin:4px 0 10px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-color);">';
+    html += '<div id="siNetRows" style="font-size:11px;color:var(--text-secondary);">…</div>';
+    html += '<div style="font-size:10px;color:var(--text-secondary);margin-top:6px;line-height:1.4;">' + siL.netHint + '</div>';
+    html += '</div>';
+
     html += '<button id="siReloadBtn" style="width:100%;margin-top:10px;padding:7px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-color);color:var(--text-color);cursor:pointer;font-size:12px;">' + siL.reload + '</button>';
     body.innerHTML = html;
     panel.classList.add('open');
@@ -5164,6 +5548,56 @@ document.getElementById('urlIconBtn').addEventListener('click', function(e) {
       var open = dBody.style.display !== 'none';
       dBody.style.display = open ? 'none' : 'block';
       if (dArrow) dArrow.style.transform = open ? '' : 'rotate(90deg)';
+    });
+
+    // Third-party requests (Network insight): lazy-load on first expand,
+    // per-row Block/Allow select writes store.netBlocks via IPC.
+    var nToggle = document.getElementById('siNetToggle');
+    var nBody = document.getElementById('siNetBody');
+    var nArrow = document.getElementById('siNetArrow');
+    var nLoaded = false;
+    function renderNetRows(hosts) {
+      var rows = document.getElementById('siNetRows');
+      if (!rows) return;
+      if (!hosts || !hosts.length) {
+        rows.textContent = siL.netEmpty;
+        return;
+      }
+      var h = '';
+      hosts.forEach(function(it) {
+        h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">' +
+          '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;word-break:break-all;color:var(--text-color);">' + escapeHtmlSimple(it.host) + '</span>' +
+          '<span style="color:var(--text-secondary);flex-shrink:0;">' + it.count + ' ' + siL.netReqs + '</span>' +
+          '<select data-net-host="' + escapeHtmlSimple(it.host) + '" style="padding:3px 6px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-color);color:var(--text-color);font-size:10px;flex-shrink:0;cursor:pointer;">' +
+          '<option value="allow"' + (!it.blocked ? ' selected' : '') + '>' + siL.netAllow + '</option>' +
+          '<option value="block"' + (it.blocked ? ' selected' : '') + '>' + siL.netBlock + '</option>' +
+          '</select></div>';
+      });
+      rows.innerHTML = h;
+      rows.querySelectorAll('select[data-net-host]').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+          var host = sel.getAttribute('data-net-host');
+          var blocked = sel.value === 'block';
+          if (window.electronAPI && window.electronAPI.netBlockSet) {
+            window.electronAPI.netBlockSet(domain, host, blocked).catch(function() {});
+          }
+        });
+      });
+    }
+    if (nToggle && nBody) nToggle.addEventListener('click', function() {
+      var open = nBody.style.display !== 'none';
+      nBody.style.display = open ? 'none' : 'block';
+      if (nArrow) nArrow.style.transform = open ? '' : 'rotate(90deg)';
+      if (!open && !nLoaded) {
+        nLoaded = true;
+        var rows = document.getElementById('siNetRows');
+        if (rows) rows.textContent = '…';
+        if (window.electronAPI && window.electronAPI.netInsightGet) {
+          window.electronAPI.netInsightGet(domain).then(function(r) {
+            renderNetRows(r && r.hosts);
+          }).catch(function() { renderNetRows([]); });
+        } else { renderNetRows([]); }
+      }
     });
 
     // Delete cookies and site data (this origin, this tab's session).
@@ -6342,11 +6776,18 @@ function injectPiP(tabData) {
         '});' +
         'document.addEventListener("leavepictureinpicture",function(){setIcon(_pipUrl);});' +
         'var _hideT=null;' +
+        // Hit-test by coordinates instead of elementsFromPoint: the old
+        // check could not see the <video> through opaque overlays (ad
+        // layers, custom control bars, poster wrappers) — there the stack
+        // never contained VIDEO and the button never appeared.
         'document.addEventListener("mousemove",function(e){' +
         '  clearTimeout(_hideT);' +
         '  if(document.pictureInPictureElement)return;' +
-        '  try{var els=document.elementsFromPoint(e.clientX,e.clientY);' +
-        '    for(var i=0;i<els.length;i++){if(els[i].tagName==="VIDEO"){showAt(els[i]);return;}}' +
+        '  try{var vids=document.querySelectorAll("video");' +
+        '    for(var i=0;i<vids.length;i++){var v=vids[i];' +
+        '      var r=v.getBoundingClientRect();' +
+        '      if(r.width>50&&r.height>50&&e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){showAt(v);return;}' +
+        '    }' +
         '  }catch(ex){}' +
         '  _hideT=setTimeout(function(){fadeOut();},800);' +
         '});' +
@@ -7558,8 +7999,10 @@ function renderQcList(query) {
   var q = (query || '').trim();
   var qcInput = document.getElementById('qcInput');
 
-  function add(icon, title, sub, action, shortcut, preview) {
-    _qcItems.push({ icon: icon, title: title, sub: sub, action: action, shortcut: shortcut || '', preview: preview || '' });
+  function add(icon, title, sub, action, shortcut, preview, raw) {
+    // raw=true keeps the icon verbatim (emoji picker: the glyph IS the data,
+    // it must not be swapped for an _SVG lookalike).
+    _qcItems.push({ icon: icon, title: title, sub: sub, action: action, shortcut: shortcut || '', preview: preview || '', rawIcon: !!raw });
   }
 
   if (q.charAt(0) === ':') {
@@ -7579,7 +8022,7 @@ function renderQcList(query) {
           add(item.e, item.e + '  ' + item.n.slice(0, 3).join(', '), 'Click to copy', function() {
             navigator.clipboard.writeText(item.e).catch(function() {});
             toggleQuickCommands();
-          });
+          }, '', '', true);
         });
         if (emojiMatches.length === 0) {
           add('\uD83D\uDE10', 'Nothing found', 'Try another query', function() {});
@@ -7589,7 +8032,7 @@ function renderQcList(query) {
           add(item.e, item.e + '  ' + item.n.slice(0, 3).join(', '), 'Click to copy', function() {
             navigator.clipboard.writeText(item.e).catch(function() {});
             toggleQuickCommands();
-          });
+          }, '', '', true);
         });
         if (_qcEmojiData.length > _qcHelpPageSize) {
           add('\u25B6', 'More emoji...', 'Show all', function() {
@@ -7799,7 +8242,7 @@ function renderQcList(query) {
     }
     var cls = i === _qcActiveIdx ? 'qc-item active' : 'qc-item';
     html += '<div class="' + cls + '" data-idx="' + i + '">' +
-      '<div class="qc-item-icon">' + _icon(item.icon) + '</div>' +
+      '<div class="qc-item-icon">' + (item.rawIcon ? escapeHtmlSimple(item.icon) : _icon(item.icon)) + '</div>' +
       '<div class="qc-item-text"><div class="qc-item-title">' + escapeHtmlSimple(item.title) + '</div>' +
       '<div class="qc-item-sub">' + escapeHtmlSimple(item.sub) + '</div></div>' +
       (item.shortcut ? '<div class="qc-item-shortcut">' + item.shortcut + '</div>' : '') +
@@ -8383,8 +8826,8 @@ if (window.electronAPI && window.electronAPI.onVimSettingsChanged) {
     n.className = 'ab-nudge';
     n.id = 'abNudge';
     var icon = document.createElement('div');
-    icon.textContent = '🛡';
-    icon.style.cssText = 'font-size:20px;margin-bottom:6px;';
+    icon.innerHTML = _icon('🛡');
+    icon.style.cssText = 'font-size:20px;margin-bottom:6px;display:flex;justify-content:center;';
     n.appendChild(icon);
     var line1 = document.createElement('div');
     var b = document.createElement('b');
@@ -10288,7 +10731,7 @@ function _sessionGuardOnNavigate(url, tabId, tabData) {
     var ckey = 'custom:' + (cr.id || cr.pattern);
     if (!_isOnCooldown(ckey)) {
       _markCooldown(ckey);
-      var message = cr.message || ('Rule matched: ' + (cr.name || cr.pattern));
+      var message = cr.message || (((window.i18n && window.i18n.t('Rule matched:')) || 'Rule matched:') + ' ' + (cr.name || cr.pattern));
       _showToast(message, 'session-guard-custom', null, cr.severity || 'info');
     }
   }
@@ -10312,7 +10755,7 @@ function _markCooldown(key) {
 function _showSessionGuardToast(dupTab, newUrl, type) {
   var title = dupTab.title || 'tab';
   try { title = (dupTab.webview && dupTab.webview.getTitle) ? (dupTab.webview.getTitle() || title) : title; } catch(e) {}
-  var msg = 'Already open: "' + title + '»';
+  var msg = ((window.i18n && window.i18n.t('Already open:')) || 'Already open:') + ' «' + title + '»';
   if (type === 'navigate') msg = 'This address is already open in another tab';
   _showToast(msg, 'session-guard', dupTab ? dupTab.id : null);
 }
@@ -10376,7 +10819,7 @@ function sessionGuardScanAll() {
       var ckey = 'custom:' + (cr.id || cr.pattern);
       if (!_isOnCooldown(ckey)) {
         _markCooldown(ckey);
-        _showToast(cr.message || ('Rule matched: ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
+        _showToast(cr.message || (((window.i18n && window.i18n.t('Rule matched:')) || 'Rule matched:') + ' ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
       }
     }
   });
@@ -10425,7 +10868,7 @@ createNewTab = function(url, lazy) {
       var ckey = 'custom:' + (cr.id || cr.pattern);
       if (!_isOnCooldown(ckey)) {
         _markCooldown(ckey);
-        _showToast(cr.message || ('Rule matched: ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
+        _showToast(cr.message || (((window.i18n && window.i18n.t('Rule matched:')) || 'Rule matched:') + ' ' + (cr.name || cr.pattern)), 'session-guard-custom', null, cr.severity || 'info');
       }
     }
   }
@@ -11354,8 +11797,9 @@ var _splitPct = 50;
         var item = document.createElement('div');
         item.style.cssText = 'padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:6px;border:1px solid rgba(255,255,255,0.1);transition:background 0.15s;display:flex;align-items:center;gap:10px;';
         var icon = document.createElement('span');
-        icon.textContent = '\uD83C\uDF10';
+        icon.innerHTML = _icon('\uD83C\uDF10');
         icon.style.fontSize = '14px';
+        icon.style.display = 'inline-flex';
         var label = document.createElement('span');
         label.textContent = t.title || 'New tab';
         label.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;';
@@ -11644,14 +12088,23 @@ function _fileDropHasFiles(e) {
 // new tab. Internal drags are excluded — own tab drags are covered by the
 // _tearDragActive guard, cross-window tab moves carry the custom MIME, and
 // toolbar-customization pool items mark themselves with .dragging.
+// ALL of the browser's own customize-mode drags are excluded the same way:
+// they carry internal ids in text/plain ('hmSettings', 'library'…) and,
+// dropped anywhere, opened a SEARCH for that id; the capture-phase drop
+// interception below also killed the customize drop zones themselves.
 function _fileDropHasUrl(e) {
   try {
     if (_tearDragActive) return false;
+    if (typeof _customizeActive !== 'undefined' && _customizeActive) return false;
+    if (window._menuCustomizeModeActive && window._menuCustomizeModeActive()) return false;
     var t = e.dataTransfer && e.dataTransfer.types;
     if (!t) return false;
     var arr = Array.from(t);
     if (arr.indexOf('application/x-startpozi-tab') !== -1) return false;
-    if (document.querySelector('.customize-pool-item.dragging,.toolbar-btn-slot.dragging')) return false;
+    // Drags started on the browser's own internal pages (marked by
+    // preload-webview) — never "dropped links/text".
+    if (arr.indexOf('application/x-startpozi-ui-drag') !== -1) return false;
+    if (document.querySelector('.customize-pool-item.dragging,.toolbar-btn-slot.dragging,.nav-btn.dragging,.hm-item.dragging,.hm-cust-chip.dragging')) return false;
     return arr.indexOf('text/uri-list') !== -1 ||
            (arr.indexOf('Files') === -1 && arr.indexOf('text/plain') !== -1);
   } catch (err) { return false; }
@@ -15392,8 +15845,9 @@ function _playBreakLoupeAnimation() {
 (function() {
   var btn = document.getElementById('breakLoupeBtn');
   if (!btn) return;
+  var _blT = function(s) { return (window.i18n && window.i18n.t(s)) || s; };
   btn.addEventListener('click', function() {
-    customConfirm('🔍 Break the magnifier?\n\nThis will delete ALL cookies of external sites (tabs and history are kept). You will be signed out of all websites. Cookies of the browser\'s internal pages (file://) are preserved.').then(function(ok) {
+    customConfirm(_blT('🔍 Break the magnifier?\n\nThis will delete ALL cookies of external sites (tabs and history are kept). You will be signed out of all websites. Cookies of the browser\'s internal pages (file://) are preserved.')).then(function(ok) {
       if (!ok) return;
       _playBreakLoupeAnimation();
       if (window.electronAPI && window.electronAPI.breakLoupe) {
@@ -15401,10 +15855,11 @@ function _playBreakLoupeAnimation() {
           var msg;
           var sev;
           if (r && r.success) {
-            msg = '🔍 Magnifier broken! Cookies removed: ' + (r.removed || 0) + (r.kept ? ' (kept for browser pages: ' + r.kept + ')' : '');
+            msg = _blT('🔍 Magnifier broken! Cookies removed:') + ' ' + (r.removed || 0) +
+                  (r.kept ? ' ' + _blT('(kept for browser pages:') + ' ' + r.kept + ')' : '');
             sev = 'info';
           } else {
-            msg = 'Error: ' + (r && r.message || 'unknown');
+            msg = _blT('Error:') + ' ' + (r && r.message || _blT('unknown'));
             sev = 'danger';
           }
           if (typeof _showToast === 'function') {
@@ -15413,10 +15868,10 @@ function _playBreakLoupeAnimation() {
             customAlert(msg);
           }
         }).catch(function(e) {
-          customAlert('Error: ' + (e && e.message || e));
+          customAlert(_blT('Error:') + ' ' + (e && e.message || e));
         });
       } else {
-        customAlert('Unavailable');
+        customAlert(_blT('Unavailable'));
       }
     });
   });
@@ -15629,6 +16084,30 @@ document.addEventListener('keydown', function(e) {
     return (t && t.isReady) ? t.webview : null;
   }
 
+  // --- Window menu (right-click on the title bar) ---
+  // Frameless windows have no system chrome, so the OS title-bar menu does
+  // not exist — right-click on .titlebar used to do nothing at all. This is
+  // the native-style replacement: Minimize / Maximize-Restore / Close.
+  function windowMenu(e) {
+    begin();
+    var gs = (window.electronAPI && window.electronAPI.getWindowState)
+      ? window.electronAPI.getWindowState() : Promise.resolve({});
+    gs.then(function(state) {
+      state = state || {};
+      add('Minimize', null, function() { try { window.electronAPI.windowMinimize(); } catch (_) {} });
+      add(state.maximized ? 'Restore' : 'Maximize', null, function() { try { window.electronAPI.windowMaximize(); } catch (_) {} });
+      sep();
+      add('Close window', null, function() { try { window.electronAPI.windowClose(); } catch (_) {} });
+      show(e.clientX, e.clientY);
+    }).catch(function() {
+      add('Minimize', null, function() { try { window.electronAPI.windowMinimize(); } catch (_) {} });
+      add('Maximize', null, function() { try { window.electronAPI.windowMaximize(); } catch (_) {} });
+      sep();
+      add('Close window', null, function() { try { window.electronAPI.windowClose(); } catch (_) {} });
+      show(e.clientX, e.clientY);
+    });
+  }
+
   // --- Reload variants ---
   function reloadMenu(e) {
     begin();
@@ -15790,7 +16269,10 @@ document.addEventListener('keydown', function(e) {
     // NO context menu at all.
     if (t.closest('.tab, .tabs-bar')) return;
     if (t.closest('input, textarea')) { e.preventDefault(); return; }
-    if (t.closest('.titlebar, .navbar, body')) { e.preventDefault(); return; }
+    // Title bar (incl. the empty tab-strip space) → the native-style
+    // window menu — frameless windows have no system chrome for this.
+    if (t.closest('.titlebar')) { e.preventDefault(); windowMenu(e); return; }
+    if (t.closest('.navbar, body')) { e.preventDefault(); return; }
   });
 })();
 

@@ -21,8 +21,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onToolbarButtonsChanged: (callback) => {
     ipcRenderer.on('toolbar-buttons-changed', (_, buttons) => callback(buttons));
   },
+  onMenuItemsChanged: (callback) => {
+    ipcRenderer.on('menu-items-changed', (_, items) => callback(items));
+  },
   onToggleCustomizeMode: (callback) => {
     ipcRenderer.on('toggle-customize-mode', () => callback());
+  },
+  onToggleMenuCustomizeMode: (callback) => {
+    ipcRenderer.on('toggle-menu-customize-mode', () => callback());
   },
 
   // Dark Reader (professional dark mode)
@@ -99,6 +105,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   removeHistoryEntry: (url) => ipcRenderer.invoke('remove-history-entry', url),
   getSitePermissions: () => ipcRenderer.invoke('get-site-permissions'),
+  netInsightGet: (domain) => ipcRenderer.invoke('net-insight-get', domain),
+  netBlockSet: (domain, host, blocked) => ipcRenderer.invoke('net-block-set', domain, host, blocked),
   setSitePermission: (domain, permission, value) => ipcRenderer.invoke('set-site-permission', domain, permission, value),
   removeSitePermissions: (domain) => ipcRenderer.invoke('remove-site-permissions', domain),
   setGeoOverride: (domain, coords) => ipcRenderer.invoke('set-geo-override', domain, coords),
@@ -158,6 +166,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Toolbar
   getToolbarButtons: () => ipcRenderer.invoke('get-toolbar-buttons'),
   saveToolbarButtons: (buttons) => ipcRenderer.invoke('save-toolbar-buttons', buttons),
+
+  // Hamburger menu items
+  getMenuItems: () => ipcRenderer.invoke('get-menu-items'),
+  saveMenuItems: (items) => ipcRenderer.invoke('save-menu-items', items),
   openInCurrentTab: (url) => ipcRenderer.send('open-in-current-tab', url),
   goBack: () => ipcRenderer.send('go-back'),
 

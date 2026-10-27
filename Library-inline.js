@@ -1,5 +1,54 @@
         var api = window.electronAPI;
 
+        // ===== i18n helpers (dates, counters, template strings) =====
+        // Translate a source (English) string; no-op while the dictionary
+        // is English/unavailable.
+        function _li18n(s) { return (window.i18n && window.i18n.t(s)) || s; }
+        // Translate a "{n}" template, e.g. _li18nN('All {n} files', 12).
+        function _li18nN(en, n) { return _li18n(en).replace('{n}', String(n)); }
+        // Locale for date/number formatting, following the UI language.
+        function _libDateLocale() {
+            var l = window.i18n ? window.i18n.getLanguage() : 'en';
+            if (l === 'ru') return 'ru-RU';
+            if (l === 'uk') return 'uk-UA';
+            return 'en-GB';
+        }
+
+        // ===== Monochrome SVG icons (replace emoji glyphs) =====
+        // Same feather/lucide style as the shell's _SVG map in renderer.js.
+        var _LIB_SVG = {
+            '⭐': '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01z"/>',
+            '📌': '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+            '📍': '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+            '📁': '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+            '📂': '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>'
+        };
+        function _libIcon(emoji, size) {
+            var paths = _LIB_SVG[emoji];
+            if (!paths) return emoji;
+            var s = size || 14;
+            return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px">' + paths + '</svg>';
+        }
+
+        // Locale-formatted dynamic strings ("5 мин. назад", "5 марта") are not
+        // dictionary-translatable, so re-render the visible list once the UI
+        // language has been applied.
+        document.addEventListener('i18nlanguagechange', function (ev) {
+            if (!ev.detail || ev.detail.language === 'en') return;
+            var active = document.querySelector('.section.active');
+            if (!active) return;
+            try {
+                if (active.id === 'sec-history') renderHistory();
+                else if (active.id === 'sec-downloads') renderDownloads();
+                else if (active.id === 'sec-cookies') renderCookies();
+                else if (active.id === 'sec-bookmarks') renderBookmarks();
+                else if (active.id === 'sec-passwords') {
+                    var inp = document.getElementById('passwords-search');
+                    loadPasswords(inp ? inp.value : '');
+                }
+            } catch (e0) {}
+        });
+
         // ===== Library protection (lock screen) =====
         var _libLockScreen = document.getElementById('libraryLockScreen');
         var _libLockInput = document.getElementById('libLockInput');
@@ -145,20 +194,21 @@
             var d = new Date(ts);
             var now = new Date();
             var diff = now - d;
-            if (diff < 60000) return 'Just now';
-            if (diff < 3600000) return Math.floor(diff / 60000) + ' min ago';
-            if (diff < 86400000) return Math.floor(diff / 3600000) + ' h ago';
-            if (diff < 172800000) return 'Yesterday ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            var loc = _libDateLocale();
+            if (diff < 60000) return _li18n('Just now');
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' ' + _li18n('min ago');
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' ' + _li18n('h ago');
+            if (diff < 172800000) return _li18n('Yesterday') + ' ' + d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+            return d.toLocaleDateString(loc, { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
         }
         function fmtDay(ts) {
             var d = new Date(ts); var now = new Date();
             var td = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             var dd = new Date(d.getFullYear(), d.getMonth(), d.getDate());
             var diff = td - dd;
-            if (diff === 0) return 'Today';
-            if (diff <= 86400000) return 'Yesterday';
-            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+            if (diff === 0) return _li18n('Today');
+            if (diff <= 86400000) return _li18n('Yesterday');
+            return d.toLocaleDateString(_libDateLocale(), { day: 'numeric', month: 'long' });
         }
         function fmtSize(b) {
             if (!b) return '—';
@@ -221,7 +271,7 @@
                     '<div class="info"><div class="title">' + esc(h.title || h.url || 'Untitled') + '</div>' +
                     '<div class="url">' + esc(h.url) + '</div></div>' +
                     '<div class="meta"><span>' + fmtDate(h.time) + '</span>' +
-                    (h.visitCount > 1 ? '<span style="font-size:11px;opacity:0.7">' + h.visitCount + ' visits</span>' : '') + '</div>' +
+                    (h.visitCount > 1 ? '<span style="font-size:11px;opacity:0.7">' + h.visitCount + ' ' + _li18n('visits') + '</span>' : '') + '</div>' +
                     '<button class="del-btn" data-action="del-hist" data-url="' + esc(h.url) + '" title="Delete">×</button></div>';
             }
             el.innerHTML = html;
@@ -311,7 +361,7 @@
                  html += '<div class="item' + (missing ? ' file-missing' : '') + '">' +
                      (fav ? '<img src="' + esc(fav) + '"">' : '<div class="icon-ph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>') +
                      '<div class="info"><div class="title">' + esc(d.filename || 'File') + '</div>' +
-                     '<div class="url">' + fmtSize(d.totalBytes) + (d.state === 'progressing' ? ' — downloading...' : d.state === 'interrupted' ? ' — interrupted' : '') + '</div>' +
+                     '<div class="url">' + fmtSize(d.totalBytes) + (d.state === 'progressing' ? ' — ' + _li18n('downloading...') : d.state === 'interrupted' ? ' — ' + _li18n('interrupted') : '') + '</div>' +
                      (missing ? '<div class="url" style="color:#e5a00d;font-size:11px;">File was moved or deleted</div>' : '') +
                      '</div>' +
                      '<div class="meta"><span>' + fmtDate(d.startTime) + '</span></div>' +
@@ -373,12 +423,12 @@
              function bmRow(b) {
                  var fav = b.icon || getFavicon(b.url);
                  return '<div class="item" data-url="' + esc(b.url || '') + '">' +
-                     (fav ? '<img src="' + esc(fav) + '"">' : '<div class="icon-ph">⭐</div>') +
+                     (fav ? '<img src="' + esc(fav) + '"">' : '<div class="icon-ph">' + _libIcon('⭐', 12) + '</div>') +
                      '<div class="info"><div class="title">' + esc(b.title || b.url || 'Untitled') + '</div>' +
                      '<div class="url">' + esc(b.url || '') + '</div></div>' +
                      '<div class="meta"><span>' + fmtDate(b.createdAt) + '</span></div>' +
-                     '<button class="del-btn" data-action="bm-pin" data-id="' + esc(b.id || '') + '" title="' + (b.pinned ? 'Unpin' : 'Pin') + '" style="font-size:14px;">' + (b.pinned ? '📌' : '📍') + '</button>' +
-                     '<button class="del-btn" data-action="bm-move" data-id="' + esc(b.id || '') + '" title="Move to folder">📁</button>' +
+                     '<button class="del-btn" data-action="bm-pin" data-id="' + esc(b.id || '') + '" title="' + (b.pinned ? 'Unpin' : 'Pin') + '" style="font-size:14px;display:inline-flex;align-items:center;">' + (b.pinned ? _libIcon('📌') : _libIcon('📍')) + '</button>' +
+                     '<button class="del-btn" data-action="bm-move" data-id="' + esc(b.id || '') + '" title="Move to folder" style="display:inline-flex;align-items:center;">' + _libIcon('📁') + '</button>' +
                      '<button class="del-btn" data-action="del-bm" data-id="' + esc(b.id || '') + '" title="Delete">×</button></div>';
              }
 
@@ -390,7 +440,7 @@
                  return true;
              });
              if (pinned.length) {
-                 html += '<div class="date-sep">📌 Pinned</div>' + bmSortItems(pinned).map(bmRow).join('');
+                 html += '<div class="date-sep" style="display:inline-flex;align-items:center;gap:6px;">' + _libIcon('📌') + ' ' + _li18n('Pinned') + '</div>' + bmSortItems(pinned).map(bmRow).join('');
              }
 
              // Folders
@@ -404,8 +454,8 @@
                  var collapsed = bmCollapsed[f.id] === true;
                  html += '<div class="date-sep" style="display:flex;align-items:center;gap:8px;">' +
                      '<span data-action="bm-collapse" data-id="' + esc(f.id) + '" style="cursor:pointer;display:inline-block;transition:transform .15s;' + (collapsed ? 'transform:rotate(-90deg);' : '') + '">▾</span>' +
-                     '<span data-action="bm-collapse" data-id="' + esc(f.id) + '" style="cursor:pointer;flex:1;">📂 ' + esc(f.title || 'Folder') + ' (' + kids.length + ')</span>' +
-                     '<button class="del-btn" data-action="bm-folder-pin" data-id="' + esc(f.id) + '" title="' + (f.pinned ? 'Unpin folder' : 'Pin folder') + '" style="font-size:13px;">' + (f.pinned ? '📌' : '📍') + '</button>' +
+                     '<span data-action="bm-collapse" data-id="' + esc(f.id) + '" style="cursor:pointer;flex:1;display:inline-flex;align-items:center;gap:6px;">' + _libIcon('📂', 13) + ' <span style="display:inline">' + esc(f.title || 'Folder') + ' (' + kids.length + ')</span></span>' +
+                     '<button class="del-btn" data-action="bm-folder-pin" data-id="' + esc(f.id) + '" title="' + (f.pinned ? 'Unpin folder' : 'Pin folder') + '" style="font-size:13px;display:inline-flex;align-items:center;">' + (f.pinned ? _libIcon('📌') : _libIcon('📍')) + '</button>' +
                      '<button class="del-btn" data-action="bm-folder-del" data-id="' + esc(f.id) + '" title="Delete folder (bookmarks move to root)">×</button>' +
                      '</div>';
                  if (!collapsed) html += bmSortItems(kids).map(bmRow).join('');
@@ -963,7 +1013,7 @@ function masterPasswordPrompt(operation) {
                 else res = await api.changeMasterPassword(oldPw, newPw);
                 if (res && res.success) { showMasterToast(res.message || 'Done'); await refreshMasterPasswordCard(); await loadPasswords(); overlay.remove(); resolve(null); }
                 else { err.textContent = (res && res.message) || 'Failed'; }
-            } catch(e) { err.textContent = 'Failed: ' + e.message; }
+            } catch(e) { err.textContent = _li18n('Failed:') + ' ' + e.message; }
         };
 
         overlay.querySelector('#mpCancel').addEventListener('click', () => close(null));
@@ -1058,7 +1108,7 @@ async function loadPasswords(searchTerm = '') {
             item.dataset.id = password.id;
 
             const domain = (password.site || '').replace(/https?:\/\//, '').split('/')[0];
-            const timeAgo = (password.createdAt || password.created) ? formatTimeAgo(Date.now() - (password.createdAt || password.created)) : 'long ago';
+            const timeAgo = (password.createdAt || password.created) ? formatTimeAgo(Date.now() - (password.createdAt || password.created)) : _li18n('long ago');
             // Privacy: favicon straight from the site, not the Google S2 proxy.
             let favUrl = '';
             try { favUrl = new URL(password.site).origin + '/favicon.ico'; } catch (e) {}
@@ -1071,7 +1121,7 @@ async function loadPasswords(searchTerm = '') {
                     ${password.folder ? `<span class="pw-folder-badge" title="Folder">${escapeHtml(password.folder)}</span>` : ''}
                     <button class="password-favorite-btn pw-folder-btn" data-id="${password.id}" data-folder="${escapeHtml(password.folder || '')}"
                             title="Move to folder">
-                        📁
+                        ${_libIcon('📁', 16)}
                     </button>
                     <button class="password-favorite-btn ${password.favorite ? 'favorite' : ''}"
                             data-id="${password.id}"
@@ -1137,8 +1187,8 @@ async function loadPasswords(searchTerm = '') {
                             </svg>
                         </span>
                         <span class="breached-text">
-                            Found in <span class="breached-count">${password.breachedCount}</span> leaks
-                            ${password.lastBreachedCheck ? `(checked: ${formatTimeAgo(Date.now() - password.lastBreachedCheck)})` : ''}
+                            ${_li18n('Found in')} <span class="breached-count">${password.breachedCount}</span> ${_li18n('leaks')}
+                            ${password.lastBreachedCheck ? `(${_li18n('checked:')} ${formatTimeAgo(Date.now() - password.lastBreachedCheck)})` : ''}
                         </span>
                     </div>
                 ` : ''}
@@ -1161,8 +1211,8 @@ async function loadPasswords(searchTerm = '') {
                 ` : ''}
                 <div class="password-meta">
                     <div class="password-time">
-                        Added: ${timeAgo}
-                        ${password.lastUsed ? `, used: ${formatTimeAgo(Date.now() - password.lastUsed)}` : ''}
+                        ${_li18n('Added:')} ${timeAgo}
+                        ${password.lastUsed ? `, ${_li18n('used:')} ${formatTimeAgo(Date.now() - password.lastUsed)}` : ''}
                     </div>
                 </div>
             `;
@@ -1198,10 +1248,10 @@ function formatTimeAgo(ms) {
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days} d ago`;
-    if (hours > 0) return `${hours} h ago`;
-    if (minutes > 0) return `${minutes} min ago`;
-    return 'just now';
+    if (days > 0) return `${days} ${_li18n('d ago')}`;
+    if (hours > 0) return `${hours} ${_li18n('h ago')}`;
+    if (minutes > 0) return `${minutes} ${_li18n('min ago')}`;
+    return _li18n('just now');
 }
 
 // Attach event handlers for passwords
@@ -1280,7 +1330,7 @@ function attachPasswordEventHandlers() {
             const passwordId = e.target.closest('button').dataset.id;
             const password = passwordsList.find(p => p.id === passwordId);
 
-            if (password && await customConfirm(`Delete password for ${password.site || password.username}?`)) {
+            if (password && await customConfirm(`${_li18n('Delete password for')} ${password.site || password.username}?`)) {
                 try {
                     const result = await api.deletePassword(passwordId);
                     if (result && result.success) {
@@ -1714,7 +1764,7 @@ function initPasswordManager() {
                             secretInput.value = result.data;
                             setupTOTPSecret();
                         }
-                        showToast('QR contains: ' + result.data.substring(0, 60), 'success');
+                        showToast(_li18n('QR contains:') + ' ' + result.data.substring(0, 60), 'success');
                     }
                 } else {
                     showToast(result.message || 'QR code not found', 'error');
@@ -1765,7 +1815,7 @@ function initPasswordManager() {
                                 showToast('QR code recognized!', 'success');
                             } else {
                                 try { await navigator.clipboard.writeText(qrData); } catch {}
-                                showToast('QR contains: ' + qrData.substring(0, 80) + (qrData.length > 80 ? '...' : ''), 'success');
+                                showToast(_li18n('QR contains:') + ' ' + qrData.substring(0, 80) + (qrData.length > 80 ? '...' : ''), 'success');
                             }
                         } else {
                             showToast('QR code not found in the image', 'error');
@@ -1926,7 +1976,7 @@ function updateGeneratorStrength(password, entropy, strength) {
         fill.style.width = '0%';
         text.textContent = '---';
         text.style.color = 'var(--text-color)';
-        entropyText.textContent = '0 bits';
+        entropyText.textContent = '0 ' + _li18n('bits');
         return;
     }
 
@@ -1934,7 +1984,7 @@ function updateGeneratorStrength(password, entropy, strength) {
     fill.style.background = strength.color;
     text.textContent = strength.label;
     text.style.color = strength.color;
-    entropyText.textContent = entropy.toFixed(1) + ' bits';
+    entropyText.textContent = entropy.toFixed(1) + ' ' + _li18n('bits');
 }
 
 async function useGeneratedPassword() {
@@ -2078,9 +2128,9 @@ async function checkAllPasswordsBreached() {
             }
 
             if (breached > 0) {
-                showToast(`Found ${breached} passwords in leaks out of ${total}!`, 'error');
+                showToast(`${_li18n('Passwords found in leaks:')} ${breached} / ${total}`, 'error');
             } else {
-                showToast(`All ${total} passwords are safe`, 'success');
+                showToast(`${_li18n('No leaks found. Passwords checked:')} ${total}`, 'success');
             }
 
             // Update password data with check results
@@ -2214,16 +2264,17 @@ function analyzePasswords(passwords) {
     score -= oldPasswords.length * 5;    // -5 for each old password
     score = Math.max(0, Math.min(100, score));
 
-    // Generate recommendations
+    // Generate recommendations ({n} templates keep the wording translatable
+    // without English plural declension baked into the sentence.)
     const recommendations = [];
     if (weakPasswords.length > 0) {
-        recommendations.push(`Strengthen ${weakPasswords.length} weak ${declension(weakPasswords.length, 'password', 'passwords', 'passwords')}`);
+        recommendations.push(_li18nN('Weak passwords: {n} — strengthen them', weakPasswords.length));
     }
     if (duplicateGroups.length > 0) {
-        recommendations.push(`Change ${duplicateGroups.length} ${declension(duplicateGroups.length, 'duplicate group', 'duplicate groups', 'duplicate groups')} - use unique passwords`);
+        recommendations.push(_li18nN('Duplicate passwords: {n} — use unique passwords', duplicateGroups.length));
     }
     if (oldPasswords.length > 0) {
-        recommendations.push(`⏰ Update ${oldPasswords.length} ${declension(oldPasswords.length, 'old password', 'old passwords', 'old passwords')} (unchanged for more than 6 months)`);
+        recommendations.push(_li18nN('Old passwords: {n} — unchanged for more than 6 months', oldPasswords.length));
     }
     if (recommendations.length === 0) {
         recommendations.push('✓ Excellent! Your passwords are secure');
@@ -2419,7 +2470,7 @@ async function checkSinglePasswordBreached(password) {
             return { breached: false, count: 0, error: 'network' };
         }
         if (result && result.breached) {
-            showToast(`Password found in ${result.count} leaks!`, 'error');
+            showToast(`${_li18n('Found in leaks:')} ${result.count}`, 'error');
             return { breached: true, count: result.count };
         } else {
             showToast('Password not found in leaks', 'success');
@@ -2588,7 +2639,7 @@ async function importGAExport() {
             const result = await window.electronAPI.importGAExport(content);
 
             if (result.success) {
-                showToast(`Imported ${result.imported} entries`, 'success');
+                showToast(`${_li18n('Imported entries:')} ${result.imported}`, 'success');
 
                 // Add imported passwords
                 result.passwords.forEach(newPassword => {
@@ -2644,7 +2695,7 @@ async function importTxtExport() {
                     }
                 }
 
-                showToast(`Imported ${result.imported} entries`, 'success');
+                showToast(`${_li18n('Imported entries:')} ${result.imported}`, 'success');
 
                 // Update display
                 const searchTerm = document.getElementById('passwords-search').value;
@@ -2652,7 +2703,7 @@ async function importTxtExport() {
 
                 // Show errors if any
                 if (result.errors && result.errors.length > 0) {
-                    showToast(`Some lines not recognized: ${result.errors.slice(0, 3).join(', ')}...`, 'warning');
+                    showToast(`${_li18n('Some lines not recognized:')} ${result.errors.slice(0, 3).join(', ')}...`, 'warning');
                 }
             } else {
                 const errorMsg = result.errors?.join(', ') || 'Import error';
@@ -2685,14 +2736,14 @@ async function autofillPassword(passwordId) {
         const result = await window.electronAPI.autofillPassword(passwordId);
 
         if (result.success) {
-            const message = result.message || `✓ Fields filled: ${result.filled || 0}`;
+            const message = result.message || `✓ ${_li18n('Fields filled:')} ${result.filled || 0}`;
             showToast(message, 'success');
 
             // Update last used time
             const searchTerm = document.getElementById('passwords-search').value;
             await loadPasswords(searchTerm);
         } else {
-            showToast(`✗ ${result.error || 'Autofill error'}`, 'error');
+            showToast(`✗ ${result.error || _li18n('Autofill error')}`, 'error');
 
             // If domain error, show hint
             if (result.error && result.error.includes('Domain')) {

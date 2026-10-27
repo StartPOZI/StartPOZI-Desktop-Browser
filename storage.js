@@ -98,13 +98,24 @@ function _bloatGuard(data) {
     capStr(cust, 'customBackgroundImage');
     capStr(cust, 'mainPageBackground');
     capStr(mp, 'startpozi_background');
-    // 3) Last-resort sanity cap.
-    try {
-      if (JSON.stringify(data).length > 1500000) {
-        data.blockedLog = (data.blockedLog || []).slice(-50);
-      }
-    } catch (_) {}
+    // 3) Last-resort sanity cap — see _serialize(): it used to live here but
+    // cost a SECOND full JSON.stringify on EVERY write; now only genuinely
+    // oversized documents pay for the re-serialization.
   } catch (_) {}
+}
+
+function _serialize(data) {
+  var json = JSON.stringify(data, null, 2);
+  // Last-resort sanity cap moved here from _bloatGuard: checking the length
+  // of the already-serialized document is free; only the rare oversized file
+  // re-serializes after trimming.
+  try {
+    if (json.length > 1500000) {
+      data.blockedLog = (data.blockedLog || []).slice(-50);
+      json = JSON.stringify(data, null, 2);
+    }
+  } catch (_) {}
+  return json;
 }
 
 function write(data) {
@@ -115,8 +126,9 @@ function write(data) {
     // the cache must not end up holding an unsaved state while every later
     // write silently no-ops.
     var p = storagePath();
-    var json = JSON.stringify(data, null, 2);
+    var json = _serialize(data);
     _cache = data;
+    _dirty = false;
     // Atomic write (tmp + rename): a crash or power loss mid-write can no
     // longer corrupt settings.json — the rename replaces the file in one
     // step, readers always see either the old or the new complete file.
@@ -133,6 +145,74 @@ function write(data) {
   } catch (e) {}
 }
 
+// ---- Coalesced writes -----------------------------------------------------
+// Page navigations used to trigger 4+ IMMEDIATE full serializations + sync
+// disk writes of settings.json (history, frequent sites, session tabs ×2).
+// While the main process is busy serializing it cannot answer webRequest
+// callbacks (ad blocker) or sendSync preloads — every page load stalled the
+// whole browser. Hot-path callers now update the in-memory cache instantly
+// and the disk write is coalesced into one per quiet window.
+var WRITE_SOON_DELAY_MS = 400;
+var _dirty = false;
+var _writeTimer = null;
+
+function _scheduleDiskWrite() {
+  _dirty = true;
+  if (_writeTimer) return;
+  _writeTimer = setTimeout(function () {
+    _writeTimer = null;
+    if (!_dirty) return;
+    _dirty = false;
+    write(_cache);
+  }, WRITE_SOON_DELAY_MS);
+  // Must not keep a bare node process (unit tests) alive until the timer
+  // fires; Electron's main loop still delivers it.
+  if (typeof _writeTimer.unref === 'function') _writeTimer.unref();
+}
+
+// Cache updated immediately (subsequent read()s see the new data), disk
+// write coalesced. Durability loss on a crash is bounded by the delay —
+// acceptable for history/session counters that already tolerated multi-
+// second debounce windows.
+function writeSoon(data) {
+  if (!data || typeof data !== 'object') return;
+  _cache = data;
+  _scheduleDiskWrite();
+}
+
+// Race-free debounced variant of update(): fn mutates the LIVE cache (no
+// clone, no full-file serialization on the caller's thread of logic).
+function updateSoon(fn) {
+  try {
+    var store = load();
+    if (typeof fn === 'function') fn(store);
+    _scheduleDiskWrite();
+    return store;
+  } catch (e) {
+    return load();
+  }
+}
+
+// Force any pending coalesced write to disk NOW (app quit, before a
+// potentially fatal native operation, tests).
+function flush() {
+  if (_writeTimer) {
+    clearTimeout(_writeTimer);
+    _writeTimer = null;
+  }
+  if (_dirty) {
+    _dirty = false;
+    try { write(_cache); } catch (e) {}
+  }
+}
+
+// The live cache WITHOUT cloning — for hot read-only handlers (per-load
+// sendSync preloads). Callers MUST NOT mutate the returned object; use
+// read()/update()/updateSoon() for anything that writes.
+function peek() {
+  return load();
+}
+
 // Race-free mutation: fn(store) mutates the live object; the result is
 // written atomically. Because Node is single-threaded, no other handler can
 // interleave between the read and the write.
@@ -147,4 +227,4 @@ function update(fn) {
   }
 }
 
-module.exports = { load, reload, read, write, update, storagePath };
+module.exports = { load, reload, read, write, writeSoon, update, updateSoon, peek, flush, storagePath };

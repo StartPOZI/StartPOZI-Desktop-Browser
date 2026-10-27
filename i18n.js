@@ -44,8 +44,12 @@
   }
 
   function lookup(trimmed) {
-    if (lang === 'en') return byX ? byX[trimmed] : undefined;
-    return byEn ? byEn[trimmed] : undefined;
+    // Dictionary keys are single-line strings, but the source markup often
+    // wraps a paragraph across lines with indentation ("...cache.\n     Open
+    // sites..."). Collapse runs of whitespace so such text nodes still match.
+    var key = trimmed.replace(/\s+/g, ' ');
+    if (lang === 'en') return byX ? byX[key] : undefined;
+    return byEn ? byEn[key] : undefined;
   }
 
   function translateText(node) {
@@ -148,6 +152,12 @@
     }).catch(function () { ready = true; });
   }
 
+  // Pages with locale-formatted dynamic content (dates, counters) listen for
+  // this to re-render; plain dictionary translation is handled by walk()/observer.
+  function notify() {
+    try { document.dispatchEvent(new CustomEvent('i18nlanguagechange', { detail: { language: lang } })); } catch (e) {}
+  }
+
   function setLanguage(l) {
     var next = (!l || l === 'en') ? 'en' : String(l);
     var prev = lang;
@@ -164,11 +174,13 @@
       // The observer may have been stopped by an aborted load below —
       // keep reverting dynamically added content to English.
       startObserver();
+      notify();
       return;
     }
     if (loadedLang === lang && byEn && Object.keys(byEn).length) {
       applyI18n(document.body);
       startObserver();
+      notify();
       return;
     }
     if (!hasAPI) return;
@@ -184,6 +196,7 @@
       buildReverse();
       applyI18n(document.body);
       startObserver();
+      notify();
     }).catch(function () {
       if (req !== langRequestId) return;
       // Load failed: the DOM was already reverted to the English source —

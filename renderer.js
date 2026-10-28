@@ -6244,18 +6244,10 @@ window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TA
     createNewTab('MainPage/index.html');
     return;
   }
-  // First-launch setup wizard: open Start.htm instead of start page
-  if (window.electronAPI.isFirstLaunch) {
-    window.electronAPI.isFirstLaunch().then(function(isFirst) {
-      if (isFirst) {
-        createNewTab('StartPOZI_Browser_Start/Start.htm');
-        return;
-      }
-      _restoreOrCreateTab();
-    }).catch(function() { _restoreOrCreateTab(); });
-  } else {
-    _restoreOrCreateTab();
-  }
+  // First-run onboarding is the MainPage itself (the old Start.htm wizard
+  // tab and the 4-step overlay were removed — they re-appeared on fresh
+  // profiles of new installs while the MainPage already handles setup).
+  _restoreOrCreateTab();
 
   function _restoreOrCreateTab() {
     window.electronAPI.getWorkspaces().then(function(ws) {
@@ -16186,201 +16178,13 @@ document.addEventListener('keydown', function(e) {
   });
 })();
 
-// ============== FIRST-RUN WIZARD ==============
-// 4-step onboarding overlay: privacy preset → master password → import
-// pointer → done. Shown once per profile (firstRunDone in settings.json).
-// If the appLock interstitial is up, the wizard waits until the browser
-// is unlocked (it sits one z-step below the lock screen).
-(function initFirstRunWizard() {
-  if (!window.electronAPI || !window.electronAPI.getFirstRun) return;
-
-  var ru = false;
-  try { ru = !!(window.i18n && window.i18n.getLanguage && window.i18n.getLanguage() === 'ru'); } catch (e0) {}
-
-  var T = {
-    steps: ru
-      ? ['Шаг 1 из 4 — Защита', 'Шаг 2 из 4 — Мастер-пароль', 'Шаг 3 из 4 — Импорт данных', 'Шаг 4 из 4 — Готово']
-      : ['Step 1 of 4 — Privacy', 'Step 2 of 4 — Master password', 'Step 3 of 4 — Import', 'Step 4 of 4 — Done'],
-    s1lead: ru
-      ? 'Выберите режим защиты — одну кнопку вместо тридцати переключателей. Всё можно изменить позже: Настройки → Безопасность.'
-      : 'Pick a protection level — one button instead of thirty toggles. Everything can be changed later in Settings → Security.',
-    cards: [
-      { id: 'standard', t: ru ? 'Стандарт' : 'Standard',
-        d: ru ? 'Базовая защита: чистка ссылок от трекеров, DNT, лёгкие списки блокировки. Ничего не ломается.'
-              : 'Baseline: tracker-URL cleaning, DNT, light blocker lists. Nothing ever breaks.' },
-      { id: 'private', t: ru ? 'Приватный' : 'Private',
-        d: ru ? 'Рекомендуется: анти-фингерпринт, блок WebRTC-утечек, HTTPS-only, блок cookie третьих сторон.'
-              : 'Recommended: anti-fingerprinting, WebRTC-leak block, HTTPS-only, 3rd-party cookie block.' },
-      { id: 'maximum', t: ru ? 'Максимум' : 'Maximum',
-        d: ru ? 'Всё из «Приватный» + блок уведомлений, геолокации, буфера обмена, WebGL. Часть сайтов может работать иначе.'
-              : 'Everything in Private + notifications, geolocation, clipboard and WebGL blocked. Some sites may behave differently.' }
-    ],
-    s2lead: ru
-      ? 'Мастер-пароль шифрует сохранённые пароли (AES-256). Его нельзя восстановить — только запомнить. Можно пропустить: тогда пароли будут привязаны к хранилищу ОС.'
-      : 'A master password encrypts saved passwords (AES-256). It cannot be recovered — remember it. You may skip: passwords will then be tied to the OS keystore.',
-    s2ph1: ru ? 'Мастер-пароль (мин. 8 символов)' : 'Master password (min. 8 characters)',
-    s2ph2: ru ? 'Повторите пароль' : 'Repeat the password',
-    s2btn: ru ? 'Установить и продолжить' : 'Set and continue',
-    s3lead: ru
-      ? 'Перенесите закладки, историю и пароли из вашего текущего браузера — в один клик из Библиотеки.'
-      : 'Import bookmarks, history and passwords from your current browser — one click in the Library.',
-    s3btn: ru ? 'Открыть импорт' : 'Open import',
-    doneTitle: ru ? 'Готово!' : 'All set!',
-    sumPreset: ru ? 'Режим защиты: ' : 'Protection level: ',
-    sumPwOk: ru ? 'Пароли защищены мастер-паролем.' : 'Passwords are protected by a master password.',
-    sumPwNo: ru ? 'Мастер-пароль не установлен (можно добавить: Настройки → Защита).' : 'No master password yet (add one in Settings → Protection).',
-    sumImport: ru ? 'Импорт доступен всегда: Библиотека → Пароли / Закладки.' : 'Import is always available: Library → Passwords / Bookmarks.',
-    finish: ru ? 'Начать работу' : 'Start browsing',
-    skip: ru ? 'Пропустить' : 'Skip',
-    next: ru ? 'Далее' : 'Next',
-    presetNames: { standard: ru ? 'Стандарт' : 'Standard', private: ru ? 'Приватный' : 'Private', maximum: ru ? 'Максимум' : 'Maximum' },
-    errShort: ru ? 'Пароль должен быть не короче 8 символов' : 'Password must be at least 8 characters',
-    errMatch: ru ? 'Пароли не совпадают' : 'Passwords do not match',
-    errSet: ru ? 'Не удалось установить пароль' : 'Failed to set the password'
-  };
-
-  var wiz, step = 0, chosen = 'private', presetApplied = false, pwSet = false, busy = false;
-
-  function $(id) { return document.getElementById(id); }
-
-  function buildDots() {
-    var d = $('wzDots');
-    if (!d) return;
-    d.innerHTML = '';
-    for (var i = 0; i < 4; i++) {
-      var dot = document.createElement('div');
-      dot.className = 'wzDot' + (i <= step ? ' on' : '');
-      d.appendChild(dot);
-    }
-  }
-
-  function buildCards() {
-    var wrap = $('wzCards');
-    if (!wrap) return;
-    wrap.innerHTML = '';
-    T.cards.forEach(function(c) {
-      var el = document.createElement('div');
-      el.className = 'wzCard' + (c.id === chosen ? ' sel' : '');
-      el.setAttribute('data-preset', c.id);
-      el.innerHTML = '<div class="t"></div><div class="d"></div>';
-      el.querySelector('.t').textContent = c.t;
-      el.querySelector('.d').textContent = c.d;
-      el.addEventListener('click', function() {
-        chosen = c.id;
-        wrap.querySelectorAll('.wzCard').forEach(function(x) { x.classList.remove('sel'); });
-        el.classList.add('sel');
-      });
-      wrap.appendChild(el);
-    });
-  }
-
-  function showStep(i) {
-    step = i;
-    for (var n = 1; n <= 4; n++) { var p = $('wzStep' + n); if (p) p.style.display = (n === i + 1) ? '' : 'none'; }
-    $('wzStepLabel').textContent = T.steps[i];
-    buildDots();
-    var skip = $('wzSkip'), nextB = $('wzNext');
-    if (i === 0) {
-      skip.style.visibility = 'hidden';
-      nextB.textContent = T.next;
-    } else if (i === 1) {
-      skip.style.visibility = '';
-      nextB.textContent = T.s2btn;
-      setTimeout(function() { try { $('wzPw1').focus(); } catch (e1) {} }, 50);
-    } else if (i === 2) {
-      skip.style.visibility = '';
-      nextB.textContent = T.s3btn;
-    } else {
-      skip.style.visibility = 'hidden';
-      nextB.textContent = T.finish;
-      $('wzDoneTitle').textContent = T.doneTitle;
-      var lines = [T.sumPreset + (T.presetNames[chosen] || chosen)];
-      lines.push(pwSet ? T.sumPwOk : T.sumPwNo);
-      lines.push(T.sumImport);
-      $('wzSummary').textContent = lines.join('\n');
-      $('wzSummary').style.whiteSpace = 'pre-line';
-    }
-  }
-
-  function finishWizard() {
-    try { window.electronAPI.finishFirstRun(); } catch (e1) {}
-    if (wiz) wiz.style.display = 'none';
-  }
-
-  function gotoStep2() {
-    // Apply the preset exactly once, on leaving step 1.
-    if (!presetApplied) {
-      presetApplied = true;
-      try { window.electronAPI.applyPrivacyPreset(chosen); } catch (e1) {}
-    }
-    showStep(1);
-  }
-
-  function onNext() {
-    if (busy) return;
-    if (step === 0) { gotoStep2(); return; }
-    if (step === 1) {
-      var p1 = $('wzPw1').value || '', p2 = $('wzPw2').value || '', err = $('wzPwErr');
-      if (p1.length < 8) { err.textContent = T.errShort; return; }
-      if (p1 !== p2) { err.textContent = T.errMatch; return; }
-      err.textContent = '';
-      busy = true;
-      window.electronAPI.setMasterPassword(p1).then(function(res) {
-        busy = false;
-        if (res && res.success) { pwSet = true; showStep(2); }
-        else { err.textContent = (res && res.message) || T.errSet; }
-      }).catch(function() { busy = false; err.textContent = T.errSet; });
-      // Best-effort scrub of the input fields.
-      $('wzPw1').value = ''; $('wzPw2').value = '';
-      return;
-    }
-    if (step === 2) {
-      try { createNewTab('Library.html#passwords'); } catch (e1) {}
-      finishWizard();
-      return;
-    }
-    finishWizard();
-  }
-
-  function onSkip() {
-    if (busy) return;
-    if (step === 1) { showStep(2); return; }
-    if (step === 2) { finishWizard(); return; }
-  }
-
-  function tryShow(attempt) {
-    var lock = document.getElementById('appLockScreen');
-    // Wait while the startup lock screen is covering the UI.
-    if (lock && lock.style.display !== 'none' && attempt < 150) {
-      setTimeout(function() { tryShow(attempt + 1); }, 600);
-      return;
-    }
-    if (wiz) wiz.style.display = 'flex';
-    showStep(0);
-  }
-
-  function init() {
-    wiz = document.getElementById('firstRunWizard');
-    if (!wiz) return;
-    $('wzS1Lead').textContent = T.s1lead;
-    $('wzS2Lead').textContent = T.s2lead;
-    $('wzPw1').placeholder = T.s2ph1;
-    $('wzPw2').placeholder = T.s2ph2;
-    $('wzS3Lead').textContent = T.s3lead;
-    $('wzSkip').textContent = T.skip;
-    buildCards();
-    $('wzNext').addEventListener('click', onNext);
-    $('wzSkip').addEventListener('click', onSkip);
-    $('wzPw1').addEventListener('keydown', function(e) { if (e.key === 'Enter') onNext(); });
-    $('wzPw2').addEventListener('keydown', function(e) { if (e.key === 'Enter') onNext(); });
-  }
-
-  window.electronAPI.getFirstRun().then(function(r) {
-    if (!r || !r.success || !r.firstRun) return;
-    init();
-    setTimeout(function() { tryShow(0); }, 400);
-  }).catch(function() {});
-})();
+// ============== FIRST-RUN WIZARD — REMOVED =============
+// The 4-step onboarding overlay (and the Start.htm first-launch tab) were
+// removed on request: the new tab page (MainPage) already serves as the
+// first-run surface, and the wizard kept re-appearing on fresh profiles
+// of new installs. Fresh profiles now open the MainPage directly; the
+// master password is set in Settings → Security, presets — on the
+// MainPage / Settings. The get/first-run IPC handlers stay (unused).
 
 // ============== BROWSER STARTUP LOCK (appLock) ==============
 // If the user enabled "Lock browser on startup" in Settings → Protection,

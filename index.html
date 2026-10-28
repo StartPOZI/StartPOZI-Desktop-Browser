@@ -791,65 +791,6 @@
     </div>
   </div>
 
-  <!-- First-run wizard: 4-step onboarding (privacy preset → master
-       password → import → done). Shown once per profile; all texts are
-       filled by renderer.js (RU/EN). Sits one z-step under the appLock
-       screen so a locked startup always wins. -->
-  <style>
-    #firstRunWizard .wzLead { font-size:13px;color:var(--secondary-text,#bbb);line-height:1.55;margin-top:4px; }
-    #firstRunWizard .wzCard { flex:1;border:1.5px solid var(--border-color,rgba(255,255,255,0.12));border-radius:12px;padding:14px 12px;cursor:pointer;text-align:center;transition:border-color .15s, background .15s; }
-    #firstRunWizard .wzCard:hover { border-color:rgba(29,161,242,0.5); }
-    #firstRunWizard .wzCard.sel { border-color:#1da1f2;background:rgba(29,161,242,0.08); }
-    #firstRunWizard .wzCard .t { font-size:14px;font-weight:700;color:var(--text-color,#fff);margin-bottom:6px; }
-    #firstRunWizard .wzCard .d { font-size:11px;color:var(--secondary-text,#aaa);line-height:1.45; }
-    #firstRunWizard .wzDot { width:22px;height:4px;border-radius:2px;background:rgba(255,255,255,0.15); }
-    #firstRunWizard .wzDot.on { background:#1da1f2; }
-    #firstRunWizard .wzInput { width:100%;box-sizing:border-box;padding:11px 13px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(0,0,0,0.35);color:#fff;font-size:14px;outline:none;margin-top:10px; }
-    #firstRunWizard .wzBtn { padding:10px 18px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer; }
-    #firstRunWizard .wzPrimary { background:linear-gradient(135deg,#1da1f2,#764ba2);color:#fff; }
-    #firstRunWizard .wzGhost { background:transparent;border:1px solid rgba(255,255,255,0.15);color:var(--secondary-text,#bbb); }
-  </style>
-  <div id="firstRunWizard" style="display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(8,8,14,0.72);backdrop-filter:blur(10px);-webkit-app-region:no-drag;align-items:center;justify-content:center;">
-    <div style="width:600px;max-width:calc(100vw - 40px);background:var(--card-bg,rgba(28,28,38,0.96));border:1px solid var(--border-color,rgba(255,255,255,0.12));border-radius:18px;padding:26px 28px;box-shadow:0 24px 80px rgba(0,0,0,0.65);">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1da1f2,#764ba2);display:flex;align-items:center;justify-content:center;flex:none;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        </div>
-        <div>
-          <div style="font-size:17px;font-weight:700;color:var(--text-color,#fff);">StartPOZI Browser</div>
-          <div id="wzStepLabel" style="font-size:11px;color:var(--secondary-text,#aaa);"></div>
-        </div>
-      </div>
-      <div id="wzDots" style="display:flex;gap:6px;margin:14px 0 16px;"></div>
-
-      <div id="wzStep1">
-        <div id="wzS1Lead" class="wzLead"></div>
-        <div id="wzCards" style="display:flex;gap:10px;margin-top:14px;"></div>
-      </div>
-
-      <div id="wzStep2" style="display:none;">
-        <div id="wzS2Lead" class="wzLead"></div>
-        <input type="password" id="wzPw1" class="wzInput" autocomplete="new-password">
-        <input type="password" id="wzPw2" class="wzInput" autocomplete="new-password">
-        <div id="wzPwErr" style="color:#ff5f57;font-size:12px;min-height:14px;margin-top:6px;"></div>
-      </div>
-
-      <div id="wzStep3" style="display:none;">
-        <div id="wzS3Lead" class="wzLead"></div>
-      </div>
-
-      <div id="wzStep4" style="display:none;">
-        <div id="wzDoneTitle" style="font-size:20px;font-weight:700;color:var(--text-color,#fff);margin:10px 0 8px;"></div>
-        <div id="wzSummary" class="wzLead"></div>
-      </div>
-
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:22px;">
-        <button id="wzSkip" class="wzBtn wzGhost"></button>
-        <button id="wzNext" class="wzBtn wzPrimary"></button>
-      </div>
-    </div>
-  </div>
-
   <!-- Hotkeys overlay: a translucent cheat-sheet toggled by holding a
        modifier key or pressing '?'. Populated by renderer.js. -->
   <div id="hotkeysOverlay" style="display:none;position:fixed;inset:0;z-index:2147483640;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);-webkit-app-region:no-drag;align-items:center;justify-content:center;">

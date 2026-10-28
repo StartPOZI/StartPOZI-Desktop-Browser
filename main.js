@@ -12763,7 +12763,7 @@ ipcMain.on('element-picker-result', function(event, data) {
 // or CDN cannot push a crafted manifest. Fallback: the GitHub releases feed.
 // All requests go through net.fetch (respects Tor/proxy), throttled to once
 // per 24h, nothing is ever installed silently.
-const UPDATE_FEED_URL = 'https://api.github.com/repos/StartPOZI/StartPOZI-Desktop-Browser-beta-/releases/latest';
+const UPDATE_FEED_URL = 'https://api.github.com/repos/StartPOZI/StartPOZI-Desktop-Browser/releases/latest';
 const UPDATE_MANIFEST_URL = 'https://up.api.startpozi.com/latest.json';
 const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 // ed25519 public key (SPKI, base64 DER) — pair of update-server/keys/
@@ -12881,7 +12881,7 @@ async function _fetchUpdateInfo() {
     current: cur,
     latest: latest,
     updateAvailable: _cmpVersions(cur, latest) < 0,
-    releaseUrl: rel.html_url || 'https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-/releases',
+    releaseUrl: rel.html_url || 'https://github.com/StartPOZI/StartPOZI-Desktop-Browser/releases',
     releaseNotes: String(rel.body || '').slice(0, 1500),
     source: 'github'
   };

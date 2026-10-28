@@ -25,6 +25,14 @@ const ECS_BIN = path.join(DRM_DIR, 'node_modules', 'electron', 'dist', 'electron
 function log(m) { console.log('[drm:setup] ' + m); }
 
 try {
+  const nv = (process.versions.node || '0').split('.').map(Number);
+  const need = [22, 12];
+  if (nv[0] < need[0] || (nv[0] === need[0] && nv[1] < need[1])) {
+    console.warn('[drm:setup] Node >= 22.12 is what the ECS runtime declares as its engine ' +
+      '(current: ' + process.versions.node + '). Installing anyway — currently works, ' +
+      'but a future ECS release may refuse to run.');
+  }
+
   fs.mkdirSync(DRM_DIR, { recursive: true });
   fs.writeFileSync(path.join(DRM_DIR, 'package.json'),
     JSON.stringify({ name: 'startpozi-drm', private: true, version: '1.0.0' }, null, 2));

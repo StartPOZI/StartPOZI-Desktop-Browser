@@ -130,5 +130,11 @@
   "Yesterday": "Вчора",
   "Yes": "Так",
   "Zoom": "Масштаб",
-  "Pin tab": "Закріпити вкладку"
+  "Pin tab": "Закріпити вкладку",
+  "Update checks": "Перевірка оновлень",
+  "up.api.startpozi.com (signed manifest), fallback api.github.com — once per 24h": "up.api.startpozi.com (підписаний маніфест), резерв — api.github.com — раз на 24 години",
+  "DRM (Widevine): available ✓": "DRM (Widevine): доступний ✓",
+  "DRM (Widevine): not available in this build (DRM streams like Netflix/Spotify need the DRM build)": "DRM (Widevine): недоступний у цій збірці (для DRM-стримів на кшталт Netflix/Spotify потрібна збірка з DRM)",
+  "Encrypted media playback (Netflix, Spotify). Turning it off applies to new tabs immediately": "Відтворення зашифрованих медіа (Netflix, Spotify). Вимкнення одразу діє на нові вкладки",
+  "DRM (Widevine): disabled in Settings → Security (new tabs only; restart to skip the CDM load)": "DRM (Widevine): вимкнено у Налаштування → Безпека (діє на нові вкладки; перезапуск прибирає завантаження CDM)"
 }

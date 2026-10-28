@@ -5,10 +5,13 @@
   "description": "The safe private browser",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/start.js",
+    "start:stock": "electron .",
     "start:drm": "node -e \"const p=require('path');const e=p.join(__dirname,'.drm','node_modules','.bin','electron');const s=require('fs').existsSync(e);if(!s){console.error('DRM runtime not installed. Run: npm run drm:setup');process.exit(1)}require('child_process').spawn(e,['.'],{stdio:'inherit'})\"",
     "drm:setup": "node scripts/setup-drm.js",
-    "build": "electron-builder",
+    "build": "node scripts/build.js",
+    "build:stock": "electron-builder",
+    "build:drm": "node scripts/build.js",
     "make-update": "node scripts/make-update.js",
     "test": "node --test"
   },
@@ -19,10 +22,10 @@
   ],
   "author": "StartPOZI <startpozi@internet.ru> (https://startpozi.com)",
   "license": "GPL-3.0",
-  "homepage": "https://github.com/StartPOZI/StartPOZI-Desktop-Browser",
+  "homepage": "https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/StartPOZI/StartPOZI-Desktop-Browser.git"
+    "url": "git+https://github.com/StartPOZI/StartPOZI-Desktop-Browser-beta-/startpozi-browser.git"
   },
   "type": "commonjs",
   "dependencies": {
@@ -56,10 +59,9 @@
       "!test/**",
       "!scripts",
       "!scripts/**",
-      "!snap",
-      "!snap/**",
-      "!packaging",
-      "!packaging/**",
+      "!Запас",
+      "!Запас/**",
+      "!Заметки.txt",
       "!Текстовый документ.txt",
       "!electron-flags.conf",
       "!test-login.html",

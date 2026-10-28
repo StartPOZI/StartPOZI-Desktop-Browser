@@ -32,8 +32,8 @@ const LISTS_VERSION = 8;
 // Catalog mirrors the Sp/<n>/ folders of the repo (44 lists; #11 does not
 // exist upstream — failed download, excluded even from the "full" preset).
 // Protection levels follow the upstream LEVELS.md / QUICK_START.md:
-//   light  — 7 lists, ~261K rules, fastest
-//   medium — 17 lists, ~718K rules, recommended for most users (DEFAULT)
+//   light  — 6 lists, ~260K rules, fastest
+//   medium — 16 lists, ~718K rules, recommended for most users (DEFAULT)
 //   full   — all 44 lists, ~3.9M rules, for powerful PCs
 // =====================================================================
 const FILTERHUB_RAW = 'https://raw.githubusercontent.com/StartPOZI/FilterHub/main/Sp/';
@@ -86,8 +86,12 @@ const FILTERHUB_LISTS = [
 ];
 
 const FILTERHUB_LEVELS = {
-  light: [1, 10, 14, 17, 18, 31, 32],
-  medium: [1, 5, 10, 14, 16, 17, 18, 19, 23, 24, 25, 30, 31, 32, 33, 36, 37],
+  // 2026-10: "Google Ultra Strict" (#1) dropped from light/medium — it is
+  // too aggressive for the default protection levels (breaks Google
+  // logins/services). The list stays in the catalog for manual opt-in and
+  // in the "full" preset.
+  light: [10, 14, 17, 18, 31, 32],
+  medium: [5, 10, 14, 16, 17, 18, 19, 23, 24, 25, 30, 31, 32, 33, 36, 37],
   full: FILTERHUB_LISTS.map(function(l) { return l.num; }),
 };
 const FILTERHUB_DEFAULT_LEVEL = 'medium';
@@ -453,6 +457,15 @@ function loadSettings() {
       var validNums = {};
       FILTERHUB_LISTS.forEach(function(l) { validNums[l.num] = true; });
       filterhubEnabled = store.filterhubEnabled.filter(function(n) { return validNums[n]; });
+      // Migration (2026-10): "Google Ultra Strict" (#1) left the light/medium
+      // presets. A stored selection that is EXACTLY one of the old presets is
+      // migrated automatically; any manual selection is respected as-is.
+      var _sig = function(a) { return a.slice().sort(function(x,y){ return x-y; }).join(','); };
+      var _oldLight = [1, 10, 14, 17, 18, 31, 32];
+      var _oldMedium = [1, 5, 10, 14, 16, 17, 18, 19, 23, 24, 25, 30, 31, 32, 33, 36, 37];
+      if (_sig(filterhubEnabled) === _sig(_oldLight) || _sig(filterhubEnabled) === _sig(_oldMedium)) {
+        filterhubEnabled = filterhubEnabled.filter(function(n) { return n !== 1; });
+      }
     }
   } catch(e) {}
 }

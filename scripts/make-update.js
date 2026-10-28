@@ -30,7 +30,7 @@ const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const OUT = path.join(ROOT, 'update-server');
 const UPDATE_HOST = 'up.api.startpozi.com';
-const GH_REPO = 'StartPOZI/StartPOZI-Desktop-Browser';
+const GH_REPO = 'StartPOZI/StartPOZI-Desktop-Browser-beta-';
 const DEFAULT_KEY_PATH = path.join(OUT, 'keys', 'update-private.pem');
 
 // Reference ed25519 public key (raw base64 DER/SPKI) — must stay
@@ -38,7 +38,7 @@ const DEFAULT_KEY_PATH = path.join(OUT, 'keys', 'update-private.pem');
 // (main.js). The self-check below refuses to run with any other key: a
 // manifest signed by a mismatched key would be rejected by every
 // installed client and brick their auto-update.
-const UPDATE_PUBKEY_B64 = 'MCowBQYDK2VwAyEAkNpiw4tix4kmOuYPLznbV2s4AkohfBnm9NRomEVhWyw=';
+const UPDATE_PUBKEY_B64 = 'MCowBQYDK2VwAyEA53oLApHoSlqKdQaYlQoy0g/RmlrvQLxk93wiUT2kK/E=';
 
 // Deterministic JSON serialization: recursive key sort — the browser verifies
 // the signature over the exact same byte sequence.

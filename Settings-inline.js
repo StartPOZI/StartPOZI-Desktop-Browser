@@ -656,6 +656,7 @@ var loadSbStats = null;
         'secHibpEnabled': 'hibpEnabled',
         'secDiagnosticsEnabled': 'diagnosticsEnabled',
         'secUpdateChecks': 'updateChecks',
+        'secDrmEnabled': 'drmEnabled',
         'secDnt': 'dnt',
         'secGpc': 'gpc',
         'secReferrerPolicy': 'referrerPolicy',
@@ -1469,26 +1470,46 @@ document.querySelectorAll('nav a').forEach(link => {
     })();
 
     // DRM (Widevine) status: probe EME availability in THIS runtime.
+    // The "npm run …" hint is for DEVELOPERS running from source only —
+    // an installed build must never tell a user to run npm commands.
     (function drmStatus() {
         var el = document.getElementById('aboutDrmStatus');
         if (!el) return;
-        var done = function (ok) {
-            if (ok) {
-                el.textContent = 'DRM (Widevine): available ✓';
-                el.style.color = '#4caf50';
-            } else {
-                el.textContent = 'DRM (Widevine): not available — run "npm run drm:setup", then "npm run start:drm" (Netflix/Spotify need it)';
-                el.style.color = '#ffb347';
-            }
-        };
-        try {
-            if (!navigator.requestMediaKeySystemAccess) { done(false); return; }
-            navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{
-                initDataTypes: ['cenc', 'webm'],
-                videoCapabilities: [{ contentType: 'video/mp4;codecs="avc1.42E01E"' }],
-                audioCapabilities: [{ contentType: 'audio/mp4;codecs="mp4a.40.2"' }]
-            }]).then(function () { done(true); }).catch(function () { done(false); });
-        } catch (e) { done(false); }
+        Promise.resolve().then(function () {
+            var plats = (window.electronAPI && window.electronAPI.getPlatformInfo)
+                ? window.electronAPI.getPlatformInfo().catch(function () { return null; })
+                : Promise.resolve(null);
+            var drms = (window.electronAPI && window.electronAPI.getSecuritySetting)
+                ? window.electronAPI.getSecuritySetting('drmEnabled').catch(function () { return null; })
+                : Promise.resolve(null);
+            return Promise.all([plats, drms]);
+        }).then(function (res) {
+            var info = res[0], drmSetting = res[1];
+            var devHint = !!(info && info.isPackaged === false);
+            var done = function (ok) {
+                if (drmSetting === false) {
+                    el.textContent = 'DRM (Widevine): disabled in Settings → Security (new tabs only; restart to skip the CDM load)';
+                    el.style.color = '#ffb347';
+                } else if (ok) {
+                    el.textContent = 'DRM (Widevine): available ✓';
+                    el.style.color = '#4caf50';
+                } else if (devHint) {
+                    el.textContent = 'DRM (Widevine): not available — run "npm run drm:setup", then "npm run start:drm" (Netflix/Spotify need it)';
+                    el.style.color = '#ffb347';
+                } else {
+                    el.textContent = 'DRM (Widevine): not available in this build (DRM streams like Netflix/Spotify need the DRM build)';
+                    el.style.color = '#ffb347';
+                }
+            };
+            try {
+                if (!navigator.requestMediaKeySystemAccess) { done(false); return; }
+                navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{
+                    initDataTypes: ['cenc', 'webm'],
+                    videoCapabilities: [{ contentType: 'video/mp4;codecs="avc1.42E01E"' }],
+                    audioCapabilities: [{ contentType: 'audio/mp4;codecs="mp4a.40.2"' }]
+                }]).then(function () { done(true); }).catch(function () { done(false); });
+            } catch (e) { done(false); }
+        });
     })();
 
     var donateBtn = document.getElementById('aboutDonate');

@@ -24,6 +24,40 @@
 })();
 
 document.addEventListener('DOMContentLoaded', function() {
+    // ========== Monochrome SVG icons (replace emoji glyphs) ==========
+    // Same feather/lucide style as the shell's _SVG map in renderer.js.
+    const MP_SVG_PATHS = {
+        // weather
+        '☀️': '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+        '⛅': '<path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/>',
+        '☁️': '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+        '🌫️': '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><line x1="4" y1="20" x2="20" y2="20"/><line x1="7" y1="23" x2="17" y2="23"/>',
+        '🌧️': '<line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/>',
+        '❄️': '<path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="8" y1="20" x2="8.01" y2="20"/><line x1="12" y1="18" x2="12.01" y2="18"/><line x1="12" y1="22" x2="12.01" y2="22"/><line x1="16" y1="16" x2="16.01" y2="16"/><line x1="16" y1="20" x2="16.01" y2="20"/>',
+        '🌦️': '<path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/><line x1="10" y1="19" x2="10" y2="21"/><line x1="14" y1="17" x2="14" y2="19"/>',
+        '⛈️': '<path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"/><polyline points="13 11 9 17 15 17 11 23"/>',
+        '🌡️': '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>',
+        // widgets / dock
+        '🔍': '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+        '📋': '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>',
+        '🎵': '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+        '⬇️': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+        '🧩': '<path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.966 1.02z"/>',
+        // misc
+        '⚠️': '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+        '✚': '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+        '⏸': '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+        '▶': '<polygon points="5 3 19 12 5 21 5 3"/>',
+        '⏮': '<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>',
+        '⏭': '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>'
+    };
+    function mpSvg(char, size) {
+        const paths = MP_SVG_PATHS[char] || MP_SVG_PATHS[char.replace(/\uFE0F/g, '')];
+        if (!paths) return char; // not an icon we map — keep the glyph
+        const s = size || 16;
+        return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px">' + paths + '</svg>';
+    }
+
     // ========== DOM elements ==========
     const sitesGrid = document.getElementById('sitesGrid');
     const mainContent = document.getElementById('mainContent');
@@ -61,7 +95,35 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalCancelBtn = document.getElementById('modalCancelBtn');
 
     // ========== Global variables ==========
-    const faviconCache = new Map();
+    // Persistent favicon cache. The in-memory Map died with every webview
+    // reload, so EACH new tab re-probed the whole candidate chain for every
+    // shortcut (2–3 network requests × N sites). Now the RESOLVED url (or
+    // the "no icon" result) survives restarts in localStorage with a TTL.
+    const FAVCACHE_KEY = 'startpozi_favicon_cache_v1';
+    const FAVCACHE_TTL = 7 * 24 * 3600 * 1000;
+    const faviconCache = (() => {
+        try {
+            const raw = JSON.parse(localStorage.getItem(FAVCACHE_KEY) || '{}');
+            return new Map(Object.entries(raw));
+        } catch (e) { return new Map(); }
+    })();
+    let _favSaveTimer = null;
+    function _favPersist() {
+        // Debounced write: resolving a burst of icons must not hit storage N times.
+        if (_favSaveTimer) return;
+        _favSaveTimer = setTimeout(function () {
+            _favSaveTimer = null;
+            try {
+                const obj = {};
+                faviconCache.forEach(function (v, k) {
+                    if (!v || typeof v.t !== 'number') return;
+                    if (Date.now() - v.t > FAVCACHE_TTL) return; // drop stale entries on write
+                    obj[k] = v;
+                });
+                localStorage.setItem(FAVCACHE_KEY, JSON.stringify(obj));
+            } catch (e) {}
+        }, 500);
+    }
     let draggedItem = null;
     let currentEditCard = null;
     let bingInterval = null;
@@ -98,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
         widget.id = 'weatherWidget';
         widget.className = 'weather-widget';
         widget.innerHTML = `
-        <div class="weather-icon">⛅</div>
+        <div class="weather-icon">${mpSvg('⛅', 24)}</div>
         <div class="weather-temp">-- °C</div>
         <div class="weather-time">--:--</div>
         `;
@@ -207,7 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (code >= 80 && code <= 82) icon = '🌦️';
         else if (code >= 95 && code <= 99) icon = '⛈️';
         else icon = '🌡️';
-        iconEl.textContent = icon;
+        iconEl.innerHTML = mpSvg(icon, 24);
     }
 
     function setWeatherWidgetVisible(visible) {
@@ -319,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.type = 'button';
             btn.className = 'dock-btn' + (w.key === expandedKey ? ' active' : '');
             btn.dataset.key = w.key;
-            btn.textContent = w.icon;
+            btn.innerHTML = mpSvg(w.icon, 20);
             btn.title = w.key;
             btn.addEventListener('click', (e) => { e.stopPropagation(); toggleDockWidget(w.key); });
             widgetDock.appendChild(btn);
@@ -453,7 +515,7 @@ document.addEventListener('DOMContentLoaded', function() {
         widget.className = 'floating-widget todo-widget';
         widget.innerHTML = `
             <div class="widget-head">
-                <span class="widget-title">📋 To-do list</span>
+                <span class="widget-title">${mpSvg('📋', 14)} To-do list</span>
                 <span class="todo-count"></span>
             </div>
             <form class="todo-form" autocomplete="off">
@@ -528,15 +590,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const widget = document.createElement('div');
         widget.className = 'floating-widget mini-player-widget';
         widget.innerHTML = `
-            <div class="mp-artwork">🎵</div>
+            <div class="mp-artwork">${mpSvg('🎵', 22)}</div>
             <div class="mp-info">
                 <div class="mp-title">Nothing is playing</div>
                 <div class="mp-artist"></div>
             </div>
             <div class="mp-controls">
-                <button class="mp-btn" data-act="prev" title="-10 сек">⏮</button>
-                <button class="mp-btn mp-play" data-act="playpause" title="Играть/Пауза">▶</button>
-                <button class="mp-btn" data-act="next" title="+30 сек">⏭</button>
+                <button class="mp-btn" data-act="prev" title="-10 сек">${mpSvg('⏮', 13)}</button>
+                <button class="mp-btn mp-play" data-act="playpause" title="Играть/Пауза">${mpSvg('▶', 14)}</button>
+                <button class="mp-btn" data-act="next" title="+30 сек">${mpSvg('⏭', 13)}</button>
             </div>`;
         widgetsLayer.appendChild(widget);
         miniPlayerWidget = widget;
@@ -569,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (act === 'playpause') {
                 // Optimistic toggle; the bridge pushes the real state right after.
                 const playing = widget.classList.toggle('playing');
-                widget.querySelector('.mp-play').textContent = playing ? '⏸' : '▶';
+                widget.querySelector('.mp-play').innerHTML = mpSvg(playing ? '⏸' : '▶', 14);
                 send('playpause');
             } else {
                 send(act);
@@ -603,15 +665,15 @@ document.addEventListener('DOMContentLoaded', function() {
             img.src = info.artwork; img.alt = '';
             artEl.appendChild(img);
         } else {
-            artEl.textContent = '🎵';
+            artEl.innerHTML = mpSvg('🎵', 22);
         }
         if (info && typeof info.playing === 'boolean') {
             miniPlayerWidget.classList.toggle('playing', info.playing);
-            miniPlayerWidget.querySelector('.mp-play').textContent = info.playing ? '⏸' : '▶';
+            miniPlayerWidget.querySelector('.mp-play').innerHTML = mpSvg(info.playing ? '⏸' : '▶', 14);
         } else if (!info) {
             // Cleared state (nothing playing anywhere) — reset the button.
             miniPlayerWidget.classList.remove('playing');
-            miniPlayerWidget.querySelector('.mp-play').textContent = '▶';
+            miniPlayerWidget.querySelector('.mp-play').innerHTML = mpSvg('▶', 14);
         }
     }
     function setMiniPlayerVisible(visible) {
@@ -642,7 +704,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </button>
             <div class="dl-panel">
                 <div class="widget-head">
-                    <span class="widget-title">⬇ Downloads</span>
+                    <span class="widget-title">${mpSvg('⬇️', 14)} Downloads</span>
                     <button class="dl-clear" type="button">Clear</button>
                 </div>
                 <ul class="dl-list"></ul>
@@ -673,7 +735,12 @@ document.addEventListener('DOMContentLoaded', function() {
         arr.push(Object.assign({ name: 'File', state: 'progressing', progress: 0, size: null, added: Date.now() }, item));
         saveDownloads(arr);
         renderDownloads();
-        if (downloadsWidget) downloadsWidget.querySelector('.dl-panel').classList.add('open');
+        // Auto-open the panel ONLY when the widget is actually enabled —
+        // otherwise the hidden panel got stuck open and popped out the next
+        // time the user turned the widget on.
+        if (downloadsWidget && !downloadsWidget.classList.contains('hidden')) {
+            downloadsWidget.querySelector('.dl-panel').classList.add('open');
+        }
     }
 
     function updateDownloadItem(id, patch) {
@@ -1164,7 +1231,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     async function getFaviconUrl(domain) {
-        if (faviconCache.has(domain)) return faviconCache.get(domain);
+        const hit = faviconCache.get(domain);
+        if (hit && typeof hit.t === 'number' && (Date.now() - hit.t) < FAVCACHE_TTL) {
+            return hit.u;
+        }
         // Privacy-preserving fallback chain. Asking the site itself first
         // (no third party learns anything); many sites however keep their
         // icon at a non-root path, so:
@@ -1181,9 +1251,14 @@ document.addEventListener('DOMContentLoaded', function() {
         ];
         for (const candidate of candidates) {
             const ok = await tryLoadImage(candidate);
-            if (ok) { faviconCache.set(domain, candidate); return candidate; }
+            if (ok) {
+                faviconCache.set(domain, { u: candidate, t: Date.now() });
+                _favPersist();
+                return candidate;
+            }
         }
-        faviconCache.set(domain, null);
+        faviconCache.set(domain, { u: null, t: Date.now() });
+        _favPersist();
         return null;
     }
 
@@ -1492,7 +1567,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (images.length === 0) {
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'loading-placeholder';
-                errorDiv.innerHTML = `⚠️ No images in folder <strong>${folder}</strong>`;
+                errorDiv.innerHTML = `${mpSvg('⚠️', 16)} No images in folder <strong>${folder}</strong>`;
                 errorDiv.style.gridColumn = 'span 2';
                 errorDiv.style.padding = '20px';
                 subOptionsGrid.appendChild(errorDiv);
@@ -1533,7 +1608,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const addBtn = document.createElement('div');
             addBtn.className = 'site-card add-site';
             addBtn.id = 'addSiteBtn';
-            addBtn.innerHTML = '<div class="site-icon">✚</div><div class="site-name">Add site</div><div class="site-url">click</div>';
+            addBtn.innerHTML = `<div class="site-icon"><span class="svg-fallback">${mpSvg('✚', 24)}</span></div><div class="site-name">Add site</div><div class="site-url">click</div>`;
             sitesGrid.appendChild(addBtn);
             addBtn.addEventListener('click', addNewSite);
             loadSettingsState();
@@ -1814,15 +1889,35 @@ document.addEventListener('DOMContentLoaded', function() {
                     showContextMenu(card, e.clientX, e.clientY);
                 });
 
-                // Launch
+                // Launch. The search bar and the sites grid render first;
+                // the remaining widgets are staggered one per macrotask so a
+                // freshly opened tab paints its primary UI immediately —
+                // the guest process spawn already spikes the CPU, and
+                // building every widget in one synchronous burst used to
+                // freeze the first frames (perceived "tab open lag").
+                // Each create is immediately followed by its saved
+                // visibility: loadSettingsState() runs inside initSites()
+                // BEFORE this queue executes, so without re-applying the
+                // state here every widget came up visible even when its
+                // toggle was off.
                 createSearchWidget();
-                createTodoWidget();
-                createMiniPlayerWidget();
-                createDownloadsWidget();
-                _wireRealDownloads(window.electronAPI);
-                createCustomWidgetsContainer();
-                createWeatherWidget();
                 initSites();
+                var _widgetQueue = [
+                    function(){ createTodoWidget(); setTodoWidgetVisible(localStorage.getItem('startpozi_todo_enabled') === 'true'); },
+                    function(){ createMiniPlayerWidget(); setMiniPlayerVisible(localStorage.getItem('startpozi_miniplayer_enabled') === 'true'); },
+                    function(){
+                        createDownloadsWidget();
+                        _wireRealDownloads(window.electronAPI);
+                        setDownloadsWidgetVisible(localStorage.getItem('startpozi_downloads_enabled') === 'true');
+                    },
+                    function(){ createCustomWidgetsContainer(); setCustomWidgetsVisible(localStorage.getItem('startpozi_customwidgets_enabled') === 'true'); },
+                    function(){ createWeatherWidget(); setWeatherWidgetVisible(localStorage.getItem('startpozi_weather_enabled') !== 'false'); }
+                ];
+                (function launchNextWidget() {
+                    if (!_widgetQueue.length) { updateCompactMode('init'); return; }
+                    _widgetQueue.shift()();
+                    setTimeout(launchNextWidget, 50);
+                })();
                 window.addEventListener('resize', () => updateCompactMode('resize'));
                 // matchMedia — the most reliable way to track the breakpoint (works in webview too)
                 const _mql = window.matchMedia('(max-width: ' + COMPACT_THRESHOLD + 'px)');
@@ -1834,5 +1929,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 // safeguard: if events do not arrive, check periodically (cheap due to early return)
                 setInterval(() => updateCompactMode('interval'), 700);
-                updateCompactMode('init');
+                // updateCompactMode('init') is called by the widget launch
+                // chain above once every widget exists.
 });

@@ -163,6 +163,16 @@ ipcMain.handle('get-last-session-crashed', () => _lastSessionCrashed);
 // that ship with the browser (see preload-webview.js).
 ipcMain.on('spz-get-app-dir', (event) => { event.returnValue = __dirname; });
 
+// DRM (Widevine) policy — SYNC: webview preloads must know whether EME is
+// allowed BEFORE any page script can call requestMediaKeySystemAccess
+// (see preload-webview.js). Read live from storage so tabs opened after the
+// Settings toggle change pick the new policy up without a restart.
+ipcMain.on('drm-enabled-sync', (event) => {
+  var on = true;
+  try { on = ((readStorage().security || {}).drmEnabled) !== false; } catch (e) {}
+  event.returnValue = on;
+});
+
 // Global Privacy Control state for the webview preload (synchronous: the
 // navigator.globalPrivacyControl property must exist before page scripts).
 ipcMain.on('spz-get-gpc', (event) => {
@@ -1166,8 +1176,16 @@ function _allShells() {
 function _windowTransparencyEnabled() {
   try {
     var perf = require('./storage').read().optimization || {};
-    return perf.disableTransparency !== true;
-  } catch (e) { return true; }
+    if (perf.disableTransparency === true) return false;
+    // Windows: a frameless + TRANSPARENT window goes through the slow DWM
+    // layered-window path — laggy dragging/resizing, broken Aero Snap and
+    // no native shadow. A solid frameless window renders fine (the chrome
+    // translucency CSS just composites against the solid background).
+    // Opt back in explicitly via optimization.enableTransparencyWin in
+    // settings.json if the see-through look is wanted despite the cost.
+    if (process.platform === 'win32') return perf.enableTransparencyWin === true;
+    return true;
+  } catch (e) { return process.platform !== 'win32'; }
 }
 
 // ============== APP ICON ==============
@@ -1741,12 +1759,28 @@ function _vimKeyMatchesMainCache(ch) {
 }
 
 // ===== Single instance + OS protocol links =====
-// startpozi:// links (and http(s):// links when registered as the default
-// browser) launched from the OS arrive here: as argv on Windows/Linux and
-// via the 'open-url' event on macOS.
+// startpozi:// links, http(s):// links (when registered as the default
+// browser) and local file paths (double-clicked .html, "open with", files
+// dropped on the icon) arrive here: as argv on Windows/Linux and via the
+// 'open-url' / 'open-file' events on macOS.
+function _pathToFileUrl(p) {
+  try { return require('url').pathToFileURL(p).href; } catch (e) { return null; }
+}
+// A local file passed by the OS on the command line: not a flag, not a
+// URL, and it actually exists on disk (guards against random junk argv).
+function _looksLikeFilePath(a) {
+  if (typeof a !== 'string' || !a || a.charCodeAt(0) === 45 /* '-' */) return false;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(a)) return false; // scheme:// URL
+  if (a === process.execPath) return false;
+  try { return fs.existsSync(a) && fs.statSync(a).isFile(); } catch (e) { return false; }
+}
 function _normalizeLaunchUrl(url) {
   if (typeof url !== 'string') return null;
   if (/^https?:\/\//i.test(url)) return url;
+  if (/^file:\/\//i.test(url)) return url;
+  // Plain local path → file:// URL (the shell opens it as a normal tab;
+  // .html renders natively, other types go through the about:viewer logic).
+  if (_looksLikeFilePath(url)) return _pathToFileUrl(url);
   var m = url.toLowerCase().match(/^startpozi:\/\/([^/?#]*)/);
   if (m) {
     if (m[1] === 'newtab' || m[1] === 'home') return 'MainPage/index.html';
@@ -1778,6 +1812,9 @@ function _extractLaunchUrl(argv) {
   for (var i = 1; i < argv.length; i++) {
     var a = argv[i];
     if (/^startpozi:\/\//i.test(a) || /^https?:\/\//i.test(a)) return a;
+    // Local file path (default-browser file association / "open with"):
+    // Windows and most Linux DEs pass the bare path as a plain argv item.
+    if (_looksLikeFilePath(a)) return a;
   }
   return null;
 }
@@ -1809,6 +1846,21 @@ app.on('open-url', function (event, url) {
   }
 });
 
+// macOS (and some Linux DEs): a file the OS asked us to open — registered
+// file associations, double-clicked .html, drag-drop onto the dock icon.
+app.on('open-file', function (event, filePath) {
+  event.preventDefault();
+  var url = _pathToFileUrl(filePath);
+  if (!url) return;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    _openLaunchUrl(url);
+  } else {
+    _pendingLaunchUrl = url;
+  }
+});
+
 // Startup banner — printed to the terminal (npm start / console) on launch.
 console.log(`
 ████ █████  ███  ████  █████ ████   ███  █████ ███    ████  ████   ███  █   █  ████ █████ ████
@@ -1830,9 +1882,12 @@ app.whenReady().then(async () => {
   // castlabs "wvcus" build (same Electron 42 branch). It exposes the
   // `components` API and installs the Widevine CDM on first launch. Wait for
   // it (bounded) so DRM sites work from the very first window; on stock
-  // Electron `components` is undefined and this is a no-op.
+  // Electron `components` is undefined and this is a no-op. Skipped entirely
+  // when the user disabled DRM in Settings — faster startup, no CDM install.
   try {
-    if (electron.components && electron.components.whenReady) {
+    var _drmWanted = true;
+    try { _drmWanted = ((readStorage().security || {}).drmEnabled) !== false; } catch (eDr) {}
+    if (_drmWanted && electron.components && electron.components.whenReady) {
       await Promise.race([
         electron.components.whenReady(),
         new Promise(function (res) { setTimeout(res, 20000); })
@@ -1841,6 +1896,8 @@ app.whenReady().then(async () => {
         var _cdmStatus = electron.components.status();
         console.log('[drm] Widevine CDM:', JSON.stringify(_cdmStatus));
       } catch (eS) {}
+    } else if (!_drmWanted) {
+      console.log('[drm] disabled in Settings — skipping CDM startup');
     }
   } catch (eCdm) {}
 
@@ -1869,6 +1926,17 @@ app.whenReady().then(async () => {
   const initStore = readStorage();
   initStore._sessionStartTime = Date.now();
   writeStorage(initStore);
+  // One-time migration: a save that raced the workspace init could write
+  // workspaceTabs under the literal key "undefined" (junk MainPage entry
+  // observed in real profiles). Drop it; the default workspace is the
+  // correct home for that tab.
+  try {
+    storage.update(function (s) {
+      if (s.workspaceTabs && Object.prototype.hasOwnProperty.call(s.workspaceTabs, 'undefined')) {
+        delete s.workspaceTabs['undefined'];
+      }
+    });
+  } catch (eWs) {}
   // Donation support prompt — count this launch (the show/hide schedule
   // lives in the renderer, see initDonatePrompt).
   try {
@@ -1910,9 +1978,10 @@ app.whenReady().then(async () => {
   _startIdleLockPoller();
   _refreshAutohideCache();
   _refreshSitePermCache();
-  if (initStore.windowOpacity !== undefined && initStore.windowOpacity < 1) {
-    mainWindow.setOpacity(Math.max(0.1, Math.min(1, initStore.windowOpacity)));
-  }
+  // Window opacity is renderer-side only (CSS --win-opacity layer): the
+  // native setOpacity() would make the WHOLE window translucent on
+  // Windows/macOS — page content included. The renderer applies the saved
+  // value itself on load (loadOpacity).
   // A failed blocker init (e.g. no network on a cold first run) must never
   // abort the bootstrap chain below — otherwise permission handlers, the
   // webview wiring, applySecuritySettings() and the macOS activate handler
@@ -2334,6 +2403,12 @@ var _secBeforeSendHeaders = null;
 
 // Domains where param cleaning should be SKIPPED (per DuckDuckGo exceptions)
 var _CLEAN_EXCEPTIONS = [
+  // YouTube: media (googlevideo.com/videoplayback) URLs are SIGNED —
+  // stripping any param (even 'ei', listed above as a Google-search
+  // tracker) breaks playback outright. The watch/results URLs are SPA
+  // state, not tracking either — exempt the whole property.
+  'youtube.com','youtu.be','youtube-nocookie.com','googlevideo.com','ytimg.com',
+  // Per-DuckDuckGo exceptions:
   'axs.com','urldefense.com','centerwellpharmacy.com','go365.com','humana.com'
 ];
 
@@ -3430,6 +3505,46 @@ try {
   if (store.savedTabs) savedTabs = store.savedTabs;
 } catch(e) {}
 
+// "Save internal pages" (Settings → Tabs): browser pages (settings, library,
+// new tab, viewer…) must not be persisted/restored when the toggle is OFF.
+// Detected by filename marker in non-http(s) URLs — internal pages are saved
+// as RELATIVE names ('Settings.html#proxy') or file:// paths, so an https
+// site that merely contains e.g. "Settings.html" is never caught.
+var _INTERNAL_TAB_MARKERS = [
+  'Settings.html', 'Library.html', 'TaskManager.html', 'CustomizeToolbar.html',
+  'ThemeEditor.html', 'Help.html', 'Viewer.html', 'IncognitoPage.html',
+  'MainPage/index.html', 'StartPOZI_Browser_Start/', 'ErrorPage/'
+];
+function _isInternalTabUrl(u) {
+  if (typeof u !== 'string' || !u) return false;
+  if (/^https?:/i.test(u)) return false; // a website is never internal
+  var i;
+  if (u.indexOf('file://') !== 0) {
+    // Relative saved names ('Settings.html#proxy') are produced by our own
+    // session saver and always internal.
+    for (i = 0; i < _INTERNAL_TAB_MARKERS.length; i++) {
+      if (u.indexOf(_INTERNAL_TAB_MARKERS[i]) !== -1) return true;
+    }
+    return false;
+  }
+  // file:// — internal ONLY inside the app directory. A user's own local
+  // file that merely shares a name (…/docs/Settings.html) must survive the
+  // "save internal pages" filter untouched.
+  try {
+    var appPrefix = 'file://' + __dirname.replace(/\\/g, '/').replace(/\/+$/, '');
+    if (u.toLowerCase().indexOf(appPrefix.toLowerCase()) !== 0) return false;
+  } catch (ePr) { return false; }
+  for (i = 0; i < _INTERNAL_TAB_MARKERS.length; i++) {
+    if (u.indexOf(_INTERNAL_TAB_MARKERS[i]) !== -1) return true;
+  }
+  return false;
+}
+function _filterTabsInternal(tabsData) {
+  if (saveInternalPagesSetting) return tabsData; // toggle ON: keep everything
+  if (!Array.isArray(tabsData)) return tabsData;
+  return tabsData.filter(function(t) { return !(t && _isInternalTabUrl(t.url)); });
+}
+
 // Save tabs when app quits
 app.on('before-quit', () => {
   _saveWindowState();
@@ -3445,15 +3560,18 @@ app.on('before-quit', () => {
 });
 
 ipcMain.handle('save-current-tabs', (_, tabsData) => {
-  savedTabs = tabsData;
+  // "Save internal pages" OFF → internal browser pages never persist.
+  savedTabs = _filterTabsInternal(tabsData);
   // Hot path (fires per navigation via autoSaveTabs) — coalesced write.
-  updateStorageSoon(function (store) { store.savedTabs = tabsData; });
+  updateStorageSoon(function (store) { store.savedTabs = savedTabs; });
   return { success: true };
 });
 
 ipcMain.handle('get-saved-tabs', () => {
   const store = readStorage();
-  return store.savedTabs || [];
+  // Filtered here as well: sessions saved before the toggle was turned OFF
+  // (or by older builds) must not resurrect internal pages either.
+  return _filterTabsInternal(store.savedTabs || []);
 });
 
 // ============== WEBVIEW DIALOG RESPONSE ==============
@@ -3809,12 +3927,10 @@ ipcMain.handle('set-window-opacity', (_, opacity) => {
   writeStorage(store);
   var clamped = Math.max(0.1, Math.min(1, opacity));
   if (mainWindow) {
-    try { mainWindow.setOpacity(clamped); } catch(e) {}
-    // Notify the renderer so it applies the CSS-based opacity/blur layer.
-    // The native setOpacity() has no visible effect on Linux when the window
-    // is created with transparent:true, so the renderer's --win-opacity /
-    // blur background is what actually produces the dimming. Without this
-    // broadcast the slider moved but nothing changed on screen.
+    // Renderer-side CSS layer ONLY. The native setOpacity() made the whole
+    // window translucent on Windows (page content included) — the feature
+    // is a chrome/background effect, not a see-through window. The renderer
+    // applies --win-opacity + the blur background (window-opacity-changed).
     try {
       if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-opacity-changed', clamped);
     } catch(e) {}
@@ -4556,6 +4672,8 @@ ipcMain.handle('get-security-setting', (_, key) => {  const store = readStorage(
   // only if a site misbehaves.
   var optOutKeys = ['dnt', 'gpc', 'suggestEnabled', 'translateEnabled', 'hibpEnabled', 'diagnosticsEnabled', 'updateChecks',
     'omniboxFrequentSuggestions', 'omniboxBookmarkSuggestions', 'audioFp',
+    // DRM (Widevine) — default ON: ships enabled, opt-out for max privacy.
+    'drmEnabled',
     // Default-ON protections (absent = enabled, explicit false = off):
     'fpShield', 'blockWebGL', 'spectreShield', 'blockDnsRebinding', 'askLanAccess'];
   if (optOutKeys.indexOf(key) !== -1) {
@@ -5212,7 +5330,7 @@ ipcMain.handle('complete-setup', (_, settings) => {
   if (settings.opacity !== undefined && settings.opacity !== null) {
     store.windowOpacity = settings.opacity;
     try { if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.setOpacity(Math.max(0.1, Math.min(1, settings.opacity)));
+      // CSS layer only — see set-window-opacity above.
       mainWindow.webContents.send('window-opacity-changed', Math.max(0.1, Math.min(1, settings.opacity)));
     } } catch(e) {}
   }
@@ -10267,14 +10385,19 @@ ipcMain.handle('set-active-workspace', (_, id) => {
 ipcMain.handle('get-workspace-tabs', (_, workspaceId) => {
   const store = readStorage();
   if (!store.workspaceTabs) store.workspaceTabs = {};
-  return store.workspaceTabs[workspaceId] || [];
+  // Same "save internal pages" gate as the global session (see above).
+  return _filterTabsInternal(store.workspaceTabs[workspaceId] || []);
 });
 
 ipcMain.handle('set-workspace-tabs', (_, workspaceId, tabsData) => {
+  // Guard: a save that raced the workspace init used to write under the
+  // literal key "undefined" (observed in real profiles) and leak a junk
+  // workspace entry forever. Anything falsy lands in the default workspace.
+  if (!workspaceId || workspaceId === 'undefined') workspaceId = 'ws-default';
   // Hot path (fires per navigation via autoSaveTabs) — coalesced write.
   updateStorageSoon(function (store) {
     if (!store.workspaceTabs) store.workspaceTabs = {};
-    store.workspaceTabs[workspaceId] = tabsData;
+    store.workspaceTabs[workspaceId] = _filterTabsInternal(tabsData);
   });
   return { success: true };
 });
@@ -12646,7 +12769,7 @@ const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 // ed25519 public key (SPKI, base64 DER) — pair of update-server/keys/
 // update-private.pem. Replacing the key requires shipping a new browser
 // build; manifests signed with the old key then stop validating.
-const UPDATE_PUBKEY_B64 = 'MCowBQYDK2VwAyEAkNpiw4tix4kmOuYPLznbV2s4AkohfBnm9NRomEVhWyw=';
+const UPDATE_PUBKEY_B64 = 'MCowBQYDK2VwAyEA53oLApHoSlqKdQaYlQoy0g/RmlrvQLxk93wiUT2kK/E=';
 
 function _cmpVersions(a, b) {
   var pa = String(a || '').replace(/^v/i, '').split('.');

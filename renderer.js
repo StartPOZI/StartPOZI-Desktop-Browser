@@ -3008,14 +3008,23 @@ function resolveLocalUrl(inputUrl) {
   if (inputUrl.startsWith('file://')) {
     return _bustInternalCache(inputUrl);
   }
-  // Looks like a local file path
-  if (inputUrl.endsWith('.html') || inputUrl.includes('/') || inputUrl.includes('\\')) {
+  // Looks like a local file path. A saved internal page may arrive as a
+  // canonical RELATIVE name with a tail ('Settings.html#proxy',
+  // 'Viewer.html?file=…') — strip the tail before the heuristics and let
+  // _bustInternalCache re-attach/merge it on the resolved URL.
+  var _pathPart = inputUrl, _tailPart = '';
+  var _sepIdx = inputUrl.search(/[?#]/);
+  if (_sepIdx > -1) {
+    _pathPart = inputUrl.substring(0, _sepIdx);
+    _tailPart = inputUrl.substring(_sepIdx);
+  }
+  if (_pathPart.endsWith('.html') || _pathPart.includes('/') || _pathPart.includes('\\')) {
     // Get base path from current window URL (the app loaded from file://.../index.html)
     var basePath = window.location.href.replace(/\/[^/]*$/, '/');
-    if (inputUrl.startsWith('/')) {
-      return _bustInternalCache('file://' + inputUrl);
+    if (_pathPart.startsWith('/')) {
+      return _bustInternalCache('file://' + _pathPart + _tailPart);
     }
-    return _bustInternalCache(basePath + inputUrl);
+    return _bustInternalCache(basePath + _pathPart + _tailPart);
   }
   // Probably a search query or domain — handle in navigateTo
   return inputUrl;
@@ -3954,6 +3963,7 @@ function createNewTab(url, lazy, opts) {
 
   tabElement.addEventListener('mouseenter', function() {
     if (!_tabPreviews) return;
+    _tabPreviewHoverId = tabId;
     clearTimeout(_tabPreviewTimer);
     _tabPreviewTimer = setTimeout(function() {
       showTabPreview(tabId);
@@ -3961,6 +3971,7 @@ function createNewTab(url, lazy, opts) {
   });
 
   tabElement.addEventListener('mouseleave', function() {
+    if (_tabPreviewHoverId === tabId) _tabPreviewHoverId = null;
     clearTimeout(_tabPreviewTimer);
     hideTabPreview();
   });
@@ -4428,21 +4439,28 @@ function updateTabAudioIcon(tabId) {
 var _tabPreviewEl = null;
 var _tabPreviewCache = {};
 var _tabPreviewCaptureTimer = null;
-// "Tab hover preview" (Settings → Customization → Tabs). Default ON.
+// "Tab hover preview" (Settings → Customization → Tabs). Default ON —
+// shows a live thumbnail of the tab's content on hover (600 ms dwell).
 // (Hides instantly on tab click and stays inside the window — see
 // showTabPreview / the tab mousedown handler.)
 var _tabPreviews = true;
 
-function cacheTabPreview(tabId) {
+// Tab under the cursor right now — lets the on-demand capture (below)
+// know whether it is still worth showing the card when the shot lands.
+var _tabPreviewHoverId = null;
+
+function cacheTabPreview(tabId, cb) {
   var tab = tabs.find(function(t) { return t.id === tabId; });
-  if (!tab || !tab.webview || !tab.isReady) return;
+  if (!tab || !tab.webview || !tab.isReady) { if (cb) cb(); return; }
   try {
-    if (tab.webview.isDestroyed && tab.webview.isDestroyed()) return;
-  } catch(e) { return; }
+    if (tab.webview.isDestroyed && tab.webview.isDestroyed()) { if (cb) cb(); return; }
+  } catch(e) { if (cb) cb(); return; }
   tab.webview.capturePage({ width: 400 }).then(function(img) {
-    if (!img || img.isEmpty()) return;
-    _tabPreviewCache[tabId] = { dataUrl: img.toDataURL(), size: img.getSize(), title: tab.title || '' };
-  }).catch(function() {});
+    if (img && !img.isEmpty()) {
+      _tabPreviewCache[tabId] = { dataUrl: img.toDataURL(), size: img.getSize(), title: tab.title || '' };
+    }
+    if (cb) cb();
+  }).catch(function() { if (cb) cb(); });
 }
 
 function startTabPreviewCapture() {
@@ -4464,9 +4482,15 @@ function showTabPreview(tabId) {
   if (!_tabPreviews) return;
   var cached = _tabPreviewCache[tabId];
   if (!cached) {
-    var tab = tabs.find(function(t) { return t.id === tabId; });
-    if (tab && tab.id === activeTabId && tab.webview && tab.isReady) {
-      try { cacheTabPreview(tabId); } catch(e) {}
+    // On-demand capture: the 5s heartbeat only refreshes the ACTIVE tab,
+    // so hovering a background tab that was never active used to show
+    // nothing at all. Capture now and show the card when it is ready —
+    // but only if the cursor is still over this very tab.
+    var t0 = tabs.find(function(t) { return t.id === tabId; });
+    if (t0 && !t0._isSleeping) {
+      cacheTabPreview(tabId, function() {
+        if (_tabPreviewHoverId === tabId) showTabPreview(tabId);
+      });
     }
     return;
   }
@@ -6275,163 +6299,11 @@ window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TA
 // MainPage/index.html which opens as a tab in initTabs().
 // initWelcomeTour: disabled — Start.htm handles onboarding now
 
-// ====== Donation support prompt ======
-// A small card that appears SOMETIMES on startup in the primary window:
-//   • never before the 3rd launch,
-//   • at least 3 days between shows,
-//   • ~1 of 4 launches (randomized),
-//   • never again after "Больше не показывать" / after the user supported.
-// State lives in settings.json → donatePrompt (see main.js handlers).
-(function initDonatePrompt() {
-  if (!window.electronAPI || !window.electronAPI.getDonatePromptState) return;
-  // Only the primary window shows it — not incognito/secondary shells.
-  if (window._canSaveSession === false) return;
-
-  var DONATE_URL = 'https://startpozi.com/s/donate.html';
-  var MIN_LAUNCHES = 3;
-  var MIN_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
-  var SHOW_CHANCE = 0.25; // ~1 of 4 launches
-
-  var L10N = {
-    ru: {
-      title: 'Поддержите StartPOZI',
-      text: 'Браузер развивается независимо и остаётся бесплатным. Если StartPOZI вам нравится — поддержите проект любой суммой.',
-      support: 'Поддержать проект',
-      later: 'Позже',
-      never: 'Больше не показывать'
-    },
-    en: {
-      title: 'Support StartPOZI',
-      text: 'The browser is developed independently and stays free. If you like StartPOZI, consider supporting the project with any amount.',
-      support: 'Support the project',
-      later: 'Later',
-      never: "Don't show again"
-    }
-  };
-
-  // Do not bother the user right at login — give the session ~10s to settle.
-  setTimeout(function() {
-    window.electronAPI.getDonatePromptState().then(function(st) {
-      try {
-        if (!st || st.never || st.supported) return;
-        if ((st.launches || 0) < MIN_LAUNCHES) return;
-        if (st.lastShown && (Date.now() - st.lastShown) < MIN_INTERVAL_MS) return;
-        // forceNext (set manually in settings.json) bypasses the random gate —
-        // handy for previewing the card without waiting for the schedule.
-        if (st.forceNext !== true && Math.random() >= SHOW_CHANCE) return;
-        showDonateCard();
-      } catch(e) {}
-    }).catch(function() {});
-  }, 10000);
-
-  function showDonateCard() {
-    var lang = 'en';
-    var getLang = window.electronAPI && window.electronAPI.getLanguage;
-    if (getLang) {
-      getLang().then(function(l) { try { render(l === 'ru' ? 'ru' : 'en'); } catch(e) { render('en'); } }).catch(function() { render('en'); });
-    } else {
-      render('en');
-    }
-  }
-
-  function render(lang) {
-    var t = L10N[lang] || L10N.en;
-
-    var card = document.createElement('div');
-    card.id = 'donate-prompt-card';
-    card.style.cssText =
-      'position:fixed;right:20px;bottom:20px;z-index:2147483000;max-width:330px;padding:18px 18px 14px;' +
-      'background:var(--bg-secondary,#2d2d2d);border:1px solid var(--border-color,#3d3d3d);border-radius:12px;' +
-      'box-shadow:0 10px 34px rgba(0,0,0,.45);font-family:inherit;color:var(--text-primary,#fff);' +
-      'opacity:0;transform:translateX(24px);transition:opacity .25s ease,transform .25s ease;';
-    document.body.appendChild(card);
-    // Mark as shown immediately so a quick "Позже" still enforces the cooldown.
-    if (window.electronAPI.setDonatePromptShown) window.electronAPI.setDonatePromptShown().catch(function() {});
-
-    // Header: heart icon + title
-    var head = document.createElement('div');
-    head.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
-    var icon = document.createElement('div');
-    icon.style.cssText =
-      'flex:0 0 auto;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;' +
-      'background:rgba(226,74,101,.15);color:#e24a65;';
-    icon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
-    var title = document.createElement('div');
-    title.style.cssText = 'font-size:15px;font-weight:600;';
-    title.textContent = t.title;
-    head.appendChild(icon);
-    head.appendChild(title);
-    card.appendChild(head);
-
-    var text = document.createElement('div');
-    text.style.cssText = 'font-size:13px;line-height:1.5;color:var(--text-secondary,#aaa);margin-bottom:14px;';
-    text.textContent = t.text;
-    card.appendChild(text);
-
-    function closeCard() {
-      try {
-        card.style.opacity = '0';
-        card.style.transform = 'translateX(24px)';
-        setTimeout(function() { if (card.parentNode) card.parentNode.removeChild(card); }, 260);
-      } catch(e) {}
-      try { document.removeEventListener('keydown', onKey); } catch(e) {}
-    }
-    var onKey = function(e) { if (e.key === 'Escape') { e.preventDefault(); closeCard(); } };
-    document.addEventListener('keydown', onKey);
-
-    // Buttons
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
-    var btnSupport = document.createElement('button');
-    btnSupport.textContent = t.support;
-    btnSupport.style.cssText =
-      'flex:1 1 auto;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;' +
-      'background:var(--primary-color,#1da1f2);color:#fff;';
-    btnSupport.addEventListener('mouseenter', function() { btnSupport.style.filter = 'brightness(1.12)'; });
-    btnSupport.addEventListener('mouseleave', function() { btnSupport.style.filter = ''; });
-    btnSupport.addEventListener('click', function() {
-      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
-        window.electronAPI.setDonatePromptChoice({ supported: true }).catch(function() {});
-      }
-      closeCard();
-      createNewTab(DONATE_URL);
-    });
-    var btnLater = document.createElement('button');
-    btnLater.textContent = t.later;
-    btnLater.style.cssText =
-      'flex:0 0 auto;padding:8px 14px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;cursor:pointer;' +
-      'font-size:13px;background:transparent;color:var(--text-primary,#fff);';
-    btnLater.addEventListener('mouseenter', function() { btnLater.style.background = 'var(--hover-bg,rgba(255,255,255,.08))'; });
-    btnLater.addEventListener('mouseleave', function() { btnLater.style.background = 'transparent'; });
-    btnLater.addEventListener('click', closeCard);
-    row.appendChild(btnSupport);
-    row.appendChild(btnLater);
-    card.appendChild(row);
-
-    var btnNever = document.createElement('button');
-    btnNever.textContent = t.never;
-    btnNever.style.cssText =
-      'margin-top:10px;padding:2px 0;border:none;background:none;cursor:pointer;font-size:11px;' +
-      'color:var(--text-secondary,#aaa);text-decoration:underline;';
-    btnNever.addEventListener('mouseenter', function() { btnNever.style.color = 'var(--text-primary,#fff)'; });
-    btnNever.addEventListener('mouseleave', function() { btnNever.style.color = 'var(--text-secondary,#aaa)'; });
-    btnNever.addEventListener('click', function() {
-      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
-        window.electronAPI.setDonatePromptChoice({ never: true }).catch(function() {});
-      }
-      closeCard();
-    });
-    card.appendChild(btnNever);
-
-    // Slide in
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
-        card.style.opacity = '1';
-        card.style.transform = 'translateX(0)';
-      });
-    });
-  }
-})();
+// ====== Donation support prompt — REMOVED ======
+// The auto-popup card (shown from the 3rd launch, 25% chance, every 3
+// days) was reported as an unexpected startup popup; removed on request.
+// The IPC state handlers in main.js and the preload wiring are kept, so
+// the feature can be re-enabled consciously later.
 
 // Clean a URL before it is written to the saved session:
 //  - transient internal pages (ErrorPage/security interstitials) are
@@ -6440,6 +6312,16 @@ window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TA
 //    nothing");
 //  - about:blank is never persisted (a blank restored tab is a white screen
 //    with an empty omnibox — the classic corrupted-sleep symptom).
+// Is this file:// URL inside the app's own directory? Only such paths are
+// internal pages — a USER file that merely shares a name
+// (file:///home/user/docs/Settings.html) must never be treated as one.
+function _isInsideAppDir(url) {
+  try {
+    var base = window.location.href.replace(/\/[^/]*$/, '').toLowerCase();
+    return !!base && String(url).toLowerCase().indexOf(base) === 0;
+  } catch (e) { return false; }
+}
+
 function _cleanSavedTabUrl(url) {
   if (!url) return '';
   if (url === 'about:blank') return '';
@@ -6452,6 +6334,34 @@ function _cleanSavedTabUrl(url) {
       }
     } catch (e0) {}
     return ''; // an error page without a target URL is not worth restoring
+  }
+  // Internal pages must be persisted as RELATIVE names, never as absolute
+  // file:// paths: the app root differs between the dev tree, installed
+  // builds and every AppImage run (/tmp/.mount_*), so an absolute path
+  // saved on the previous launch is dead on the next one and the tab
+  // restored into an error. Relative names are re-resolved against the
+  // CURRENT app root by resolveLocalUrl() at restore time — this also
+  // heals sessions saved by older builds that stored absolute paths.
+  // _isInsideAppDir() guards the boundary: a user's own local file that
+  // happens to be named Settings.html stays absolutely-pathed.
+  if (url.indexOf('file://') === 0 && _isInsideAppDir(url) && _isInternalPageUrl(url)) {
+    var relNames = ['Settings.html', 'Library.html', 'TaskManager.html', 'CustomizeToolbar.html',
+                    'ThemeEditor.html', 'Help.html', 'Viewer.html', 'IncognitoPage.html',
+                    'MainPage/index.html', 'StartPOZI_Browser_Start/index.html'];
+    for (var ri = 0; ri < relNames.length; ri++) {
+      var hitAt = url.lastIndexOf('/' + relNames[ri]);
+      if (hitAt === -1) continue;
+      var rel = url.substring(hitAt + 1);
+      if (rel.indexOf('Viewer.html') === 0 || url.lastIndexOf('/Viewer.html') === hitAt) {
+        return rel; // Viewer.html — the ?file= query IS the content: keep it
+      }
+      // Keep the #section, drop the ?v= cache-buster (re-added on load).
+      var qAt = rel.indexOf('?');
+      var hAt = rel.indexOf('#');
+      var hash = (hAt > -1) ? rel.substring(hAt) : '';
+      var cut = (qAt > -1 && (hAt === -1 || qAt < hAt)) ? qAt : ((hAt > -1) ? hAt : rel.length);
+      return rel.substring(0, cut) + hash;
+    }
   }
   return url;
 }

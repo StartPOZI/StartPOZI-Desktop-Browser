@@ -6,6 +6,28 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron');
 var _chromeFullVer = (process.versions && process.versions.chrome) || '148.0.7778.96';
 var _chromeMajorVer = _chromeFullVer.split('.')[0];
 
+// ===== DRM (Widevine) policy =====
+// Must be decided SYNCHRONOUSLY here, before any page script runs — an
+// async answer would lose the race against the page's own
+// requestMediaKeySystemAccess call. When the user turned DRM off (Settings
+// → Security → External services) every page gets a rejecting stub.
+// New webviews pick the change up immediately; a restart additionally
+// skips the CDM startup wait in main.js.
+var __drmAllowed = true;
+try { __drmAllowed = ipcRenderer.sendSync('drm-enabled-sync') !== false; } catch (eDrm) {}
+if (!__drmAllowed) {
+  try {
+    var _emeStub = function () {
+      return Promise.reject(new DOMException(
+        'Encrypted media (Widevine DRM) is disabled in StartPOZI Browser settings',
+        'NotSupportedError'));
+    };
+    Object.defineProperty(Navigator.prototype, 'requestMediaKeySystemAccess', {
+      value: _emeStub, writable: true, configurable: true
+    });
+  } catch (eDrm2) {}
+}
+
 // Only expose the full electronAPI bridge to INTERNAL (file://) pages that
 // ship WITH the browser (Settings.html, MainPage, ErrorPage, Viewer, ...).
 //

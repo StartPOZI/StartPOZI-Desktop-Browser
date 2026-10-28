@@ -17,6 +17,7 @@
     ['--bg-color', '#202020', 'Background'],
     ['--bg-secondary', '#2d2d2d', 'Secondary background'],
     ['--bg-hover', '#3d3d3d', 'Hover background'],
+    ['--toolbar-bg', '#262626', 'Toolbar background'],
     ['--text-primary', '#ffffff', 'Text'],
     ['--text-secondary', '#aaaaaa', 'Secondary text'],
     ['--border-color', '#3d3d3d', 'Borders'],

@@ -6291,11 +6291,163 @@ window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TA
 // MainPage/index.html which opens as a tab in initTabs().
 // initWelcomeTour: disabled — Start.htm handles onboarding now
 
-// ====== Donation support prompt — REMOVED ======
-// The auto-popup card (shown from the 3rd launch, 25% chance, every 3
-// days) was reported as an unexpected startup popup; removed on request.
-// The IPC state handlers in main.js and the preload wiring are kept, so
-// the feature can be re-enabled consciously later.
+// ====== Donation support prompt ======
+// A small card that appears SOMETIMES on startup in the primary window:
+//   • never before the 3rd launch,
+//   • at least 3 days between shows,
+//   • ~1 of 4 launches (randomized),
+//   • never again after "Больше не показывать" / after the user supported.
+// State lives in settings.json → donatePrompt (see main.js handlers).
+(function initDonatePrompt() {
+  if (!window.electronAPI || !window.electronAPI.getDonatePromptState) return;
+  // Only the primary window shows it — not incognito/secondary shells.
+  if (window._canSaveSession === false) return;
+
+  var DONATE_URL = 'https://startpozi.com/s/donate.html';
+  var MIN_LAUNCHES = 3;
+  var MIN_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+  var SHOW_CHANCE = 0.25; // ~1 of 4 launches
+
+  var L10N = {
+    ru: {
+      title: 'Поддержите StartPOZI',
+      text: 'Браузер развивается независимо и остаётся бесплатным. Если StartPOZI вам нравится — поддержите проект любой суммой.',
+      support: 'Поддержать проект',
+      later: 'Позже',
+      never: 'Больше не показывать'
+    },
+    en: {
+      title: 'Support StartPOZI',
+      text: 'The browser is developed independently and stays free. If you like StartPOZI, consider supporting the project with any amount.',
+      support: 'Support the project',
+      later: 'Later',
+      never: "Don't show again"
+    }
+  };
+
+  // Do not bother the user right at login — give the session ~10s to settle.
+  setTimeout(function() {
+    window.electronAPI.getDonatePromptState().then(function(st) {
+      try {
+        if (!st || st.never || st.supported) return;
+        if ((st.launches || 0) < MIN_LAUNCHES) return;
+        if (st.lastShown && (Date.now() - st.lastShown) < MIN_INTERVAL_MS) return;
+        // forceNext (set manually in settings.json) bypasses the random gate —
+        // handy for previewing the card without waiting for the schedule.
+        if (st.forceNext !== true && Math.random() >= SHOW_CHANCE) return;
+        showDonateCard();
+      } catch(e) {}
+    }).catch(function() {});
+  }, 10000);
+
+  function showDonateCard() {
+    var lang = 'en';
+    var getLang = window.electronAPI && window.electronAPI.getLanguage;
+    if (getLang) {
+      getLang().then(function(l) { try { render(l === 'ru' ? 'ru' : 'en'); } catch(e) { render('en'); } }).catch(function() { render('en'); });
+    } else {
+      render('en');
+    }
+  }
+
+  function render(lang) {
+    var t = L10N[lang] || L10N.en;
+
+    var card = document.createElement('div');
+    card.id = 'donate-prompt-card';
+    card.style.cssText =
+      'position:fixed;right:20px;bottom:20px;z-index:2147483000;max-width:330px;padding:18px 18px 14px;' +
+      'background:var(--bg-secondary,#2d2d2d);border:1px solid var(--border-color,#3d3d3d);border-radius:12px;' +
+      'box-shadow:0 10px 34px rgba(0,0,0,.45);font-family:inherit;color:var(--text-primary,#fff);' +
+      'opacity:0;transform:translateX(24px);transition:opacity .25s ease,transform .25s ease;';
+    document.body.appendChild(card);
+    // Mark as shown immediately so a quick "Позже" still enforces the cooldown.
+    if (window.electronAPI.setDonatePromptShown) window.electronAPI.setDonatePromptShown().catch(function() {});
+
+    // Header: heart icon + title
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:10px;';
+    var icon = document.createElement('div');
+    icon.style.cssText =
+      'flex:0 0 auto;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(226,74,101,.15);color:#e24a65;';
+    icon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:15px;font-weight:600;';
+    title.textContent = t.title;
+    head.appendChild(icon);
+    head.appendChild(title);
+    card.appendChild(head);
+
+    var text = document.createElement('div');
+    text.style.cssText = 'font-size:13px;line-height:1.5;color:var(--text-secondary,#aaa);margin-bottom:14px;';
+    text.textContent = t.text;
+    card.appendChild(text);
+
+    function closeCard() {
+      try {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(24px)';
+        setTimeout(function() { if (card.parentNode) card.parentNode.removeChild(card); }, 260);
+      } catch(e) {}
+      try { document.removeEventListener('keydown', onKey); } catch(e) {}
+    }
+    var onKey = function(e) { if (e.key === 'Escape') { e.preventDefault(); closeCard(); } };
+    document.addEventListener('keydown', onKey);
+
+    // Buttons
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+    var btnSupport = document.createElement('button');
+    btnSupport.textContent = t.support;
+    btnSupport.style.cssText =
+      'flex:1 1 auto;padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;' +
+      'background:var(--primary-color,#1da1f2);color:#fff;';
+    btnSupport.addEventListener('mouseenter', function() { btnSupport.style.filter = 'brightness(1.12)'; });
+    btnSupport.addEventListener('mouseleave', function() { btnSupport.style.filter = ''; });
+    btnSupport.addEventListener('click', function() {
+      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
+        window.electronAPI.setDonatePromptChoice({ supported: true }).catch(function() {});
+      }
+      closeCard();
+      createNewTab(DONATE_URL);
+    });
+    var btnLater = document.createElement('button');
+    btnLater.textContent = t.later;
+    btnLater.style.cssText =
+      'flex:0 0 auto;padding:8px 14px;border:1px solid var(--border-color,#3d3d3d);border-radius:8px;cursor:pointer;' +
+      'font-size:13px;background:transparent;color:var(--text-primary,#fff);';
+    btnLater.addEventListener('mouseenter', function() { btnLater.style.background = 'var(--hover-bg,rgba(255,255,255,.08))'; });
+    btnLater.addEventListener('mouseleave', function() { btnLater.style.background = 'transparent'; });
+    btnLater.addEventListener('click', closeCard);
+    row.appendChild(btnSupport);
+    row.appendChild(btnLater);
+    card.appendChild(row);
+
+    var btnNever = document.createElement('button');
+    btnNever.textContent = t.never;
+    btnNever.style.cssText =
+      'margin-top:10px;padding:2px 0;border:none;background:none;cursor:pointer;font-size:11px;' +
+      'color:var(--text-secondary,#aaa);text-decoration:underline;';
+    btnNever.addEventListener('mouseenter', function() { btnNever.style.color = 'var(--text-primary,#fff)'; });
+    btnNever.addEventListener('mouseleave', function() { btnNever.style.color = 'var(--text-secondary,#aaa)'; });
+    btnNever.addEventListener('click', function() {
+      if (window.electronAPI && window.electronAPI.setDonatePromptChoice) {
+        window.electronAPI.setDonatePromptChoice({ never: true }).catch(function() {});
+      }
+      closeCard();
+    });
+    card.appendChild(btnNever);
+
+    // Slide in
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        card.style.opacity = '1';
+        card.style.transform = 'translateX(0)';
+      });
+    });
+  }
+})();
 
 // Clean a URL before it is written to the saved session:
 //  - transient internal pages (ErrorPage/security interstitials) are

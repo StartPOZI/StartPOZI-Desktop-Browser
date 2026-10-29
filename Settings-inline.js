@@ -4103,11 +4103,22 @@ window.addEventListener('DOMContentLoaded', () => {
 
     loadPathsPage();
 
-    // The About card's version line (#aboutVersionNum) must fill on EVERY
-    // page load — loadPlatformInfo() used to run only from
-    // initSystemIntegration(), i.e. when the System section opened, so
-    // About kept the "…" placeholder forever.
-    loadPlatformInfo();
+    // About card version — STANDALONE filler: loadPlatformInfo() is nested
+    // inside initSystemIntegration() (System section only) and is NOT in
+    // scope here; calling it from this handler threw ReferenceError and the
+    // "…" placeholder never resolved.
+    (function fillAboutVersion() {
+        if (!window.electronAPI || !window.electronAPI.getPlatformInfo) return;
+        window.electronAPI.getPlatformInfo().then(function (info) {
+            if (!info) return;
+            var vEl = document.getElementById('aboutVersionNum');
+            if (vEl && info.appVersion) vEl.textContent = info.appVersion;
+            var bEl = document.getElementById('aboutBuildLine');
+            if (bEl && info.platform) {
+                bEl.textContent = 'Official build (' + info.platform + ', ' + info.arch + ')';
+            }
+        }).catch(function () {});
+    })();
 
     // Load data depending on active section
     setTimeout(() => {

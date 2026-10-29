@@ -6115,6 +6115,9 @@ function _restoreTabs(savedTabs) {
       var u = _cleanSavedTabUrl(tabInfo.url);
       if (!u) return;
       var rec = { url: u, title: tabInfo.title, pinned: tabInfo.pinned, groupId: tabInfo.groupId, containerId: tabInfo.containerId };
+      // The tab the user was on when the session ended — restored as the
+      // focused tab (see the tail of this function).
+      if (tabInfo.active) rec.active = true;
       // The unsent omnibox draft is restored with its tab.
       if (typeof tabInfo.draft === 'string' && tabInfo.draft) rec.draft = tabInfo.draft;
       // Back/Forward chain must survive sanitizing too — rebuilding the
@@ -6137,6 +6140,10 @@ function _restoreTabs(savedTabs) {
     // setActiveTab), so laziness no longer costs white pages.
     // Toggle: Settings → Optimization → "Lazy tab loading" (optLazyTabs).
     var lazyStartup = _optSettings ? _optSettings.lazyTabs !== false : true;
+    // The tab marked "active" in the saved session is focused after the
+    // restore loop (previously the FIRST tab was always the active one —
+    // the user came back to tab 1 no matter where they left off).
+    var _restoreActiveTabId = null;
     savedTabs.forEach(function(tabInfo, idx) {
       if (tabInfo.url) {
         // The first restored tab is always the active one (lazy=false).
@@ -6151,6 +6158,7 @@ function _restoreTabs(savedTabs) {
         createNewTab(tabInfo.url, lazy, cOpts);
         var lastTab = tabs[tabs.length - 1];
         if (lastTab) {
+          if (tabInfo.active) _restoreActiveTabId = lastTab.id;
           if (tabInfo.title) {
             lastTab.title = tabInfo.title;
             lastTab.element.querySelector('.tab-title').textContent = tabInfo.title;
@@ -6184,6 +6192,11 @@ function _restoreTabs(savedTabs) {
       createNewTab('MainPage/index.html');
     }
     _sortTabsByPinAndGroup();
+    // Focus the tab the user was on when the session ended. setActiveTab
+    // wakes a lazy-restored tab, so the position costs nothing extra.
+    if (_restoreActiveTabId && _restoreActiveTabId !== activeTabId) {
+      try { setActiveTab(_restoreActiveTabId); } catch (eAct) {}
+    }
   } else {
     createNewTab('MainPage/index.html');
   }
@@ -6546,6 +6559,7 @@ function autoSaveTabs() {
   var tabsData = tabs.map(function(tab) {
     var d = { url: getTabUrlForSave(tab), title: tab.title };
     if (tab.pinned) d.pinned = true;
+    if (tab.id === activeTabId) d.active = true;
     if (tab.groupId) d.groupId = tab.groupId;
     if (tab.containerId) d.containerId = tab.containerId;
     // The unsent omnibox draft survives a restart together with its tab.
@@ -6600,6 +6614,7 @@ function saveTabsAndClose() {
     var tabsData = tabs.map(function(tab) {
       var d = { url: getTabUrlForSave(tab), title: tab.title };
       if (tab.pinned) d.pinned = true;
+      if (tab.id === activeTabId) d.active = true;
       if (tab.groupId) d.groupId = tab.groupId;
       if (tab.containerId) d.containerId = tab.containerId;
       if (tab.urlDraft) d.draft = tab.urlDraft;

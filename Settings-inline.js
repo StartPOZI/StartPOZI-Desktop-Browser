@@ -3374,17 +3374,26 @@ function initSystemIntegration() {
 
     async function loadPlatformInfo() {
         const infoEl = document.getElementById('platformInfo');
-        if (!infoEl || !window.electronAPI) return;
+        if ((!infoEl && !document.getElementById('aboutVersionNum')) || !window.electronAPI) return;
 
         try {
             const info = await api.getPlatformInfo();
-            infoEl.innerHTML = `
-                <div><strong>OS:</strong> ${info.platform} (${info.arch})</div>
-                <div><strong>Version:</strong> ${info.appVersion}</div>
-                <div><strong>Status:</strong> ${info.isPackaged ? 'Installed' : 'Development'}</div>
-            `;
+            if (infoEl) {
+                infoEl.innerHTML = `
+                    <div><strong>OS:</strong> ${info.platform} (${info.arch})</div>
+                    <div><strong>Version:</strong> ${info.appVersion || ''}</div>
+                    <div><strong>Status:</strong> ${info.isPackaged ? 'Installed' : 'Development'}</div>
+                `;
+            }
+            // About card: the version line used to be a hardcoded "1.0.0" in
+            // Settings.html — the browser kept showing 1.0.0 forever. Fill it
+            // from the same source (app.getVersion() via get-platform-info).
+            const vEl = document.getElementById('aboutVersionNum');
+            if (vEl && info.appVersion) vEl.textContent = info.appVersion;
+            const bEl = document.getElementById('aboutBuildLine');
+            if (bEl) bEl.textContent = 'Official build (' + info.platform + ', ' + info.arch + ')';
         } catch (error) {
-            infoEl.innerHTML = 'Failed to load information';
+            if (infoEl) infoEl.innerHTML = 'Failed to load information';
         }
     }
 

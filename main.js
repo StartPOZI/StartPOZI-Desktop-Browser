@@ -9431,10 +9431,12 @@ ipcMain.handle('get-platform-info', () => {
     success: true,
     platform: process.platform,
     arch: process.arch,
+    appVersion: electronApp.getVersion(),
     electronVersion: process.versions.electron,
     nodeVersion: process.versions.node,
     appPath: electronApp.getPath('exe'),
-    userData: electronApp.getPath('userData')
+    userData: electronApp.getPath('userData'),
+    isPackaged: electronApp.isPackaged
   };
 });
 

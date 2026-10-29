@@ -4103,6 +4103,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
     loadPathsPage();
 
+    // The About card's version line (#aboutVersionNum) must fill on EVERY
+    // page load — loadPlatformInfo() used to run only from
+    // initSystemIntegration(), i.e. when the System section opened, so
+    // About kept the "…" placeholder forever.
+    loadPlatformInfo();
+
     // Load data depending on active section
     setTimeout(() => {
         if (hash === '#scripts') loadScripts();

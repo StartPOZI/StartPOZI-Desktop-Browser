@@ -6244,10 +6244,23 @@ window._canSaveSession = !INCOGNITO_WINDOW_MODE && !FRESH_SHELL_MODE && !TORN_TA
     createNewTab('MainPage/index.html');
     return;
   }
-  // First-run onboarding is the MainPage itself (the old Start.htm wizard
-  // tab and the 4-step overlay were removed — they re-appeared on fresh
-  // profiles of new installs while the MainPage already handles setup).
-  _restoreOrCreateTab();
+  // First-run setup PAGE (Start.htm): opens once on a genuinely fresh
+  // profile (no settings.json at launch + firstRunDone not set). The OLD
+  // check here used the legacy 'welcomed' flag — existing users kept
+  // getting the page re-opened (the reported "strange popup"); that is
+  // what was fixed. The 4-step OVERLAY wizard stays removed: the page and
+  // the MainPage are the onboarding surfaces.
+  if (window.electronAPI && window.electronAPI.getFirstRun) {
+    window.electronAPI.getFirstRun().then(function(r) {
+      if (r && r.success && r.firstRun) {
+        createNewTab('StartPOZI_Browser_Start/Start.htm');
+        return;
+      }
+      _restoreOrCreateTab();
+    }).catch(function() { _restoreOrCreateTab(); });
+  } else {
+    _restoreOrCreateTab();
+  }
 
   function _restoreOrCreateTab() {
     window.electronAPI.getWorkspaces().then(function(ws) {

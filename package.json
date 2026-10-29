@@ -1,6 +1,6 @@
 {
   "name": "startpozi-desktop-browser-beta",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "productName": "StartPOZI Browser",
   "description": "The safe private browser",
   "main": "main.js",
